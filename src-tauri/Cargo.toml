@@ -1,0 +1,76 @@
+[package]
+name = "chronodesk"
+version = "0.1.0"
+description = "ChronoDesk — A Context-Aware Workspace Operating Layer"
+authors = ["ChronoDesk Team"]
+edition = "2021"
+rust-version = "1.77"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix is required on some platforms (notably iOS) so the
+# resulting library name doesn't collide with the produced binary.
+name = "chronodesk_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-log = "2"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# --- Phase 2: Database Layer ---
+# `runtime-tokio` + `tls-rustls`: async SQLite driver, no native TLS/OpenSSL
+# dependency (SQLite is local-only, but sqlx's default feature set still
+# requires picking a runtime/TLS pair).
+# `chrono` / `uuid`: typed decode/encode of DateTime<Utc> and Uuid columns
+# instead of hand-rolling string parsing in every repository.
+# `migrate`: enables the `sqlx::migrate!` macro used in database/migrations.rs.
+# `macros`: enables `#[derive(sqlx::FromRow)]`, used by every `*Row` struct
+# in `models/` to decode a raw SQLite row before its `TryFrom` conversion
+# into the public model. (Not used for the `query!`/`query_as!`
+# compile-time-checked macros — those require a reachable database at
+# build time, which this project deliberately avoids; every query here is
+# the runtime-checked `sqlx::query`/`query_as`.)
+sqlx = { version = "0.8", default-features = false, features = [
+  "runtime-tokio",
+  "tls-rustls",
+  "sqlite",
+  "chrono",
+  "uuid",
+  "migrate",
+  "macros",
+] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "time", "sync"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# --- Phase 3: File Watcher ---
+# Pinned to the 6.x line deliberately (rather than an open "notify = 7")
+# since this project's build verification only extends to `rustfmt`-level
+# syntax checking (see PROJECT_STATE.md) — pinning to the API surface
+# this code was written against reduces the risk of a minor-version API
+# drift going unnoticed until a real compile.
+notify = "6.1"
+
+[dev-dependencies]
+# Used only by repository/migration tests to create disposable on-disk
+# SQLite databases that never touch a real user's app-data directory.
+tempfile = "3"
+
+[profile.release]
+panic = "abort"   # Smaller binaries; we don't unwind across the FFI boundary.
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
