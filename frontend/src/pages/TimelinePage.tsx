@@ -20,7 +20,15 @@ export function TimelinePage() {
   useEffect(() => {
     workspaceRepo.listActiveWorkspaces().then((ws) => {
       setWorkspaces(ws);
-      if (ws.length > 0) setSelectedWorkspaceId(ws[0].id);
+      if (ws.length > 0) {
+        // Try to restore last active workspace from localStorage
+        const storedId = localStorage.getItem('activeWorkspaceId');
+        if (storedId && ws.some(w => w.id === storedId)) {
+          setSelectedWorkspaceId(storedId);
+        } else {
+          setSelectedWorkspaceId(ws[0].id);
+        }
+      }
     });
   }, [workspaceRepo]);
 
@@ -88,7 +96,16 @@ export function TimelinePage() {
         <div className="relative flex-1 min-w-[200px]">
           <select
             value={selectedWorkspaceId}
-            onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+            onChange={async (e) => {
+              const id = e.target.value;
+              setSelectedWorkspaceId(id);
+              localStorage.setItem('activeWorkspaceId', id);
+              try {
+                await workspaceRepo.switchWorkspace(id);
+              } catch (err) {
+                console.error('Failed to switch workspace:', err);
+              }
+            }}
             className="w-full h-12 pl-4 pr-10 bg-background-secondary border border-border rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-primary font-medium text-foreground"
           >
             <option value="" disabled>Select Workspace</option>

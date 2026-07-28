@@ -12,6 +12,14 @@ export function DashboardView() {
   const { workspaces, briefing, recommendations, recentActivity, isLoading, error } = useDashboardData();
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [workspaceName, setWorkspaceName] = useState("");
+
+  function closeCreateDialog() {
+    setShowCreateDialog(false);
+    setWorkspaceName("");
+    setCreateError(null);
+  }
 
   // A prompt-based flow rather than a full creation form: Phase 3's
   // scope is wiring the dashboard to real data end-to-end, not building
@@ -19,20 +27,24 @@ export function DashboardView() {
   // itself via the `workspace:created` event once this succeeds — no
   // manual reload call needed here.
   async function handleCreateWorkspace() {
-    const name = window.prompt("Workspace name");
-    if (!name || !name.trim()) return;
-
+    const name = workspaceName.trim();
+    if (!name) return;
     setIsCreating(true);
     setCreateError(null);
     try {
-      await getWorkspaceRepository().createWorkspace({ name: name.trim() });
+      await getWorkspaceRepository().createWorkspace({
+        name,
+      });
+      closeCreateDialog();
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create workspace.");
+      setCreateError(
+        err instanceof Error ? err.message : "Failed to create workspace."
+      );
     } finally {
       setIsCreating(false);
     }
-  }
 
+  }
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
@@ -42,9 +54,12 @@ export function DashboardView() {
             Everything you were working on, picked up where you left off.
           </p>
         </div>
-        <Button onClick={handleCreateWorkspace} disabled={isCreating}>
-          <Plus className="h-4 w-4" strokeWidth={2} />
-          {isCreating ? "Creating…" : "New workspace"}
+        <Button
+          onClick={() => setShowCreateDialog(true)}
+          disabled={isCreating}
+        >
+          <Plus className="h-4 w-4" />
+          New workspace
         </Button>
       </div>
 
@@ -82,6 +97,56 @@ export function DashboardView() {
           <RecentActivityFeed events={recentActivity} isLoading={isLoading} />
         </div>
       </div>
+
+      {showCreateDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={closeCreateDialog}
+          tabIndex={-1}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              closeCreateDialog();
+            }
+          }}
+        >
+          <div className="w-full max-w-md rounded-xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-xl font-bold text-black">
+              Create Workspace
+            </h2>
+
+            <input
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  void handleCreateWorkspace();
+                } else if (e.key === "Escape") {
+                  closeCreateDialog();
+                }
+              }}
+              className="mb-4 w-full rounded border p-2 text-black"
+              placeholder="Workspace name"
+              value={workspaceName}
+              onChange={(e) => setWorkspaceName(e.target.value)}
+            />
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={closeCreateDialog}
+                disabled={isCreating}
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleCreateWorkspace}
+                disabled={isCreating || !workspaceName.trim()}
+              >
+                {isCreating ? "Creating…" : "Create"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

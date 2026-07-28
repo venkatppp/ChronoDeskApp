@@ -21,7 +21,7 @@ use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 use crate::app_events::{
-    self, EVENT_WORKSPACE_CREATED, EVENT_WORKSPACE_DELETED, EVENT_WORKSPACE_UPDATED,
+    self, EVENT_WORKSPACE_CREATED, EVENT_WORKSPACE_DELETED, EVENT_WORKSPACE_UPDATED, EVENT_WORKSPACE_SWITCHED,
 };
 use crate::errors::DatabaseError;
 use crate::models::{CreateWorkspaceInput, UpdateWorkspaceInput, Workspace};
@@ -102,5 +102,23 @@ pub async fn delete_workspace(
         EVENT_WORKSPACE_DELETED,
         &serde_json::json!({ "id": id }),
     );
+    Ok(())
+}
+
+/// Switches the active workspace and broadcasts the change.
+#[tauri::command]
+pub async fn switch_workspace(
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+    id: Uuid,
+) -> Result<(), DatabaseError> {
+    service.switch_workspace(id).await?;
+
+    app_events::emit(
+        &app,
+        EVENT_WORKSPACE_SWITCHED,
+        &serde_json::json!({ "id": id }),
+    );
+
     Ok(())
 }

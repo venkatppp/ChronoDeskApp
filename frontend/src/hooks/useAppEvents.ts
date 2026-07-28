@@ -20,22 +20,26 @@ export function useAppEvents(eventNames: string[], onEvent: () => void) {
   // unlisten and re-listen.
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
-
   useEffect(() => {
     let cancelled = false;
     const unlistenFns: UnlistenFn[] = [];
 
     async function subscribe() {
-      const results = await Promise.all(
-        eventNames.map((name) => listen(name, () => onEventRef.current())),
-      );
-      if (cancelled) {
-        // Component unmounted while the listen() calls were in flight —
-        // clean up immediately instead of leaking the subscriptions.
-        results.forEach((unlisten) => unlisten());
-        return;
+      try {
+        console.log("Subscribing:", eventNames);
+        for (const name of eventNames) {
+          const unlisten = await listen(name, () => {
+            onEventRef.current();
+          });
+          if (cancelled) {
+            unlisten();
+            continue;
+          }
+          unlistenFns.push(unlisten);
+        }
+      } catch (err) {
+        console.error("Failed to subscribe to Tauri events:", err);
       }
-      unlistenFns.push(...results);
     }
 
     void subscribe();

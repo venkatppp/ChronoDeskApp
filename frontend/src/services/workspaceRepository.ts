@@ -16,6 +16,7 @@ export interface WorkspaceRepository {
   getWorkspace(id: string): Promise<Workspace>;
   createWorkspace(input: CreateWorkspaceInput): Promise<Workspace>;
   deleteWorkspace(id: string): Promise<void>;
+  switchWorkspace(id: string): Promise<void>;
   getBriefing(): Promise<string>;
   listRecommendations(): Promise<Recommendation[]>;
 }
@@ -54,6 +55,10 @@ export class TauriWorkspaceRepository implements WorkspaceRepository {
 
   async deleteWorkspace(id: string): Promise<void> {
     await invoke<void>("delete_workspace", { id });
+  }
+
+  async switchWorkspace(id: string): Promise<void> {
+    await invoke<void>("switch_workspace", { id });
   }
 
   async getBriefing(): Promise<string> {

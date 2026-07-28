@@ -181,6 +181,7 @@ pub fn run() {
             commands::workspace::create_workspace,
             commands::workspace::update_workspace,
             commands::workspace::delete_workspace,
+            commands::workspace::switch_workspace,
             commands::timeline::list_workspace_timeline,
             commands::timeline::get_recent_activity,
             commands::watcher::add_watch_path,

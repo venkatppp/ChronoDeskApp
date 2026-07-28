@@ -138,6 +138,11 @@ impl WorkspaceService {
 
         Ok(workspace)
     }
+
+    pub async fn switch_workspace(&self, id: Uuid) -> Result<(), DatabaseError> {
+        self.open_workspace(id).await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

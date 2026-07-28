@@ -32,6 +32,7 @@ impl AppEventEmitter for tauri::AppHandle {
 pub const EVENT_WORKSPACE_CREATED: &str = "workspace:created";
 pub const EVENT_WORKSPACE_UPDATED: &str = "workspace:updated";
 pub const EVENT_WORKSPACE_DELETED: &str = "workspace:deleted";
+pub const EVENT_WORKSPACE_SWITCHED: &str = "workspace:switched";
 pub const EVENT_FILE_CHANGED: &str = "file:changed";
 pub const EVENT_TIMELINE_EVENT_ADDED: &str = "timeline:event_added";
 pub const EVENT_SEARCH_INDEXED: &str = "search:indexed";
