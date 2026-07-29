@@ -7,5 +7,12 @@
 		"monaco-editor": "^0.56.0",
 		"react-complex-tree": "^2.6.2",
 		"react-resizable-panels": "^4.12.2"
+	},
+	"scripts": {
+		"dev": "vite",
+		"build": "tsc -b && vite build",
+		"lint": "eslint .",
+		"preview": "vite preview",
+		"test": "vitest"
 	}
 }

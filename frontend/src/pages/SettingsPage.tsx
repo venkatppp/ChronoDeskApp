@@ -42,7 +42,7 @@ export function SettingsPage() {
     try {
       // Typically we'd use tauri-plugin-dialog to pick a folder
       // For now we'll assume a path is provided or the command handles it
-      await invoke("add_watch_path", { path: "/Users/srivenkat/AccioWork/chronodesk/" });
+      await invoke("add_watch_path", { path: "/Users/srivenkat/chronodesk" });
       fetchWatchPaths();
     } catch (err) {
       console.error("Failed to add watch path:", err);

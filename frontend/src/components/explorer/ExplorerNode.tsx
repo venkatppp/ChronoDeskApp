@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, ButtonHTMLAttributes } from "react";
 import {
   ChevronRight,
   Folder,
@@ -74,8 +74,8 @@ export function ExplorerNode({ item, depth, children, title, context }: Explorer
         className="group relative"
       >
         <button
+          {...(context.interactiveElementProps as ButtonHTMLAttributes<HTMLButtonElement>)}
           type="button"
-          {...context.interactiveElementProps}
           className={cn(
             "flex w-full items-center gap-1.5 rounded-[var(--radius-control)] py-1 pr-2 text-left text-[13px]",
             "transition-colors duration-150",
