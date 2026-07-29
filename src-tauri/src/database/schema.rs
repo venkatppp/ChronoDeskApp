@@ -15,7 +15,10 @@
 /// (Phase 3, Workspace Engine). 3 = `timeline_events.event_type` gains
 /// `'create'` (Phase 3, Timeline Engine). 4 = composite index on
 /// `files (workspace_id, path_or_url)` (Phase 3, Timeline Recorder).
-pub const CURRENT_SCHEMA_VERSION: i64 = 4;
+/// 5 = `search_index` FTS5 virtual table (Phase 4 Search Engine).
+/// 6 = `graph_edges`, `search_history`, `saved_searches` tables
+///     (Phase 4 Knowledge Graph).
+pub const CURRENT_SCHEMA_VERSION: i64 = 6;
 
 /// Table name constants. Repository query strings use literal SQL for
 /// readability (and because `sqlx::query_as` takes a plain `&str`, not a

@@ -1,12 +1,18 @@
-import { FilePlus, FileEdit, FileX, FolderInput, type LucideIcon } from "lucide-react";
+import { FilePlus, FileEdit, FileX, FolderInput, FolderOpen, CircleX, MoveRight, GitCommitHorizontal, ExternalLink, Camera, type LucideIcon } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { formatRelativeTime } from "@/utils/formatRelativeTime";
 import type { TimelineEvent, TimelineEventType } from "@/types/timeline";
 
-const EVENT_ICON: Partial<Record<TimelineEventType, LucideIcon>> = {
+const EVENT_ICON: Record<TimelineEventType, LucideIcon> = {
   create: FilePlus,
+  open: FolderOpen,
+  close: CircleX,
   edit: FileEdit,
+  move: MoveRight,
   delete: FileX,
+  commit: GitCommitHorizontal,
+  visit: ExternalLink,
+  screenshot: Camera,
   workspace_switch: FolderInput,
 };
 
@@ -64,7 +70,7 @@ export function RecentActivityFeed({ events, isLoading }: RecentActivityFeedProp
 
         {!isLoading &&
           events.map((event) => {
-            const Icon = EVENT_ICON[event.eventType] ?? FileEdit;
+            const Icon = EVENT_ICON[event.eventType];
             const fileName = eventFileName(event);
 
             return (

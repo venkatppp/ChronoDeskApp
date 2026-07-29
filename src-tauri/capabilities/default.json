@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Capabilities granted to the main ChronoDesk window in Phase 1. Extended per-integration in later phases (file-system, shell, etc.), always least-privilege.",
   "windows": ["main"],
-  "permissions": ["core:default", "log:default"]
+  "permissions": ["core:default", "dialog:default", "log:default"]
 }

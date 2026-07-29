@@ -109,8 +109,8 @@ export function DashboardView() {
             }
           }}
         >
-          <div className="w-full max-w-md rounded-xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="mb-4 text-xl font-bold text-black">
+          <div className="w-full max-w-md rounded-xl bg-(--color-surface) p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-xl font-bold text-(--color-foreground)">
               Create Workspace
             </h2>
 
@@ -123,7 +123,7 @@ export function DashboardView() {
                   closeCreateDialog();
                 }
               }}
-              className="mb-4 w-full rounded border p-2 text-black"
+              className="mb-4 w-full rounded border p-2 text-(--color-foreground)"
               placeholder="Workspace name"
               value={workspaceName}
               onChange={(e) => setWorkspaceName(e.target.value)}

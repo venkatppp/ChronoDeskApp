@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useTheme } from "@/hooks/useTheme";
 import type { ThemePreference } from "@/contexts/ThemeContext";
 import { Folder, Plus, Trash2, Moon, Sun, Monitor, Info, Shield, GitBranch } from "lucide-react";
@@ -40,9 +41,9 @@ export function SettingsPage() {
 
   const handleAddPath = async () => {
     try {
-      // Typically we'd use tauri-plugin-dialog to pick a folder
-      // For now we'll assume a path is provided or the command handles it
-      await invoke("add_watch_path", { path: "/Users/srivenkat/chronodesk" });
+      const selected = await open({ directory: true, multiple: false, title: "Select Folder" });
+      if (!selected) return;
+      await invoke("add_watch_path", { path: selected });
       fetchWatchPaths();
     } catch (err) {
       console.error("Failed to add watch path:", err);
