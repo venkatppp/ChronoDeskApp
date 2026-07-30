@@ -1,7 +1,7 @@
-use uuid::Uuid;
 use crate::errors::DatabaseError;
-use crate::models::search::{SearchResult, SearchEntityType, SavedSearch, SearchStats};
+use crate::models::search::{SavedSearch, SearchEntityType, SearchResult, SearchStats};
 use crate::repositories::SearchRepository;
+use uuid::Uuid;
 
 /// Service for coordinating search-related operations.
 #[derive(Debug, Clone)]
@@ -21,7 +21,9 @@ impl SearchService {
         workspace_id: Option<Uuid>,
         limit: i64,
     ) -> Result<Vec<SearchResult>, DatabaseError> {
-        self.search_repository.search(query, entity_types, workspace_id, limit).await
+        self.search_repository
+            .search(query, entity_types, workspace_id, limit)
+            .await
     }
 
     pub async fn get_search_history(&self, limit: i64) -> Result<Vec<String>, DatabaseError> {
@@ -53,10 +55,17 @@ impl SearchService {
         workspace_id: Uuid,
         limit: i64,
     ) -> Result<Vec<SearchResult>, DatabaseError> {
-        self.search_repository.get_recent_files(workspace_id, limit).await
+        self.search_repository
+            .get_recent_files(workspace_id, limit)
+            .await
     }
 
-    pub async fn get_workspace_stats(&self, workspace_id: Uuid) -> Result<SearchStats, DatabaseError> {
-        self.search_repository.get_workspace_stats(workspace_id).await
+    pub async fn get_workspace_stats(
+        &self,
+        workspace_id: Uuid,
+    ) -> Result<SearchStats, DatabaseError> {
+        self.search_repository
+            .get_workspace_stats(workspace_id)
+            .await
     }
 }

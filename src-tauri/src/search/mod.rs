@@ -3,10 +3,10 @@
 //! Provides a facade for full-text search and related services.
 //! Wraps [`SearchService`] to coordinate search operations.
 
-use uuid::Uuid;
 use crate::errors::DatabaseError;
-use crate::models::search::{SearchResult, SearchEntityType, SearchStats};
+use crate::models::search::{SearchEntityType, SearchResult, SearchStats};
 use crate::services::SearchService;
+use uuid::Uuid;
 
 /// Facade for search operations.
 #[derive(Debug, Clone)]
@@ -28,7 +28,9 @@ impl SearchEngine {
         limit: i64,
     ) -> Result<Vec<SearchResult>, DatabaseError> {
         let types = entity_types.unwrap_or_default();
-        self.search_service.search(query, &types, workspace_id, limit).await
+        self.search_service
+            .search(query, &types, workspace_id, limit)
+            .await
     }
 
     /// Fetches recently updated files for a workspace.
@@ -37,7 +39,9 @@ impl SearchEngine {
         workspace_id: Uuid,
         limit: i64,
     ) -> Result<Vec<SearchResult>, DatabaseError> {
-        self.search_service.get_recent_files(workspace_id, limit).await
+        self.search_service
+            .get_recent_files(workspace_id, limit)
+            .await
     }
 
     /// Returns search statistics for a workspace.

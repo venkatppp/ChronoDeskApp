@@ -1,8 +1,8 @@
-use uuid::Uuid;
 use crate::errors::DatabaseError;
-use crate::models::graph::{GraphEdgeType, GraphStats, GraphView, NodeDetails, GraphEdge};
+use crate::models::graph::{GraphEdge, GraphEdgeType, GraphStats, GraphView, NodeDetails};
 use crate::models::search::SearchEntityType;
 use crate::repositories::GraphRepository;
+use uuid::Uuid;
 
 /// Service for knowledge graph logic.
 #[derive(Debug, Clone)]
@@ -22,7 +22,10 @@ impl GraphService {
         edge_types: Option<Vec<GraphEdgeType>>,
     ) -> Result<GraphView, DatabaseError> {
         let nodes = self.graph_repository.list_nodes(workspace_id).await?;
-        let edges = self.graph_repository.get_edges(workspace_id, edge_types.as_deref()).await?;
+        let edges = self
+            .graph_repository
+            .get_edges(workspace_id, edge_types.as_deref())
+            .await?;
 
         Ok(GraphView { nodes, edges })
     }
@@ -33,10 +36,16 @@ impl GraphService {
         entity_id: Uuid,
         entity_type: SearchEntityType,
     ) -> Result<NodeDetails, DatabaseError> {
-        let node = self.graph_repository.get_node(entity_id, entity_type).await?
+        let node = self
+            .graph_repository
+            .get_node(entity_id, entity_type)
+            .await?
             .ok_or_else(|| DatabaseError::not_found("node", entity_id.to_string()))?;
 
-        let related_edges = self.graph_repository.get_edges_for_node(entity_id, entity_type).await?;
+        let related_edges = self
+            .graph_repository
+            .get_edges_for_node(entity_id, entity_type)
+            .await?;
 
         Ok(NodeDetails {
             node,
@@ -50,14 +59,17 @@ impl GraphService {
         // Example: Look for files in the same workspace and create a CoOccurrence edge if they share search terms.
         // For Phase 4, we just provide the scaffold for this logic.
         tracing::info!(workspace_id = %workspace_id, "triggering edge inference");
-        
-        // This is where one would call search_repository to find related entities 
+
+        // This is where one would call search_repository to find related entities
         // and then graph_repository to upsert_edge.
-        
+
         Ok(())
     }
 
-    pub async fn get_graph_stats(&self, workspace_id: Option<Uuid>) -> Result<GraphStats, DatabaseError> {
+    pub async fn get_graph_stats(
+        &self,
+        workspace_id: Option<Uuid>,
+    ) -> Result<GraphStats, DatabaseError> {
         self.graph_repository.get_graph_stats(workspace_id).await
     }
 
@@ -72,15 +84,17 @@ impl GraphService {
         workspace_id: Uuid,
         metadata: Option<String>,
     ) -> Result<GraphEdge, DatabaseError> {
-        self.graph_repository.upsert_edge(
-            source_entity_type,
-            source_entity_id,
-            target_entity_type,
-            target_entity_id,
-            edge_type,
-            weight,
-            workspace_id,
-            metadata
-        ).await
+        self.graph_repository
+            .upsert_edge(
+                source_entity_type,
+                source_entity_id,
+                target_entity_type,
+                target_entity_id,
+                edge_type,
+                weight,
+                workspace_id,
+                metadata,
+            )
+            .await
     }
 }

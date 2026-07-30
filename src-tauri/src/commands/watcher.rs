@@ -171,8 +171,10 @@ mod tests {
         let (watcher, settings, pool, _db_guard) = test_watcher_and_settings().await;
         let root_a = tempdir().unwrap();
         let root_b = tempdir().unwrap();
-        let ca = std::fs::canonicalize(root_a.path()).unwrap_or_else(|_| root_a.path().to_path_buf());
-        let cb = std::fs::canonicalize(root_b.path()).unwrap_or_else(|_| root_b.path().to_path_buf());
+        let ca =
+            std::fs::canonicalize(root_a.path()).unwrap_or_else(|_| root_a.path().to_path_buf());
+        let cb =
+            std::fs::canonicalize(root_b.path()).unwrap_or_else(|_| root_b.path().to_path_buf());
 
         watcher.watch(root_a.path().to_path_buf()).await.unwrap();
         watcher.watch(root_b.path().to_path_buf()).await.unwrap();

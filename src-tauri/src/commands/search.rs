@@ -2,7 +2,7 @@ use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 use crate::errors::DatabaseError;
-use crate::models::search::{SearchResult, SearchEntityType, SavedSearch, SearchStats};
+use crate::models::search::{SavedSearch, SearchEntityType, SearchResult, SearchStats};
 use crate::services::SearchService;
 
 /// Performs a search across indexed entities.
@@ -17,7 +17,9 @@ pub async fn search(
 ) -> Result<Vec<SearchResult>, DatabaseError> {
     let limit = limit.unwrap_or(20);
     let entity_types = entity_types.unwrap_or_default();
-    service.search(&query, &entity_types, workspace_id, limit).await
+    service
+        .search(&query, &entity_types, workspace_id, limit)
+        .await
 }
 
 /// Fetches the most recent search queries for auto-complete.
@@ -41,9 +43,7 @@ pub async fn save_search_query(
 
 /// Clears the entire search history.
 #[tauri::command]
-pub async fn clear_search_history(
-    service: State<'_, SearchService>,
-) -> Result<(), DatabaseError> {
+pub async fn clear_search_history(service: State<'_, SearchService>) -> Result<(), DatabaseError> {
     service.clear_search_history().await
 }
 

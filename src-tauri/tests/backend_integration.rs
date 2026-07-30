@@ -225,7 +225,8 @@ async fn restore_watched_paths_reestablishes_watches_after_a_simulated_restart()
 async fn end_to_end_file_write_flows_through_the_full_pipeline() {
     let stack = build_full_stack().await;
     let root = tempfile::tempdir().unwrap();
-    let canonical_root = std::fs::canonicalize(root.path()).unwrap_or_else(|_| root.path().to_path_buf());
+    let canonical_root =
+        std::fs::canonicalize(root.path()).unwrap_or_else(|_| root.path().to_path_buf());
     fs::create_dir(canonical_root.join(".git")).unwrap();
 
     stack
@@ -254,15 +255,33 @@ async fn end_to_end_file_write_flows_through_the_full_pipeline() {
     .await
     .expect("workspace should be auto-created within the timeout");
 
-    let events = stack
-        .timeline_repository
-        .list_by_workspace(workspace.id, None)
-        .await
-        .unwrap();
+    // Then poll for the timeline event — process_event records the
+    // file event after creating the workspace, so there is a scheduling
+    // window where the workspace exists but the file event hasn't been
+    // committed yet.
+    let has_file_event = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let events = stack
+                .timeline_repository
+                .list_by_workspace(workspace.id, None)
+                .await
+                .unwrap();
+            if events.iter().any(|e| {
+                matches!(
+                    e.event_type,
+                    TimelineEventType::Create | TimelineEventType::Edit
+                )
+            }) {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("timeline event should appear within the timeout");
+
     assert!(
-        events
-            .iter()
-            .any(|e| matches!(e.event_type, TimelineEventType::Create | TimelineEventType::Edit)),
+        has_file_event,
         "expected a timeline event for the written file (write+metadata may coalesce to Edit)"
     );
 

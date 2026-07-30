@@ -2,11 +2,11 @@
 //!
 //! Provides a facade for graph-related operations and orchestration.
 
-use uuid::Uuid;
 use crate::errors::DatabaseError;
 use crate::models::graph::{GraphEdgeType, GraphStats, GraphView, NodeDetails};
 use crate::models::search::SearchEntityType;
 use crate::services::GraphService;
+use uuid::Uuid;
 
 /// Facade for Knowledge Graph operations.
 #[derive(Debug, Clone)]
@@ -35,7 +35,9 @@ impl GraphEngine {
         entity_type: SearchEntityType,
         _workspace_id: Option<Uuid>,
     ) -> Result<NodeDetails, DatabaseError> {
-        self.graph_service.get_node_details(entity_id, entity_type).await
+        self.graph_service
+            .get_node_details(entity_id, entity_type)
+            .await
     }
 
     /// Triggers background edge inference logic.

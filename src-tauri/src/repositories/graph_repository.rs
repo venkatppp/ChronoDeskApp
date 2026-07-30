@@ -25,12 +25,11 @@ impl GraphRepository {
     ) -> Result<Option<GraphNode>, DatabaseError> {
         match entity_type {
             SearchEntityType::Workspace => {
-                let row: Option<(Uuid, String, Uuid)> = sqlx::query_as(
-                    "SELECT id, name, id FROM workspaces WHERE id = ?"
-                )
-                .bind(id)
-                .fetch_optional(&self.pool)
-                .await?;
+                let row: Option<(Uuid, String, Uuid)> =
+                    sqlx::query_as("SELECT id, name, id FROM workspaces WHERE id = ?")
+                        .bind(id)
+                        .fetch_optional(&self.pool)
+                        .await?;
 
                 Ok(row.map(|r| GraphNode {
                     entity_type: SearchEntityType::Workspace,
@@ -40,12 +39,11 @@ impl GraphRepository {
                 }))
             }
             SearchEntityType::File => {
-                let row: Option<(Uuid, String, Uuid)> = sqlx::query_as(
-                    "SELECT id, path_or_url, workspace_id FROM files WHERE id = ?"
-                )
-                .bind(id)
-                .fetch_optional(&self.pool)
-                .await?;
+                let row: Option<(Uuid, String, Uuid)> =
+                    sqlx::query_as("SELECT id, path_or_url, workspace_id FROM files WHERE id = ?")
+                        .bind(id)
+                        .fetch_optional(&self.pool)
+                        .await?;
 
                 Ok(row.map(|r| GraphNode {
                     entity_type: SearchEntityType::File,
@@ -58,7 +56,10 @@ impl GraphRepository {
     }
 
     /// Lists all nodes (workspaces and files) in a given workspace, or all nodes if `workspace_id` is None.
-    pub async fn list_nodes(&self, workspace_id: Option<Uuid>) -> Result<Vec<GraphNode>, DatabaseError> {
+    pub async fn list_nodes(
+        &self,
+        workspace_id: Option<Uuid>,
+    ) -> Result<Vec<GraphNode>, DatabaseError> {
         let mut nodes = Vec::new();
 
         // Workspaces
@@ -146,7 +147,7 @@ impl GraphRepository {
         let rows: Vec<GraphEdgeRow> = sqlx::query_as(
             "SELECT * FROM graph_edges 
              WHERE (source_entity_id = ? AND source_entity_type = ?)
-                OR (target_entity_id = ? AND target_entity_type = ?)"
+                OR (target_entity_id = ? AND target_entity_type = ?)",
         )
         .bind(entity_id)
         .bind(entity_type.as_str())
@@ -158,7 +159,15 @@ impl GraphRepository {
         rows.into_iter().map(GraphEdge::try_from).collect()
     }
 
-    /// Upserts a graph edge.
+    /// Upserts a graph edge atomically.
+    ///
+    /// Uses `INSERT ... ON CONFLICT DO UPDATE` with SQLite's `RETURNING *`
+    /// — a single atomic query rather than a SELECT-then-INSERT/UPDATE
+    /// pattern, eliminating the TOCTOU race window where concurrent callers
+    /// could both see "no existing row" and create duplicate edges. The
+    /// `ON CONFLICT` target is the unique index from migration 0007 on
+    /// (source_entity_type, source_entity_id, target_entity_type,
+    /// target_entity_id, edge_type, workspace_id).
     pub async fn upsert_edge(
         &self,
         source_entity_type: SearchEntityType,
@@ -173,58 +182,40 @@ impl GraphRepository {
         let id = Uuid::new_v4();
         let now = Utc::now();
 
-        // We check if a similar edge exists first for a manual upsert pattern since SQLite 
-        // doesn't have a multi-column UNIQUE constraint on these 5 columns in the migration yet.
-        // Actually, let's just insert or update if we find it.
-        let existing: Option<GraphEdgeRow> = sqlx::query_as(
-            "SELECT * FROM graph_edges 
-             WHERE source_entity_type = ? AND source_entity_id = ? 
-               AND target_entity_type = ? AND target_entity_id = ?
-               AND edge_type = ? AND workspace_id = ?"
+        let row: GraphEdgeRow = sqlx::query_as(
+            "INSERT INTO graph_edges 
+             (id, source_entity_type, source_entity_id, target_entity_type, target_entity_id, edge_type, weight, workspace_id, metadata, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(source_entity_type, source_entity_id, target_entity_type, target_entity_id, edge_type, workspace_id)
+             DO UPDATE SET weight = excluded.weight, metadata = excluded.metadata, updated_at = excluded.updated_at
+             RETURNING *"
         )
+        .bind(id)
         .bind(source_entity_type.as_str())
         .bind(source_entity_id)
         .bind(target_entity_type.as_str())
         .bind(target_entity_id)
         .bind(edge_type.as_str())
+        .bind(weight)
         .bind(workspace_id)
-        .fetch_optional(&self.pool)
+        .bind(&metadata)
+        .bind(now)
+        .bind(now)
+        .fetch_one(&self.pool)
         .await?;
 
-        if let Some(row) = existing {
-            sqlx::query(
-                "UPDATE graph_edges SET weight = ?, metadata = ?, updated_at = ? WHERE id = ?"
-            )
-            .bind(weight)
-            .bind(&metadata)
-            .bind(now)
-            .bind(row.id)
-            .execute(&self.pool)
-            .await?;
-            
-            self.get_edge_by_id(row.id).await
-        } else {
-            sqlx::query(
-                "INSERT INTO graph_edges 
-                 (id, source_entity_type, source_entity_id, target_entity_type, target_entity_id, edge_type, weight, workspace_id, metadata, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            )
-            .bind(id)
-            .bind(source_entity_type.as_str())
-            .bind(source_entity_id)
-            .bind(target_entity_type.as_str())
-            .bind(target_entity_id)
-            .bind(edge_type.as_str())
-            .bind(weight)
-            .bind(workspace_id)
-            .bind(&metadata)
-            .bind(now)
-            .bind(now)
-            .execute(&self.pool)
-            .await?;
+        tracing::info!(
+            edge_id = %row.id,
+            source_type = %row.source_entity_type,
+            source_id = %row.source_entity_id,
+            target_type = %row.target_entity_type,
+            target_id = %row.target_entity_id,
+            edge_type = %row.edge_type,
+            workspace_id = %row.workspace_id,
+            "graph edge upserted"
+        );
 
-            self.get_edge_by_id(id).await
-        }
+        GraphEdge::try_from(row)
     }
 
     pub async fn get_edge_by_id(&self, id: Uuid) -> Result<GraphEdge, DatabaseError> {
@@ -250,7 +241,10 @@ impl GraphRepository {
         Ok(())
     }
 
-    pub async fn delete_edges_for_workspace(&self, workspace_id: Uuid) -> Result<(), DatabaseError> {
+    pub async fn delete_edges_for_workspace(
+        &self,
+        workspace_id: Uuid,
+    ) -> Result<(), DatabaseError> {
         sqlx::query("DELETE FROM graph_edges WHERE workspace_id = ?")
             .bind(workspace_id)
             .execute(&self.pool)
@@ -258,7 +252,10 @@ impl GraphRepository {
         Ok(())
     }
 
-    pub async fn get_graph_stats(&self, workspace_id: Option<Uuid>) -> Result<GraphStats, DatabaseError> {
+    pub async fn get_graph_stats(
+        &self,
+        workspace_id: Option<Uuid>,
+    ) -> Result<GraphStats, DatabaseError> {
         let mut sql = "SELECT COUNT(*) FROM graph_edges WHERE 1=1".to_string();
         if workspace_id.is_some() {
             sql.push_str(" AND workspace_id = ?");
@@ -269,7 +266,8 @@ impl GraphRepository {
         }
         let edge_count: (i64,) = count_query.fetch_one(&self.pool).await?;
 
-        let mut weight_sql = "SELECT AVG(weight), MAX(weight) FROM graph_edges WHERE 1=1".to_string();
+        let mut weight_sql =
+            "SELECT AVG(weight), MAX(weight) FROM graph_edges WHERE 1=1".to_string();
         if workspace_id.is_some() {
             weight_sql.push_str(" AND workspace_id = ?");
         }
@@ -305,7 +303,12 @@ mod tests {
     use crate::models::CreateWorkspaceInput;
     use crate::repositories::WorkspaceRepository;
 
-    async fn setup() -> (GraphRepository, WorkspaceRepository, SqlitePool, tempfile::TempDir) {
+    async fn setup() -> (
+        GraphRepository,
+        WorkspaceRepository,
+        SqlitePool,
+        tempfile::TempDir,
+    ) {
         let (database, temp_dir) = test_database().await;
         let pool = database.pool().clone();
         (
@@ -320,22 +323,28 @@ mod tests {
     async fn upsert_and_retrieve_edge() {
         let (repo, ws_repo, _pool, _guard) = setup().await;
 
-        let ws = ws_repo.create(CreateWorkspaceInput {
-            name: "Test Workspace".to_string(),
-            description: None,
-            root_path: None,
-        }).await.unwrap();
+        let ws = ws_repo
+            .create(CreateWorkspaceInput {
+                name: "Test Workspace".to_string(),
+                description: None,
+                root_path: None,
+            })
+            .await
+            .unwrap();
 
-        let edge = repo.upsert_edge(
-            SearchEntityType::Workspace,
-            ws.id,
-            SearchEntityType::Workspace,
-            ws.id,
-            GraphEdgeType::CoOccurrence,
-            0.5,
-            ws.id,
-            None
-        ).await.unwrap();
+        let edge = repo
+            .upsert_edge(
+                SearchEntityType::Workspace,
+                ws.id,
+                SearchEntityType::Workspace,
+                ws.id,
+                GraphEdgeType::CoOccurrence,
+                0.5,
+                ws.id,
+                None,
+            )
+            .await
+            .unwrap();
 
         assert_eq!(edge.weight, 0.5);
 

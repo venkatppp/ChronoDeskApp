@@ -21,7 +21,8 @@ use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 use crate::app_events::{
-    self, EVENT_WORKSPACE_CREATED, EVENT_WORKSPACE_DELETED, EVENT_WORKSPACE_UPDATED, EVENT_WORKSPACE_SWITCHED,
+    self, EVENT_WORKSPACE_CREATED, EVENT_WORKSPACE_DELETED, EVENT_WORKSPACE_SWITCHED,
+    EVENT_WORKSPACE_UPDATED,
 };
 use crate::errors::DatabaseError;
 use crate::models::{CreateWorkspaceInput, UpdateWorkspaceInput, Workspace};

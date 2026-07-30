@@ -17,8 +17,6 @@ pub mod workspace;
 
 pub use file::{ArtifactType, FileArtifact, NewFile};
 pub use graph::{GraphEdge, GraphEdgeType, GraphNode, GraphStats, GraphView, NodeDetails};
-pub use search::{
-    ReindexFileBody, SavedSearch, SearchEntityType, SearchResult, SearchStats,
-};
+pub use search::{ReindexFileBody, SavedSearch, SearchEntityType, SearchResult, SearchStats};
 pub use timeline::{NewTimelineEvent, TimelineEvent, TimelineEventType};
 pub use workspace::{CreateWorkspaceInput, UpdateWorkspaceInput, Workspace, WorkspaceStatus};

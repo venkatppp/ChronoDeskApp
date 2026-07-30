@@ -71,17 +71,17 @@ use std::sync::Arc;
 
 use tauri::Manager;
 
+use graph::GraphEngine;
 use repositories::{
     FileRepository, GraphRepository, SearchRepository, SettingsRepository, TimelineRepository,
     WorkspaceRepository,
 };
+use search::SearchEngine;
 use services::{GraphService, SearchService, TimelineService, WorkspaceService};
 use timeline::recorder::TimelineRecorder;
 use timeline::TimelineEngine;
 use watcher::FileWatcher;
 use workspace::WorkspaceManager;
-use search::SearchEngine;
-use graph::GraphEngine;
 
 /// Builds and runs the Tauri application. Called from `main.rs`; kept in
 /// the library crate (rather than inline in `main`) so it can also be

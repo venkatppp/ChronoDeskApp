@@ -196,7 +196,8 @@ async fn process_event(
     // Ensure both the event path and watch root are canonicalized on
     // macOS — notify may return /private/var/… while the watch root
     // was registered with /var/…, which breaks starts_with checks.
-    let canonical_root = std::fs::canonicalize(watch_root).unwrap_or_else(|_| watch_root.to_path_buf());
+    let canonical_root =
+        std::fs::canonicalize(watch_root).unwrap_or_else(|_| watch_root.to_path_buf());
     let Some(workspace) = workspace_manager
         .resolve_workspace_for_path(&event.path, &canonical_root)
         .await?
@@ -274,7 +275,7 @@ async fn run_watch_loop(root: PathBuf, raw_tx: mpsc::UnboundedSender<notify::Eve
         while let Some(result) = event_rx.recv().await {
             match result {
                 Ok(event) => {
-                    println!("EVENT: {:?}", event);
+                    tracing::trace!(?event, "raw notify event");
                     if raw_tx.send(event).is_err() {
                         return;
                     }
@@ -363,7 +364,8 @@ mod tests {
     async fn watch_rejects_watching_the_same_path_twice() {
         let (watcher, _db_guard) = test_watcher().await;
         let root = tempdir().unwrap();
-        let canonical = std::fs::canonicalize(root.path()).unwrap_or_else(|_| root.path().to_path_buf());
+        let canonical =
+            std::fs::canonicalize(root.path()).unwrap_or_else(|_| root.path().to_path_buf());
 
         watcher.watch(root.path().to_path_buf()).await.unwrap();
         let second = watcher.watch(root.path().to_path_buf()).await;
@@ -386,15 +388,13 @@ mod tests {
     async fn watched_paths_reflects_watch_and_unwatch() {
         let (watcher, _db_guard) = test_watcher().await;
         let root = tempdir().unwrap();
-        let canonical = std::fs::canonicalize(root.path()).unwrap_or_else(|_| root.path().to_path_buf());
+        let canonical =
+            std::fs::canonicalize(root.path()).unwrap_or_else(|_| root.path().to_path_buf());
 
         assert!(watcher.watched_paths().await.is_empty());
 
         watcher.watch(root.path().to_path_buf()).await.unwrap();
-        assert_eq!(
-            watcher.watched_paths().await,
-            vec![canonical.clone()]
-        );
+        assert_eq!(watcher.watched_paths().await, vec![canonical.clone()]);
 
         watcher.unwatch(&canonical).await.unwrap();
         assert!(watcher.watched_paths().await.is_empty());
@@ -423,7 +423,8 @@ mod tests {
         let watcher = FileWatcher::new(workspace_manager, timeline_engine);
 
         let root = tempdir().unwrap();
-        let canonical_root = std::fs::canonicalize(root.path()).unwrap_or_else(|_| root.path().to_path_buf());
+        let canonical_root =
+            std::fs::canonicalize(root.path()).unwrap_or_else(|_| root.path().to_path_buf());
         fs::create_dir(canonical_root.join(".git")).unwrap();
 
         watcher.watch(canonical_root.clone()).await.unwrap();
@@ -436,6 +437,9 @@ mod tests {
         let root_path_str = canonical_root.to_string_lossy().into_owned();
         // Debounce window (500ms) + tick (100ms) + generous OS-event
         // latency margin.
+        // Poll for the workspace first — process_event creates the workspace
+        // inside resolve_workspace_for_path before it records the file event,
+        // so the workspace appears first.
         let workspace = tokio::time::timeout(Duration::from_secs(5), async {
             loop {
                 if let Some(ws) = workspace_repository
@@ -451,16 +455,35 @@ mod tests {
         .await
         .expect("workspace should be auto-created within the timeout");
 
-        let events = timeline_repository
-            .list_by_workspace(workspace.id, None)
-            .await
-            .unwrap();
+        // Then poll for the timeline event — process_event records the
+        // file event after creating the workspace, so there is a scheduling
+        // window where the workspace exists but the file event hasn't been
+        // committed yet. The debounce window (500ms) + tick (100ms) + OS
+        // latency means the event arrives within ~600ms of the write, but
+        // the 5s timeout guards against scheduler stalls on CI.
+        let has_file_event = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let events = timeline_repository
+                    .list_by_workspace(workspace.id, None)
+                    .await
+                    .unwrap();
+                if events.iter().any(|e| {
+                    matches!(
+                        e.event_type,
+                        crate::models::TimelineEventType::Create
+                            | crate::models::TimelineEventType::Edit
+                    )
+                }) {
+                    return true;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        })
+        .await
+        .expect("timeline event should appear within the timeout");
+
         assert!(
-            events
-                .iter()
-                .any(|e| matches!(e.event_type,
-                    crate::models::TimelineEventType::Create |
-                    crate::models::TimelineEventType::Edit)),
+            has_file_event,
             "expected a timeline event for the written file (write+metadata may coalesce to Edit)"
         );
 
