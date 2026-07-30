@@ -38,6 +38,12 @@ impl WorkspaceService {
         self.workspace_repository.list_active_workspaces().await
     }
 
+    /// Lists every archived workspace, most recently active first —
+    /// backs the "Archived" filter tab on the Workspaces screen.
+    pub async fn list_archived_workspaces(&self) -> Result<Vec<Workspace>, DatabaseError> {
+        self.workspace_repository.list_archived_workspaces().await
+    }
+
     /// Fetches a single workspace by id.
     pub async fn get_workspace(&self, id: Uuid) -> Result<Workspace, DatabaseError> {
         self.workspace_repository.get_by_id(id).await

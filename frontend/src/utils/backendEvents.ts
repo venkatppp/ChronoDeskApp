@@ -7,6 +7,7 @@ export const BACKEND_EVENTS = {
   workspaceCreated: "workspace:created",
   workspaceUpdated: "workspace:updated",
   workspaceDeleted: "workspace:deleted",
+  workspaceSwitched: "workspace:switched",
   fileChanged: "file:changed",
   timelineEventAdded: "timeline:event_added",
 } as const;
@@ -16,5 +17,6 @@ export const DASHBOARD_REFRESH_EVENTS: string[] = [
   BACKEND_EVENTS.workspaceCreated,
   BACKEND_EVENTS.workspaceUpdated,
   BACKEND_EVENTS.workspaceDeleted,
+  BACKEND_EVENTS.workspaceSwitched,
   BACKEND_EVENTS.timelineEventAdded,
 ];

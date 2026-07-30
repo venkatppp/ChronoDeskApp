@@ -256,11 +256,28 @@ impl WorkspaceRepository {
     /// Lists every `status = active` workspace, most-recently-active
     /// first — backs the dashboard's "Active workspaces" grid.
     pub async fn list_active_workspaces(&self) -> Result<Vec<Workspace>, DatabaseError> {
+        self.list_workspaces_by_status(WorkspaceStatus::Active)
+            .await
+    }
+
+    /// Lists every `status = archived` workspace, most-recently-active
+    /// first — backs the "Archived" filter tab on the Workspaces screen.
+    pub async fn list_archived_workspaces(&self) -> Result<Vec<Workspace>, DatabaseError> {
+        self.list_workspaces_by_status(WorkspaceStatus::Archived)
+            .await
+    }
+
+    /// Internal helper: lists workspaces with a given status,
+    /// most-recently-active first.
+    async fn list_workspaces_by_status(
+        &self,
+        status: WorkspaceStatus,
+    ) -> Result<Vec<Workspace>, DatabaseError> {
         let rows: Vec<WorkspaceRow> = sqlx::query_as(&format!(
             "SELECT {SELECT_COLUMNS} FROM workspaces
              WHERE status = ? ORDER BY last_active_at DESC"
         ))
-        .bind(WorkspaceStatus::Active.as_str())
+        .bind(status.as_str())
         .fetch_all(&self.pool)
         .await?;
 

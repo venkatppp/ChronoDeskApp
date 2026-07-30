@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { CreateWorkspaceInput, Recommendation, Workspace } from "@/types/workspace";
+import type { CreateWorkspaceInput, Recommendation, UpdateWorkspaceInput, Workspace } from "@/types/workspace";
 import { formatRelativeTime } from "@/utils/formatRelativeTime";
 
 /**
@@ -13,8 +13,10 @@ import { formatRelativeTime } from "@/utils/formatRelativeTime";
  */
 export interface WorkspaceRepository {
   listActiveWorkspaces(): Promise<Workspace[]>;
+  listArchivedWorkspaces(): Promise<Workspace[]>;
   getWorkspace(id: string): Promise<Workspace>;
   createWorkspace(input: CreateWorkspaceInput): Promise<Workspace>;
+  updateWorkspace(id: string, input: UpdateWorkspaceInput): Promise<Workspace>;
   deleteWorkspace(id: string): Promise<void>;
   switchWorkspace(id: string): Promise<void>;
   getBriefing(): Promise<string>;
@@ -45,12 +47,20 @@ export class TauriWorkspaceRepository implements WorkspaceRepository {
     return invoke<Workspace[]>("list_active_workspaces");
   }
 
+  async listArchivedWorkspaces(): Promise<Workspace[]> {
+    return invoke<Workspace[]>("list_archived_workspaces");
+  }
+
   async getWorkspace(id: string): Promise<Workspace> {
     return invoke<Workspace>("get_workspace", { id });
   }
 
   async createWorkspace(input: CreateWorkspaceInput): Promise<Workspace> {
     return invoke<Workspace>("create_workspace", { input });
+  }
+
+  async updateWorkspace(id: string, input: UpdateWorkspaceInput): Promise<Workspace> {
+    return invoke<Workspace>("update_workspace", { id, input });
   }
 
   async deleteWorkspace(id: string): Promise<void> {

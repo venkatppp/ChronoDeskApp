@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Folder, Calendar, Shield, Trash2, Archive, ArrowRight } from "lucide-react";
+import { Plus, Search, Folder, Calendar, Shield, Trash2, Archive, ArrowRight, Pencil, RotateCcw } from "lucide-react";
 import { getWorkspaceRepository } from "@/services/workspaceRepository";
-import type { Workspace, WorkspaceStatus } from "@/types/workspace";
+import type { UpdateWorkspaceInput, Workspace, WorkspaceStatus } from "@/types/workspace";
 import { formatRelativeTime } from "@/utils/formatRelativeTime";
 
 export function WorkspacesPage() {
@@ -17,6 +17,13 @@ export function WorkspacesPage() {
   const [workspaceName, setWorkspaceName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // Dialog state for editing workspace
+  const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
 
   const workspaceRepo = getWorkspaceRepository();
   const navigate = useNavigate();
@@ -35,8 +42,18 @@ export function WorkspacesPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const all = await workspaceRepo.listActiveWorkspaces();
-      // In a real app we might also fetch archived ones separately if there was a command for it
+      let all: Workspace[];
+      if (statusFilter === "archived") {
+        all = await workspaceRepo.listArchivedWorkspaces();
+      } else if (statusFilter === "active") {
+        all = await workspaceRepo.listActiveWorkspaces();
+      } else {
+        const [active, archived] = await Promise.all([
+          workspaceRepo.listActiveWorkspaces(),
+          workspaceRepo.listArchivedWorkspaces(),
+        ]);
+        all = [...active, ...archived];
+      }
       setWorkspaces(all);
     } catch (err) {
       console.error("Failed to fetch workspaces:", err);
@@ -44,7 +61,7 @@ export function WorkspacesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [workspaceRepo]);
+  }, [workspaceRepo, statusFilter]);
 
   useEffect(() => {
     fetchWorkspaces();
@@ -65,6 +82,26 @@ export function WorkspacesPage() {
     } catch (err) {
       console.error("Failed to delete workspace:", err);
       alert("Failed to delete workspace.");
+    }
+  };
+
+  const handleArchive = async (workspace: Workspace) => {
+    try {
+      await workspaceRepo.updateWorkspace(workspace.id, { status: "archived" });
+      fetchWorkspaces();
+    } catch (err) {
+      console.error("Failed to archive workspace:", err);
+      alert("Failed to archive workspace.");
+    }
+  };
+
+  const handleRestore = async (workspace: Workspace) => {
+    try {
+      await workspaceRepo.updateWorkspace(workspace.id, { status: "active" });
+      fetchWorkspaces();
+    } catch (err) {
+      console.error("Failed to restore workspace:", err);
+      alert("Failed to restore workspace.");
     }
   };
 
@@ -91,13 +128,63 @@ export function WorkspacesPage() {
     }
   };
 
-  // Ref for auto-focus
+  function openEditDialog(workspace: Workspace) {
+    setEditingWorkspace(workspace);
+    setEditName(workspace.name);
+    setEditDescription(workspace.description ?? "");
+    setUpdateError(null);
+  }
+
+  function closeEditDialog() {
+    setEditingWorkspace(null);
+    setEditName("");
+    setEditDescription("");
+    setUpdateError(null);
+  }
+
+  const handleUpdateWorkspace = async () => {
+    const ws = editingWorkspace;
+    if (!ws || !hasEditChanges) return;
+    const trimmed = editName.trim();
+    if (!trimmed) return;
+    setIsUpdating(true);
+    setUpdateError(null);
+    const input: UpdateWorkspaceInput = {};
+    if (trimmed !== ws.name) input.name = trimmed;
+    if (editDescription !== (ws.description ?? "")) {
+      input.description = editDescription || null;
+    }
+    try {
+      await workspaceRepo.updateWorkspace(ws.id, input);
+      await fetchWorkspaces();
+      closeEditDialog();
+    } catch (err: any) {
+      setUpdateError(err?.message || "Failed to update workspace.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Derived: whether the edit form differs from the original workspace
+  const hasEditChanges = editingWorkspace
+    ? editName.trim() !== editingWorkspace.name ||
+      editDescription !== (editingWorkspace.description ?? "")
+    : false;
+
+  // Refs for auto-focus
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (showCreateDialog && inputRef.current) {
       inputRef.current.focus();
     }
   }, [showCreateDialog]);
+
+  const editInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (editingWorkspace && editInputRef.current) {
+      editInputRef.current.focus();
+    }
+  }, [editingWorkspace]);
 
   return (
     <>
@@ -209,19 +296,36 @@ export function WorkspacesPage() {
 
                 <div className="flex items-center justify-between pt-4 border-t border-border">
                   <div className="flex items-center gap-2">
-                    <button 
+                    <button
+                      onClick={() => openEditDialog(workspace)}
+                      className="p-2 rounded-lg text-muted-foreground hover:bg-background-tertiary hover:text-foreground transition-all"
+                      title="Edit Workspace"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
                       onClick={() => handleDelete(workspace.id)}
                       className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
                       title="Delete Workspace"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
-                    <button 
-                      className="p-2 rounded-lg text-muted-foreground hover:bg-background-tertiary hover:text-foreground transition-all"
-                      title="Archive Workspace"
-                    >
-                      <Archive className="h-4 w-4" />
-                    </button>
+                    {workspace.status === "active"
+                      ? <button
+                          onClick={() => handleArchive(workspace)}
+                          className="p-2 rounded-lg text-muted-foreground hover:bg-background-tertiary hover:text-foreground transition-all"
+                          title="Archive Workspace"
+                        >
+                          <Archive className="h-4 w-4" />
+                        </button>
+                      : <button
+                          onClick={() => handleRestore(workspace)}
+                          className="p-2 rounded-lg text-emerald-600 hover:bg-emerald-500/10 transition-all"
+                          title="Restore Workspace"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </button>
+                    }
                   </div>
                   <button
                     onClick={() => handleOpenWorkspace(workspace)}
@@ -236,6 +340,77 @@ export function WorkspacesPage() {
           </div>
         )}
       </div>
+      {/* Edit Workspace Modal */}
+      {editingWorkspace && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          tabIndex={-1}
+          onMouseDown={e => {
+            if (e.target === e.currentTarget) closeEditDialog();
+          }}
+          onKeyDown={e => {
+            if (e.key === "Escape") closeEditDialog();
+          }}
+        >
+          <div
+            className="bg-background rounded-2xl shadow-2xl p-8 w-[95vw] max-w-md border border-border"
+            onMouseDown={e => e.stopPropagation()}
+          >
+            <h2 className="text-xl font-bold mb-2">Edit Workspace</h2>
+            <p className="text-muted-foreground mb-6 text-sm">Update the name or description for this workspace.</p>
+            <input
+              ref={editInputRef}
+              type="text"
+              placeholder="Workspace name"
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (!isUpdating && editName.trim() && hasEditChanges) handleUpdateWorkspace();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  closeEditDialog();
+                }
+              }}
+              disabled={isUpdating}
+              className="w-full h-12 px-4 mb-4 border border-border rounded-lg bg-background-secondary focus:outline-none focus:ring-2 focus:ring-primary text-foreground font-medium"
+            />
+            <textarea
+              placeholder="Description (optional)"
+              value={editDescription}
+              onChange={e => setEditDescription(e.target.value)}
+              disabled={isUpdating}
+              rows={3}
+              className="w-full px-4 py-3 mb-6 border border-border rounded-lg bg-background-secondary focus:outline-none focus:ring-2 focus:ring-primary text-foreground font-medium resize-none"
+            />
+            {updateError && (
+              <div className="mb-4 bg-destructive/10 border border-destructive/30 rounded-lg px-4 py-3 text-destructive font-bold text-sm text-center">
+                {updateError}
+              </div>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                className="px-5 py-2 rounded-lg font-bold bg-background border border-border text-foreground hover:bg-background-tertiary transition-all"
+                onClick={closeEditDialog}
+                disabled={isUpdating}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="px-5 py-2 rounded-lg font-bold bg-primary text-primary-foreground shadow-md hover:scale-[1.03] active:scale-[0.98] transition-all disabled:opacity-60"
+                onClick={handleUpdateWorkspace}
+                disabled={isUpdating || !editName.trim() || !hasEditChanges}
+                type="button"
+              >
+                {isUpdating ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Workspace Modal */}
       {showCreateDialog && (
         <div

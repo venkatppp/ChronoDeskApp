@@ -178,6 +178,7 @@ pub fn run() {
             commands::system::get_app_version,
             commands::system::health_check,
             commands::workspace::list_active_workspaces,
+            commands::workspace::list_archived_workspaces,
             commands::workspace::get_workspace,
             commands::workspace::create_workspace,
             commands::workspace::update_workspace,

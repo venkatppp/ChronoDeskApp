@@ -1,5 +1,7 @@
 import { PlayCircle, Archive, Copy, AlertTriangle, type LucideIcon } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { useNavigate } from "react-router-dom";
+import { getWorkspaceRepository } from "@/services/workspaceRepository";
 import type { Recommendation, RecommendationKind } from "@/types/workspace";
 
 const KIND_ICON: Record<RecommendationKind, LucideIcon> = {
@@ -15,6 +17,27 @@ interface RecommendationsPanelProps {
 }
 
 export function RecommendationsPanel({ recommendations, isLoading }: RecommendationsPanelProps) {
+  const navigate = useNavigate();
+  const workspaceRepo = getWorkspaceRepository();
+
+  async function handleResume(workspaceId: string) {
+    try {
+      await workspaceRepo.switchWorkspace(workspaceId);
+      localStorage.setItem("activeWorkspaceId", workspaceId);
+      navigate("/timeline");
+    } catch (err) {
+      console.error("Failed to switch workspace:", err);
+    }
+  }
+
+  async function handleArchive(workspaceId: string) {
+    try {
+      await workspaceRepo.updateWorkspace(workspaceId, { status: "archived" });
+    } catch (err) {
+      console.error("Failed to archive workspace:", err);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -39,6 +62,14 @@ export function RecommendationsPanel({ recommendations, isLoading }: Recommendat
             return (
               <button
                 key={rec.id}
+                onClick={() => {
+                  if (!rec.workspaceId) return;
+                  if (rec.kind === "resume") {
+                    void handleResume(rec.workspaceId);
+                  } else if (rec.kind === "archive") {
+                    void handleArchive(rec.workspaceId);
+                  }
+                }}
                 className="flex items-center gap-2.5 rounded-[var(--radius-control)] px-2 py-2 text-left text-sm
                            text-(--color-foreground) transition-colors hover:bg-(--color-surface-hover)"
               >

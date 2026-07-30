@@ -18,7 +18,9 @@
 /// 5 = `search_index` FTS5 virtual table (Phase 4 Search Engine).
 /// 6 = `graph_edges`, `search_history`, `saved_searches` tables
 ///     (Phase 4 Knowledge Graph).
-pub const CURRENT_SCHEMA_VERSION: i64 = 6;
+/// 7 = unique index on `graph_edges` (6 identifying columns).
+///     (Milestone 2 Backend Reliability).
+pub const CURRENT_SCHEMA_VERSION: i64 = 7;
 
 /// Table name constants. Repository query strings use literal SQL for
 /// readability (and because `sqlx::query_as` takes a plain `&str`, not a
@@ -36,4 +38,7 @@ pub mod tables {
     pub const SEARCH_INDEX_METADATA: &str = "search_index_metadata";
     pub const ML_METADATA: &str = "ml_metadata";
     pub const RECENT_ACTIVITY: &str = "recent_activity";
+    pub const GRAPH_EDGES: &str = "graph_edges";
+    pub const SEARCH_HISTORY: &str = "search_history";
+    pub const SAVED_SEARCHES: &str = "saved_searches";
 }

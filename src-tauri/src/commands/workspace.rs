@@ -37,6 +37,15 @@ pub async fn list_active_workspaces(
     service.list_active_workspaces().await
 }
 
+/// Lists every archived workspace, most recently active first.
+/// Backs the "Archived" filter tab on the Workspaces screen.
+#[tauri::command]
+pub async fn list_archived_workspaces(
+    service: State<'_, WorkspaceService>,
+) -> Result<Vec<Workspace>, DatabaseError> {
+    service.list_archived_workspaces().await
+}
+
 /// Fetches a single workspace by id.
 ///
 /// # Errors

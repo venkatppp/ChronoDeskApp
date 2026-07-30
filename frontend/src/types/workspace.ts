@@ -33,6 +33,14 @@ export interface CreateWorkspaceInput {
   description?: string | null;
 }
 
+/** Payload for `invoke("update_workspace", { id, input })`. Every field is optional — `None` leaves the column unchanged. Pass `description: ""` to clear. */
+export interface UpdateWorkspaceInput {
+  name?: string;
+  description?: string | null;
+  status?: WorkspaceStatus;
+  healthScore?: number;
+}
+
 /**
  * A single item in the "Today's Briefing" / recommendation feed on the
  * dashboard (blueprint §3.2, Home Dashboard + Recommendations Panel).
