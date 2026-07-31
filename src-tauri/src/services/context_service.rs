@@ -157,6 +157,17 @@ impl ContextService {
     pub async fn get_inactivity_threshold_setting(&self) -> Result<i64, DatabaseError> {
         Ok(self.get_inactivity_threshold().await)
     }
+
+    /// Gets all files for a workspace.
+    pub async fn get_workspace_files(
+        &self,
+        workspace_id: Uuid,
+    ) -> Result<Vec<crate::models::FileArtifact>, DatabaseError> {
+        self.session_engine
+            .file_repository
+            .list_by_workspace(workspace_id)
+            .await
+    }
 }
 
 #[cfg(test)]

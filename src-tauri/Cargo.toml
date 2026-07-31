@@ -68,6 +68,10 @@ notify = "6.1"
 # SHA-256 hashing for content-based duplicate file detection.
 sha2 = "0.10"
 
+# --- Phase 5C: Intelligence Layer ---
+# async_trait for async trait methods in recommendation generators.
+async-trait = "0.1"
+
 [dev-dependencies]
 # Used only by repository/migration tests to create disposable on-disk
 # SQLite databases that never touch a real user's app-data directory.

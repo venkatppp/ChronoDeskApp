@@ -52,6 +52,10 @@ pub enum DatabaseError {
     /// resolver returned an error, or the directory could not be created).
     #[error("failed to resolve application data directory: {0}")]
     AppDataDir(String),
+
+    /// JSON serialization/deserialization error.
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
 impl DatabaseError {

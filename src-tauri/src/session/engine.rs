@@ -23,7 +23,7 @@ use crate::session::types::{Session, SessionContext, SessionEventSummary, Sessio
 #[derive(Debug, Clone)]
 pub struct SessionEngine {
     timeline_repository: TimelineRepository,
-    file_repository: FileRepository,
+    pub(crate) file_repository: FileRepository,
 }
 
 impl SessionEngine {

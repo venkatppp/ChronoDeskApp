@@ -5,9 +5,13 @@
 //! is defined outside this module, so the full surface area callable from
 //! the frontend is always visible in one place.
 
+pub mod actions;
 pub mod analytics;
+pub mod context_memory;
 pub mod duplicates;
 pub mod graph;
+pub mod intelligence;
+pub mod predictive;
 pub mod search;
 pub mod session;
 pub mod system;

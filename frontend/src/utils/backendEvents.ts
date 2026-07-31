@@ -10,6 +10,11 @@ export const BACKEND_EVENTS = {
   workspaceSwitched: "workspace:switched",
   fileChanged: "file:changed",
   timelineEventAdded: "timeline:event_added",
+  sessionStarted: "session:started",
+  sessionEnded: "session:ended",
+  workflowChanged: "workflow:changed",
+  actionExecuted: "action:executed",
+  predictionUpdated: "prediction:updated",
 } as const;
 
 /** Every event that should trigger a dashboard refresh. */
@@ -19,4 +24,9 @@ export const DASHBOARD_REFRESH_EVENTS: string[] = [
   BACKEND_EVENTS.workspaceDeleted,
   BACKEND_EVENTS.workspaceSwitched,
   BACKEND_EVENTS.timelineEventAdded,
+  BACKEND_EVENTS.sessionStarted,
+  BACKEND_EVENTS.sessionEnded,
+  BACKEND_EVENTS.workflowChanged,
+  BACKEND_EVENTS.actionExecuted,
+  BACKEND_EVENTS.predictionUpdated,
 ];

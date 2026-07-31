@@ -1,25 +1,33 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, Archive, PlayCircle, ChevronUp, Clock, Zap, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowRight, Archive, PlayCircle, ChevronUp, Zap, RotateCcw, Loader2, type LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getWorkspaceRepository } from "@/services/workspaceRepository";
-import type { Recommendation } from "@/types/workspace";
+import type { Recommendation } from "@/types/intelligence";
+import type { ActionType } from "@/types/actions";
+import { actionRepository } from "@/services/actionRepository";
 
 const PRIORITY_LABELS: Record<string, { label: string; color: string; border: string; bg: string; icon: LucideIcon }> = {
-  attention: {
+  critical: {
+    label: "Critical",
+    color: "text-(--color-danger)",
+    border: "border-(--color-danger)/30",
+    bg: "bg-(--color-danger)/5",
+    icon: AlertTriangle,
+  },
+  high: {
     label: "High Priority",
     color: "text-(--color-warning)",
     border: "border-(--color-warning)/30",
     bg: "bg-(--color-warning)/5",
     icon: AlertTriangle,
   },
-  resume: {
+  medium: {
     label: "Medium Priority",
     color: "text-(--color-accent)",
     border: "border-(--color-accent)/20",
     bg: "bg-(--color-accent)/5",
     icon: PlayCircle,
   },
-  archive: {
+  low: {
     label: "Low Priority",
     color: "text-(--color-muted-foreground)",
     border: "border-(--color-border)",
@@ -28,35 +36,153 @@ const PRIORITY_LABELS: Record<string, { label: string; color: string; border: st
   },
 };
 
-const EFFORT_ICONS: Record<string, LucideIcon> = {
-  quick: Zap,
-  moderate: Clock,
-  significant: Clock,
-};
-
-const EFFORT_LABELS: Record<string, string> = {
-  quick: "Quick",
-  moderate: "Moderate",
-  significant: "Significant",
-};
-
 const CATEGORY_COLORS: Record<string, string> = {
-  maintenance: "text-(--color-warning)",
+  organization: "text-(--color-warning)",
   productivity: "text-(--color-accent)",
+  context: "text-(--color-success)",
+  files: "text-(--color-warning)",
+  search: "text-(--color-accent)",
   health: "text-(--color-danger)",
-  exploration: "text-(--color-success)",
 };
 
 interface RecommendationsPanelProps {
   recommendations: Recommendation[];
   isLoading: boolean;
+  onActionSuccess?: () => void;
 }
 
-export function RecommendationsPanel({ recommendations, isLoading }: RecommendationsPanelProps) {
+export function RecommendationsPanel({ recommendations, isLoading, onActionSuccess }: RecommendationsPanelProps) {
   const navigate = useNavigate();
-  const workspaceRepo = getWorkspaceRepository();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<"priority" | "effort" | "impact">("priority");
+  const [executing, setExecuting] = useState<string | null>(null);
+  const [actionResults, setActionResults] = useState<Map<string, { success: boolean; message: string; actionId?: number }>>(new Map());
+
+  const handleExecuteAction = async (rec: Recommendation, actionType: ActionType) => {
+    setExecuting(rec.id);
+    try {
+      const result = await actionRepository.executeAction({
+        actionType,
+        workspaceId: rec.workspaceId,
+        recommendationId: rec.id,
+        metadata: rec.metadata,
+      });
+
+      setActionResults((prev) => new Map(prev).set(rec.id, {
+        success: result.success,
+        message: result.message,
+        actionId: result.actionId,
+      }));
+
+      if (result.success && onActionSuccess) {
+        // Trigger dashboard refresh
+        setTimeout(() => onActionSuccess(), 500);
+      }
+    } catch (error) {
+      setActionResults((prev) => new Map(prev).set(rec.id, {
+        success: false,
+        message: error instanceof Error ? error.message : "Action failed",
+      }));
+    } finally {
+      setExecuting(null);
+    }
+  };
+
+  const handleUndo = async (rec: Recommendation) => {
+    const result = actionResults.get(rec.id);
+    if (!result?.actionId) return;
+
+    setExecuting(rec.id);
+    try {
+      const undoResult = await actionRepository.undoAction(result.actionId);
+      
+      setActionResults((prev) => {
+        const next = new Map(prev);
+        next.delete(rec.id);
+        return next;
+      });
+
+      if (undoResult.success && onActionSuccess) {
+        setTimeout(() => onActionSuccess(), 500);
+      }
+    } catch (error) {
+      console.error("Undo failed:", error);
+    } finally {
+      setExecuting(null);
+    }
+  };
+
+  const getActionButton = (rec: Recommendation) => {
+    const result = actionResults.get(rec.id);
+    const isExecuting = executing === rec.id;
+
+    // If action was executed, show result or undo button
+    if (result) {
+      if (result.success && result.actionId) {
+        return (
+          <button
+            onClick={() => handleUndo(rec)}
+            disabled={isExecuting}
+            className="flex items-center gap-1 rounded bg-(--color-warning)/10 px-2.5 py-1 text-xs font-medium text-(--color-warning) transition-colors hover:bg-(--color-warning)/20 disabled:opacity-50"
+            title="Undo action"
+          >
+            {isExecuting ? (
+              <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} />
+            ) : (
+              <RotateCcw className="h-3 w-3" strokeWidth={2} />
+            )}
+            Undo
+          </button>
+        );
+      }
+      return null;
+    }
+
+    // Map recommendation metadata to action buttons
+    const category = rec.category;
+    const title = rec.title.toLowerCase();
+
+    if (title.includes("archive") || category === "organization") {
+      return (
+        <button
+          onClick={() => handleExecuteAction(rec, "archive_workspace")}
+          disabled={isExecuting}
+          className="flex items-center gap-1 rounded bg-(--color-accent)/10 px-2.5 py-1 text-xs font-medium text-(--color-accent) transition-colors hover:bg-(--color-accent)/20 disabled:opacity-50"
+        >
+          {isExecuting ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} /> : <Archive className="h-3 w-3" strokeWidth={2} />}
+          Archive
+        </button>
+      );
+    }
+
+    if (title.includes("resume") || title.includes("session")) {
+      return (
+        <button
+          onClick={() => handleExecuteAction(rec, "resume_previous_session")}
+          disabled={isExecuting}
+          className="flex items-center gap-1 rounded bg-(--color-success)/10 px-2.5 py-1 text-xs font-medium text-(--color-success) transition-colors hover:bg-(--color-success)/20 disabled:opacity-50"
+        >
+          {isExecuting ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} /> : <PlayCircle className="h-3 w-3" strokeWidth={2} />}
+          Resume
+        </button>
+      );
+    }
+
+    if (title.includes("clean") || title.includes("duplicate")) {
+      return (
+        <button
+          onClick={() => handleExecuteAction(rec, "clean_duplicate_files")}
+          disabled={isExecuting}
+          className="flex items-center gap-1 rounded bg-(--color-accent)/10 px-2.5 py-1 text-xs font-medium text-(--color-accent) transition-colors hover:bg-(--color-accent)/20 disabled:opacity-50"
+        >
+          {isExecuting ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} /> : null}
+          Clean
+        </button>
+      );
+    }
+
+    return null;
+  };
 
   const visible = useMemo(() => {
     return recommendations.filter((r) => !dismissed.has(r.id));
@@ -66,16 +192,14 @@ export function RecommendationsPanel({ recommendations, isLoading }: Recommendat
     const items = [...visible];
     switch (sortBy) {
       case "effort":
-        return items.sort((a, b) => {
-          const order = { quick: 1, moderate: 2, significant: 3 };
-          return (order[a.estimatedEffort] ?? 2) - (order[b.estimatedEffort] ?? 2);
-        });
-      case "impact": {
-        const order = { low: 1, medium: 2, high: 3 };
-        return items.sort((a, b) => (order[b.expectedImpact] ?? 0) - (order[a.expectedImpact] ?? 0));
-      }
+        return items.sort((a, b) => a.effort - b.effort);
+      case "impact":
+        return items.sort((a, b) => b.impact - a.impact);
       default:
-        return items.sort((a, b) => a.priority - b.priority);
+        return items.sort((a, b) => {
+          const order = { critical: 0, high: 1, medium: 2, low: 3 };
+          return (order[a.priority] ?? 2) - (order[b.priority] ?? 2);
+        });
     }
   }, [visible, sortBy]);
 
@@ -127,9 +251,8 @@ export function RecommendationsPanel({ recommendations, isLoading }: Recommendat
       </div>
       <div className="flex flex-col gap-2">
         {sorted.map((rec) => {
-          const priority = PRIORITY_LABELS[rec.kind] ?? PRIORITY_LABELS.archive;
+          const priority = PRIORITY_LABELS[rec.priority] ?? PRIORITY_LABELS.medium;
           const Icon = priority.icon;
-          const EffortIcon = EFFORT_ICONS[rec.estimatedEffort] ?? Clock;
 
           return (
             <div
@@ -143,45 +266,42 @@ export function RecommendationsPanel({ recommendations, isLoading }: Recommendat
                     <p className={`text-xs font-semibold uppercase tracking-wide ${priority.color}`}>
                       {priority.label}
                     </p>
-                    <p className="mt-0.5 text-sm font-medium text-(--color-foreground)">{rec.message}</p>
-                    <p className="mt-0.5 text-xs text-(--color-muted-foreground)">{rec.reason}</p>
+                    <p className="mt-0.5 text-sm font-medium text-(--color-foreground)">{rec.title}</p>
+                    <p className="mt-0.5 text-xs text-(--color-muted-foreground)">{rec.description}</p>
+                    {actionResults.get(rec.id) && (
+                      <p className={`mt-1 text-xs font-medium ${actionResults.get(rec.id)?.success ? "text-(--color-success)" : "text-(--color-danger)"}`}>
+                        {actionResults.get(rec.id)?.message}
+                      </p>
+                    )}
                     <div className="mt-1.5 flex items-center gap-2">
                       <span className={`inline-flex items-center gap-0.5 text-[9px] font-medium uppercase tracking-wider ${CATEGORY_COLORS[rec.category] ?? "text-(--color-faint-foreground)"}`}>
                         {rec.category}
                       </span>
                       <span className="inline-flex items-center gap-0.5 text-[9px] text-(--color-faint-foreground)">
-                        <EffortIcon className="h-2.5 w-2.5" strokeWidth={2} />
-                        {EFFORT_LABELS[rec.estimatedEffort]}
+                        <Zap className="h-2.5 w-2.5" strokeWidth={2} />
+                        Effort: {Math.round(rec.effort * 100)}%
                       </span>
                       <span className="inline-flex items-center gap-0.5 text-[9px] text-(--color-faint-foreground)">
-                        Impact: {rec.expectedImpact}
+                        Impact: {Math.round(rec.impact * 100)}%
+                      </span>
+                      <span className="inline-flex items-center gap-0.5 text-[9px] text-(--color-faint-foreground)">
+                        Confidence: {Math.round(rec.confidence * 100)}%
                       </span>
                     </div>
                   </div>
                 </div>
                 <div className="flex shrink-0 gap-1">
-                  {(rec.kind === "resume" || rec.kind === "attention") && rec.workspaceId && (
+                  {getActionButton(rec)}
+                  {rec.action.type === "open_view" && (
                     <button
                       onClick={() => {
-                        workspaceRepo.switchWorkspace(rec.workspaceId!).then(() => {
-                          localStorage.setItem("activeWorkspaceId", rec.workspaceId!);
-                          navigate("/timeline");
-                        }).catch(() => {});
+                        const action = rec.action as { type: "open_view"; view: string };
+                        navigate(`/${action.view}`);
                       }}
                       className="flex items-center gap-1 rounded bg-(--color-accent)/10 px-2.5 py-1 text-xs font-medium text-(--color-accent) transition-colors hover:bg-(--color-accent)/20"
                     >
-                      Review
+                      View
                       <ArrowRight className="h-3 w-3" strokeWidth={2} />
-                    </button>
-                  )}
-                  {rec.kind === "archive" && rec.workspaceId && (
-                    <button
-                      onClick={() => {
-                        workspaceRepo.updateWorkspace(rec.workspaceId!, { status: "archived" }).catch(() => {});
-                      }}
-                      className="flex items-center gap-1 rounded bg-(--color-surface-hover) px-2.5 py-1 text-xs font-medium text-(--color-muted-foreground) transition-colors hover:text-(--color-foreground)"
-                    >
-                      Dismiss
                     </button>
                   )}
                   <button

@@ -24,8 +24,10 @@ use crate::app_events::{
     self, EVENT_WORKSPACE_CREATED, EVENT_WORKSPACE_DELETED, EVENT_WORKSPACE_SWITCHED,
     EVENT_WORKSPACE_UPDATED,
 };
+use crate::context_memory::ContextMemoryEngine;
 use crate::errors::DatabaseError;
 use crate::models::{CreateWorkspaceInput, UpdateWorkspaceInput, Workspace, WorkspaceStats};
+use crate::repositories::FileRepository;
 use crate::services::WorkspaceService;
 
 /// Lists every active workspace, most recently active first.
@@ -136,8 +138,16 @@ pub async fn delete_workspace(
 pub async fn switch_workspace(
     app: AppHandle,
     service: State<'_, WorkspaceService>,
+    context_memory_engine: State<'_, ContextMemoryEngine>,
+    file_repository: State<'_, FileRepository>,
     id: Uuid,
 ) -> Result<(), DatabaseError> {
+    // Create auto snapshot before switching
+    let files = file_repository.list_by_workspace(id).await?;
+    let active_files: Vec<String> = files.iter().map(|f| f.path_or_url.clone()).collect();
+
+    let _ = context_memory_engine.auto_snapshot(id, active_files).await;
+
     service.switch_workspace(id).await?;
 
     app_events::emit(

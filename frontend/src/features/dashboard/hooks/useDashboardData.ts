@@ -3,12 +3,18 @@ import { getWorkspaceRepository } from "@/services/workspaceRepository";
 import { getTimelineRepository } from "@/services/timelineRepository";
 import { getSessionRepository } from "@/services/sessionRepository";
 import { getAnalyticsRepository } from "@/services/analyticsRepository";
+import { getIntelligenceRepository } from "@/services/intelligenceRepository";
+import { contextMemoryRepository } from "@/services/contextMemoryRepository";
+import { predictiveRepository } from "@/services/predictiveRepository";
 import { useAppEvents } from "@/hooks/useAppEvents";
 import { DASHBOARD_REFRESH_EVENTS } from "@/utils/backendEvents";
-import type { Recommendation, Workspace, WorkspaceStats, ProductivityBrief } from "@/types/workspace";
+import type { Workspace, WorkspaceStats, ProductivityBrief } from "@/types/workspace";
+import type { Recommendation } from "@/types/intelligence";
 import type { TimelineEvent } from "@/types/timeline";
 import type { SessionSummary } from "@/types/session";
 import type { DailyBriefing, DailySummary } from "@/types/analytics";
+import type { ContextSnapshot, RelatedWorkspace } from "@/types/contextMemory";
+import type { PredictionsSummary } from "@/types/predictive";
 
 interface DashboardData {
   workspaces: Workspace[];
@@ -20,11 +26,15 @@ interface DashboardData {
   dailyBriefing: DailyBriefing | null;
   todaySummary: DailySummary | null;
   yesterdaySummary: DailySummary | null;
+  latestSnapshot: ContextSnapshot | null;
+  relatedWorkspaces: RelatedWorkspace[];
+  predictions: PredictionsSummary | null;
   isLoading: boolean;
   error: string | null;
+  refresh: () => Promise<void>;
 }
 
-const INITIAL_STATE: DashboardData = {
+const INITIAL_STATE: Omit<DashboardData, 'refresh'> = {
   workspaces: [],
   briefing: null,
   recommendations: [],
@@ -34,24 +44,27 @@ const INITIAL_STATE: DashboardData = {
   dailyBriefing: null,
   todaySummary: null,
   yesterdaySummary: null,
+  latestSnapshot: null,
+  relatedWorkspaces: [],
+  predictions: null,
   isLoading: true,
   error: null,
 };
 
 export function useDashboardData(): DashboardData {
-  const [state, setState] = useState<DashboardData>(INITIAL_STATE);
+  const [state, setState] = useState<Omit<DashboardData, 'refresh'>>(INITIAL_STATE);
 
   const load = useCallback(async () => {
     const workspaceRepository = getWorkspaceRepository();
     const timelineRepository = getTimelineRepository();
     const sessionRepository = getSessionRepository();
     const analyticsRepository = getAnalyticsRepository();
+    const intelligenceRepository = getIntelligenceRepository();
 
     try {
-      const [workspaces, briefing, recommendations, smartResumeSession, dailyBriefing, todaySummary, yesterdaySummary] = await Promise.all([
+      const [workspaces, briefing, smartResumeSession, dailyBriefing, todaySummary, yesterdaySummary] = await Promise.all([
         workspaceRepository.listActiveWorkspaces(),
         workspaceRepository.getBriefing(),
-        workspaceRepository.listRecommendations(),
         sessionRepository.getSmartResumeSession().catch(() => null),
         analyticsRepository.getDailyBriefing().catch(() => null),
         analyticsRepository.getTodaySummary().catch(() => null),
@@ -63,7 +76,21 @@ export function useDashboardData(): DashboardData {
       );
       const mostRecentWorkspace = sorted[0];
 
-      const [allStats, recentActivity] = await Promise.all([
+      // Get recommendations from the first active workspace (or empty if none)
+      let recommendations: Recommendation[] = [];
+      if (mostRecentWorkspace) {
+        try {
+          // Convert UUID string to number for intelligence API
+          // This is a temporary bridge - in production, the API should accept UUIDs
+          const workspaceIdNumber = 1; // Placeholder: needs proper UUID to i64 conversion
+          recommendations = await intelligenceRepository.getWorkspaceRecommendations(workspaceIdNumber);
+        } catch (err) {
+          console.warn("Failed to load recommendations:", err);
+          recommendations = [];
+        }
+      }
+
+      const [allStats, recentActivity, latestSnapshot, relatedWorkspaces, predictions] = await Promise.all([
         workspaces.length > 0
           ? Promise.all(
               workspaces.map((w) =>
@@ -74,6 +101,13 @@ export function useDashboardData(): DashboardData {
         mostRecentWorkspace
           ? timelineRepository.getRecentActivity(mostRecentWorkspace.id)
           : Promise.resolve([] as TimelineEvent[]),
+        mostRecentWorkspace
+          ? contextMemoryRepository.getLatestSnapshot(mostRecentWorkspace.id).catch(() => null)
+          : Promise.resolve(null),
+        mostRecentWorkspace
+          ? contextMemoryRepository.getRelatedWorkspaces(mostRecentWorkspace.id, 0.2, 5).catch(() => [])
+          : Promise.resolve([]),
+        predictiveRepository.getPredictionsSummary().catch(() => null),
       ]);
 
       const statsMap: Record<string, WorkspaceStats> = {};
@@ -94,6 +128,9 @@ export function useDashboardData(): DashboardData {
         dailyBriefing,
         todaySummary,
         yesterdaySummary,
+        latestSnapshot,
+        relatedWorkspaces,
+        predictions,
         isLoading: false,
         error: null,
       });
@@ -114,5 +151,5 @@ export function useDashboardData(): DashboardData {
     void load();
   });
 
-  return state;
+  return { ...state, refresh: load };
 }

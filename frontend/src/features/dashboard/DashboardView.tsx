@@ -13,6 +13,9 @@ import { RecentActivityFeed } from "@/features/dashboard/components/RecentActivi
 import { DailyBriefing } from "@/features/dashboard/components/DailyBriefing";
 import { ActivitySummary } from "@/features/dashboard/components/ActivitySummary";
 import { TrendIndicator } from "@/features/dashboard/components/TrendIndicator";
+import { ContextMemoryCard } from "@/features/dashboard/components/ContextMemoryCard";
+import { RelatedWorkCard } from "@/features/dashboard/components/RelatedWorkCard";
+import { PredictiveCard } from "@/features/dashboard/components/PredictiveCard";
 import { getWorkspaceRepository } from "@/services/workspaceRepository";
 import { getSearchRepository } from "@/services/searchRepository";
 import { useNavigate } from "react-router-dom";
@@ -50,7 +53,8 @@ interface QuickAction {
 }
 
 export function DashboardView() {
-  const { workspaces, briefing, recommendations, workspaceStats, recentActivity, smartResumeSession, dailyBriefing, todaySummary, yesterdaySummary, isLoading, error } = useDashboardData();
+  const dashboardData = useDashboardData();
+  const { workspaces, briefing, recommendations, workspaceStats, recentActivity, smartResumeSession, dailyBriefing, todaySummary, yesterdaySummary, latestSnapshot, relatedWorkspaces, predictions, isLoading, error, refresh } = dashboardData;
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -62,6 +66,11 @@ export function DashboardView() {
   const workspaceRepo = getWorkspaceRepository();
   const searchRepo = getSearchRepository();
   const navigate = useNavigate();
+
+  const handleActionSuccess = () => {
+    // Trigger a full dashboard refresh when an action succeeds
+    void refresh();
+  };
 
   useEffect(() => {
     if (workspaces.length === 0) return;
@@ -448,7 +457,10 @@ export function DashboardView() {
         </div>
 
         <div className="flex flex-col gap-6">
-          <RecommendationsPanel recommendations={recommendations} isLoading={isLoading} />
+          <PredictiveCard predictions={predictions} isLoading={isLoading} />
+          <ContextMemoryCard snapshot={latestSnapshot} isLoading={isLoading} />
+          <RelatedWorkCard relatedWorkspaces={relatedWorkspaces} isLoading={isLoading} />
+          <RecommendationsPanel recommendations={recommendations} isLoading={isLoading} onActionSuccess={handleActionSuccess} />
           <RecentActivityFeed events={recentActivity} isLoading={isLoading} />
         </div>
       </div>

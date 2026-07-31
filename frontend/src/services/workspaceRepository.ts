@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { CreateWorkspaceInput, Recommendation, UpdateWorkspaceInput, Workspace, WorkspaceStats, ProductivityBrief } from "@/types/workspace";
+import type { CreateWorkspaceInput, UpdateWorkspaceInput, Workspace, WorkspaceStats, ProductivityBrief } from "@/types/workspace";
+import type { Recommendation } from "@/types/intelligence";
 import type { TimelineEvent } from "@/types/timeline";
 import { formatRelativeTime } from "@/utils/formatRelativeTime";
 
@@ -24,15 +25,6 @@ export interface WorkspaceRepository {
   openFile(path: string): Promise<void>;
   getBriefing(): Promise<ProductivityBrief>;
   listRecommendations(): Promise<Recommendation[]>;
-}
-
-/** A workspace untouched for this long is flagged as "resume" material. */
-const IDLE_RESUME_THRESHOLD_DAYS = 4;
-/** A workspace untouched for this long is flagged for archiving instead. */
-const IDLE_ARCHIVE_THRESHOLD_DAYS = 60;
-
-function daysSince(iso: string): number {
-  return (Date.now() - new Date(iso).getTime()) / (24 * 60 * 60 * 1000);
 }
 
 /**
@@ -171,52 +163,9 @@ export class TauriWorkspaceRepository implements WorkspaceRepository {
   }
 
   async listRecommendations(): Promise<Recommendation[]> {
-    const workspaces = await this.listActiveWorkspaces();
-    const recommendations: Recommendation[] = [];
-
-    for (const workspace of workspaces) {
-      const idleDays = daysSince(workspace.lastActiveAt);
-
-      if (idleDays >= IDLE_ARCHIVE_THRESHOLD_DAYS) {
-        recommendations.push({
-          id: `archive-${workspace.id}`,
-          kind: "archive",
-          message: `Archive "${workspace.name}"`,
-          workspaceId: workspace.id,
-          priority: 1,
-          reason: `Idle ${Math.floor(idleDays)} days — no activity detected`,
-          estimatedEffort: "quick",
-          expectedImpact: "medium",
-          category: "maintenance",
-        });
-      } else if (workspace.healthScore < 50) {
-        recommendations.push({
-          id: `health-${workspace.id}`,
-          kind: "attention",
-          message: `Review "${workspace.name}" health`,
-          workspaceId: workspace.id,
-          priority: 2,
-          reason: `Health score is ${Math.round(workspace.healthScore)}% — may need restructuring`,
-          estimatedEffort: "moderate",
-          expectedImpact: "high",
-          category: "health",
-        });
-      } else if (idleDays >= IDLE_RESUME_THRESHOLD_DAYS) {
-        recommendations.push({
-          id: `resume-${workspace.id}`,
-          kind: "resume",
-          message: `Resume "${workspace.name}"`,
-          workspaceId: workspace.id,
-          priority: 3,
-          reason: `Last active ${Math.floor(idleDays)} days ago`,
-          estimatedEffort: "quick",
-          expectedImpact: "medium",
-          category: "productivity",
-        });
-      }
-    }
-
-    return recommendations;
+    // This method is deprecated - use IntelligenceRepository instead
+    // Returning empty array for backward compatibility
+    return [];
   }
 }
 

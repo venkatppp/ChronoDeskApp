@@ -54,16 +54,20 @@
 //! frontend (@tauri-apps/api/event listen())
 //! ```
 
+pub mod actions;
 pub mod analytics;
 pub mod app_events;
 pub mod commands;
+pub mod context_memory;
 pub mod database;
 pub mod duplicates;
 pub mod errors;
 pub mod graph;
 pub mod hashing;
+pub mod intelligence;
 pub mod ml;
 pub mod models;
+pub mod predictive;
 pub mod repositories;
 pub mod search;
 pub mod services;
@@ -76,9 +80,16 @@ use std::sync::Arc;
 
 use tauri::Manager;
 
+use actions::{ActionEngine, ActionRepository, ActionService};
 use analytics::AnalyticsEngine;
+use context_memory::{ContextMemoryEngine, ContextMemoryRepository};
 use duplicates::DuplicateDetectionEngine;
 use graph::GraphEngine;
+use intelligence::health::{HealthService, WorkspaceHealthEngine};
+use intelligence::recommendation::RecommendationEngine;
+use predictive::{
+    AdaptiveLearning, AutomationEngine, PredictiveEngine, PredictiveRepository, WorkflowEngine,
+};
 use repositories::{
     FileRepository, GraphRepository, MLRepository, SearchRepository, SettingsRepository,
     TimelineRepository, WorkspaceRepository,
@@ -168,11 +179,75 @@ pub fn run() {
             );
             let analytics_engine = AnalyticsEngine::new(analytics_service);
 
+            // --- Intelligence Layer (Phase 5C) ---
+            let health_service = HealthService::new(pool.clone());
+            let health_engine = WorkspaceHealthEngine::new(
+                health_service,
+                workspace_repository.clone(),
+                timeline_repository.clone(),
+                file_repository.clone(),
+                context_service.clone(),
+            );
+            let recommendation_engine = RecommendationEngine::new(
+                workspace_repository.clone(),
+                file_repository.clone(),
+                context_service.clone(),
+            );
+
+            // --- Action Engine & Service (Phase 5D) ---
+            let action_repository = ActionRepository::new(pool.clone());
+            let action_engine = ActionEngine::new(
+                action_repository.clone(),
+                workspace_repository.clone(),
+                file_repository.clone(),
+            );
+            let action_service = ActionService::new(action_repository.clone(), action_engine);
+
+            // --- Context Memory Engine (Phase 5E) ---
+            let context_memory_repository = ContextMemoryRepository::new(pool.clone());
+            let context_memory_engine = ContextMemoryEngine::new(
+                context_memory_repository,
+                workspace_repository.clone(),
+                context_service.clone(),
+            );
+
             // --- Duplicate Detection Engine (Phase 5 Stage 2) ---
             let duplicate_engine = DuplicateDetectionEngine::new(file_repository.clone())
                 .with_event_emitter(
                     Arc::new(app_handle.clone()) as Arc<dyn app_events::AppEventEmitter>
                 );
+
+            // --- Predictive Intelligence & Workflow Automation (Phase 5F) ---
+            let predictive_repository = PredictiveRepository::new(pool.clone());
+
+            let predictive_engine = PredictiveEngine::new(
+                workspace_repository.clone(),
+                timeline_repository.clone(),
+                context_service.clone(),
+                analytics_engine.clone(),
+                context_memory_engine.clone(),
+            );
+
+            let workflow_engine = WorkflowEngine::new(
+                timeline_repository.clone(),
+                file_repository.clone(),
+                context_service.clone(),
+            );
+
+            let adaptive_learning = AdaptiveLearning::new(
+                predictive_repository.clone(),
+                workspace_repository.clone(),
+                timeline_repository.clone(),
+                context_service.clone(),
+            );
+
+            let automation_engine = AutomationEngine::new(
+                predictive_repository.clone(),
+                workspace_repository.clone(),
+                file_repository.clone(),
+                context_memory_engine.clone(),
+                recommendation_engine.clone(),
+            );
 
             // --- File Watcher, wired to a real AppEventEmitter (the AppHandle) ---
             let file_watcher = FileWatcher::new(workspace_manager, timeline_engine.clone())
@@ -207,6 +282,14 @@ pub fn run() {
             app.manage(ml_service);
             app.manage(context_service);
             app.manage(analytics_engine);
+            app.manage(health_engine);
+            app.manage(recommendation_engine);
+            app.manage(action_service);
+            app.manage(context_memory_engine.clone());
+            app.manage(predictive_engine);
+            app.manage(workflow_engine);
+            app.manage(adaptive_learning);
+            app.manage(automation_engine);
             app.manage(timeline_engine);
             app.manage(search_engine);
             app.manage(graph_engine);
@@ -264,6 +347,33 @@ pub fn run() {
             commands::analytics::get_last_week_summary,
             commands::analytics::get_this_month_summary,
             commands::analytics::get_workspace_insight,
+            commands::intelligence::get_workspace_health,
+            commands::intelligence::get_latest_workspace_health,
+            commands::intelligence::get_workspace_health_history,
+            commands::intelligence::get_workspace_recommendations,
+            commands::intelligence::get_category_recommendations,
+            commands::intelligence::get_priority_recommendations,
+            commands::actions::execute_action,
+            commands::actions::undo_action,
+            commands::actions::get_action_history,
+            commands::actions::get_all_action_history,
+            commands::actions::clear_action_history,
+            commands::actions::clear_workspace_action_history,
+            commands::context_memory::create_context_snapshot,
+            commands::context_memory::get_workspace_snapshots,
+            commands::context_memory::get_latest_snapshot,
+            commands::context_memory::detect_workspace_relationships,
+            commands::context_memory::get_related_workspaces,
+            commands::context_memory::search_knowledge,
+            commands::context_memory::snapshot_milestone,
+            commands::predictive::get_predictions_summary,
+            commands::predictive::get_current_workflow,
+            commands::predictive::get_learning_profile,
+            commands::predictive::update_learning_profile,
+            commands::predictive::create_automation_rule,
+            commands::predictive::list_automation_rules,
+            commands::predictive::update_automation_rule_enabled,
+            commands::predictive::delete_automation_rule,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ChronoDesk");
