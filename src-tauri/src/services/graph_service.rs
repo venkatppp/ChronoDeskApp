@@ -73,6 +73,7 @@ impl GraphService {
         self.graph_repository.get_graph_stats(workspace_id).await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn upsert_edge(
         &self,
         source_entity_type: SearchEntityType,

@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { getWorkspaceRepository } from "@/services/workspaceRepository";
 import { getTimelineRepository } from "@/services/timelineRepository";
 import { getSessionRepository } from "@/services/sessionRepository";
+import { getAnalyticsRepository } from "@/services/analyticsRepository";
 import { useAppEvents } from "@/hooks/useAppEvents";
 import { DASHBOARD_REFRESH_EVENTS } from "@/utils/backendEvents";
 import type { Recommendation, Workspace, WorkspaceStats, ProductivityBrief } from "@/types/workspace";
 import type { TimelineEvent } from "@/types/timeline";
 import type { SessionSummary } from "@/types/session";
+import type { DailyBriefing, DailySummary } from "@/types/analytics";
 
 interface DashboardData {
   workspaces: Workspace[];
@@ -15,6 +17,9 @@ interface DashboardData {
   workspaceStats: Record<string, WorkspaceStats>;
   recentActivity: TimelineEvent[];
   smartResumeSession: SessionSummary | null;
+  dailyBriefing: DailyBriefing | null;
+  todaySummary: DailySummary | null;
+  yesterdaySummary: DailySummary | null;
   isLoading: boolean;
   error: string | null;
 }
@@ -26,6 +31,9 @@ const INITIAL_STATE: DashboardData = {
   workspaceStats: {},
   recentActivity: [],
   smartResumeSession: null,
+  dailyBriefing: null,
+  todaySummary: null,
+  yesterdaySummary: null,
   isLoading: true,
   error: null,
 };
@@ -37,13 +45,17 @@ export function useDashboardData(): DashboardData {
     const workspaceRepository = getWorkspaceRepository();
     const timelineRepository = getTimelineRepository();
     const sessionRepository = getSessionRepository();
+    const analyticsRepository = getAnalyticsRepository();
 
     try {
-      const [workspaces, briefing, recommendations, smartResumeSession] = await Promise.all([
+      const [workspaces, briefing, recommendations, smartResumeSession, dailyBriefing, todaySummary, yesterdaySummary] = await Promise.all([
         workspaceRepository.listActiveWorkspaces(),
         workspaceRepository.getBriefing(),
         workspaceRepository.listRecommendations(),
         sessionRepository.getSmartResumeSession().catch(() => null),
+        analyticsRepository.getDailyBriefing().catch(() => null),
+        analyticsRepository.getTodaySummary().catch(() => null),
+        analyticsRepository.getYesterdaySummary().catch(() => null),
       ]);
 
       const sorted = [...workspaces].sort(
@@ -79,6 +91,9 @@ export function useDashboardData(): DashboardData {
         workspaceStats: statsMap,
         recentActivity,
         smartResumeSession,
+        dailyBriefing,
+        todaySummary,
+        yesterdaySummary,
         isLoading: false,
         error: null,
       });

@@ -219,7 +219,7 @@ impl DuplicateDetectionEngine {
     /// Checks if the scan has been cancelled.
     async fn is_cancelled(&self) -> bool {
         let guard = self.progress.read().await;
-        guard.as_ref().map_or(false, |p| p.is_complete)
+        guard.as_ref().is_some_and(|p| p.is_complete)
     }
 
     /// Emits progress via the event emitter if one is attached.

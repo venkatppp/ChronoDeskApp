@@ -1,58 +1,49 @@
 // TrendIndicator Component
 //
-// Displays a trend indicator with percentage change and description.
+// Displays a metric with trend comparison and percentage change.
 
-import { TrendUp, TrendDown, Minus } from "lucide-react";
-import type { TrendIndicator as TrendIndicatorType } from "@/types/analytics";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Card } from "@/components/ui/Card";
 
 interface TrendIndicatorProps {
-  trend: TrendIndicatorType;
-  size?: "sm" | "md" | "lg";
+  label: string;
+  current: number;
+  previous: number;
+  format?: (value: number) => string;
 }
 
-export function TrendIndicator({ trend, size = "md" }: TrendIndicatorProps) {
-  const isImproving = trend.changePercent > 0;
-  const isFlat = Math.abs(trend.changePercent) < 0.1;
-
-  const iconSizes = {
-    sm: "h-3 w-3",
-    md: "h-4 w-4",
-    lg: "h-5 w-5",
-  };
-
-  const textSizes = {
-    sm: "text-xs",
-    md: "text-sm",
-    lg: "text-base",
-  };
-
-  const iconSize = iconSizes[size];
-  const textSize = textSizes[size];
-
-  if (isFlat) {
-    return (
-      <div className={`flex items-center gap-1 text-(--color-muted-foreground) ${textSize}`}>
-        <Minus className={iconSize} strokeWidth={1.75} />
-        <span>No change</span>
-      </div>
-    );
-  }
+export function TrendIndicator({ label, current, previous, format }: TrendIndicatorProps) {
+  const formatValue = format || ((val: number) => val.toString());
+  const changePercent = previous > 0 ? ((current - previous) / previous) * 100 : 0;
+  const isImproving = changePercent > 0;
+  const isFlat = Math.abs(changePercent) < 0.1;
 
   return (
-    <div
-      className={`flex items-center gap-1 ${textSize} ${
-        isImproving ? "text-(--color-success)" : "text-(--color-danger)"
-      }`}
-    >
-      {isImproving ? (
-        <TrendUp className={iconSize} strokeWidth={1.75} />
-      ) : (
-        <TrendDown className={iconSize} strokeWidth={1.75} />
-      )}
-      <span>
-        {isImproving ? "+" : ""}
-        {trend.changePercent.toFixed(1)}%
-      </span>
-    </div>
+    <Card className="flex items-center gap-3 p-4">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
+          {label}
+        </p>
+        <p className="text-lg font-bold text-(--color-foreground)">{formatValue(current)}</p>
+        <div className="mt-1 flex items-center gap-1 text-xs">
+          {isFlat ? (
+            <>
+              <Minus className="h-3 w-3 text-(--color-muted-foreground)" strokeWidth={1.75} />
+              <span className="text-(--color-muted-foreground)">No change</span>
+            </>
+          ) : isImproving ? (
+            <>
+              <TrendingUp className="h-3 w-3 text-(--color-success)" strokeWidth={1.75} />
+              <span className="text-(--color-success)">+{changePercent.toFixed(1)}%</span>
+            </>
+          ) : (
+            <>
+              <TrendingDown className="h-3 w-3 text-(--color-danger)" strokeWidth={1.75} />
+              <span className="text-(--color-danger)">{changePercent.toFixed(1)}%</span>
+            </>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }

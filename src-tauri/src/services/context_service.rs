@@ -139,7 +139,7 @@ impl ContextService {
         &self,
         threshold_seconds: i64,
     ) -> Result<(), DatabaseError> {
-        if threshold_seconds < 60 || threshold_seconds > 3600 * 4 {
+        if !(60..=3600 * 4).contains(&threshold_seconds) {
             return Err(DatabaseError::InvalidInput(
                 "Inactivity threshold must be between 1 minute and 4 hours".to_string(),
             ));

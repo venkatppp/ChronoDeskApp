@@ -10,6 +10,9 @@ import { SmartResumeBanner } from "@/features/dashboard/components/SmartResumeBa
 import { WorkspaceCard } from "@/features/dashboard/components/WorkspaceCard";
 import { RecommendationsPanel } from "@/features/dashboard/components/RecommendationsPanel";
 import { RecentActivityFeed } from "@/features/dashboard/components/RecentActivityFeed";
+import { DailyBriefing } from "@/features/dashboard/components/DailyBriefing";
+import { ActivitySummary } from "@/features/dashboard/components/ActivitySummary";
+import { TrendIndicator } from "@/features/dashboard/components/TrendIndicator";
 import { getWorkspaceRepository } from "@/services/workspaceRepository";
 import { getSearchRepository } from "@/services/searchRepository";
 import { useNavigate } from "react-router-dom";
@@ -47,7 +50,7 @@ interface QuickAction {
 }
 
 export function DashboardView() {
-  const { workspaces, briefing, recommendations, workspaceStats, recentActivity, smartResumeSession, isLoading, error } = useDashboardData();
+  const { workspaces, briefing, recommendations, workspaceStats, recentActivity, smartResumeSession, dailyBriefing, todaySummary, yesterdaySummary, isLoading, error } = useDashboardData();
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -184,6 +187,79 @@ export function DashboardView() {
 
       {(!smartResumeSession || dismissedSmartResume) && (
         <BriefingBanner briefing={briefing} isLoading={isLoading} />
+      )}
+
+      {dailyBriefing && !isLoading && (
+        <DailyBriefing briefing={dailyBriefing} />
+      )}
+
+      {todaySummary && yesterdaySummary && !isLoading && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div>
+            <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
+              Today
+            </h3>
+            <ActivitySummary
+              summary={{
+                timeRange: "Today",
+                durationSeconds: todaySummary.totalDurationSeconds,
+                sessionCount: todaySummary.sessionCount,
+                workspaceCount: todaySummary.workspaceCount,
+                fileCount: todaySummary.fileCount,
+                editCount: todaySummary.editCount,
+                commitCount: todaySummary.commitCount,
+                primaryLanguage: todaySummary.languages[0]?.language,
+              }}
+            />
+          </div>
+          <div>
+            <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
+              Yesterday
+            </h3>
+            <ActivitySummary
+              summary={{
+                timeRange: "Yesterday",
+                durationSeconds: yesterdaySummary.totalDurationSeconds,
+                sessionCount: yesterdaySummary.sessionCount,
+                workspaceCount: yesterdaySummary.workspaceCount,
+                fileCount: yesterdaySummary.fileCount,
+                editCount: yesterdaySummary.editCount,
+                commitCount: yesterdaySummary.commitCount,
+                primaryLanguage: yesterdaySummary.languages[0]?.language,
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {todaySummary && yesterdaySummary && !isLoading && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <TrendIndicator
+            label="Duration"
+            current={todaySummary.totalDurationSeconds}
+            previous={yesterdaySummary.totalDurationSeconds}
+            format={(val) => {
+              const hours = Math.floor(val / 3600);
+              const minutes = Math.floor((val % 3600) / 60);
+              return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+            }}
+          />
+          <TrendIndicator
+            label="Files"
+            current={todaySummary.fileCount}
+            previous={yesterdaySummary.fileCount}
+          />
+          <TrendIndicator
+            label="Edits"
+            current={todaySummary.editCount}
+            previous={yesterdaySummary.editCount}
+          />
+          <TrendIndicator
+            label="Commits"
+            current={todaySummary.commitCount}
+            previous={yesterdaySummary.commitCount}
+          />
+        </div>
       )}
 
       {mostRecentWorkspace && workspaceStats[mostRecentWorkspace.id] && !isLoading && (

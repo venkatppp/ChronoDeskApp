@@ -168,6 +168,7 @@ impl GraphRepository {
     /// `ON CONFLICT` target is the unique index from migration 0007 on
     /// (source_entity_type, source_entity_id, target_entity_type,
     /// target_entity_id, edge_type, workspace_id).
+    #[allow(clippy::too_many_arguments)]
     pub async fn upsert_edge(
         &self,
         source_entity_type: SearchEntityType,

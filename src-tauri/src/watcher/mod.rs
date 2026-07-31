@@ -11,6 +11,6 @@
 
 pub mod debounce;
 pub mod event_handler;
-pub mod watcher;
+pub mod file_watcher;
 
-pub use watcher::FileWatcher;
+pub use file_watcher::FileWatcher;

@@ -38,7 +38,7 @@ impl ScoreCalculator for CompletionSignalsCalculator {
         let (value, reason) = if total_signals == 0 {
             (0.4, "No completion signals (work in progress)".to_string())
         } else if total_signals == 1 {
-            (0.7, format!("1 commit (some completion)"))
+            (0.7, "1 commit (some completion)".to_string())
         } else {
             (1.0, format!("{} commits (clear progress)", total_signals))
         };

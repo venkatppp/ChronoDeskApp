@@ -135,7 +135,7 @@ impl SessionEngine {
         }
 
         // Sort by start time (newest first)
-        all_sessions.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+        all_sessions.sort_by_key(|a| std::cmp::Reverse(a.started_at));
 
         // Take the most recent session and enrich it
         if let Some(mut session) = all_sessions.into_iter().next() {
@@ -175,11 +175,7 @@ impl SessionEngine {
             .map(|e| SessionEventSummary {
                 occurred_at: e.occurred_at,
                 event_type: e.event_type.as_str().to_string(),
-                file_name: e.file_id.and_then(|_| {
-                    // Extract filename from event metadata if available
-                    // For now, we'll use a placeholder
-                    Some("file".to_string())
-                }),
+                file_name: e.file_id.map(|_| "file".to_string()),
                 description: format!("{}", e.event_type),
             })
             .collect();
