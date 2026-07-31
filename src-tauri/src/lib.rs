@@ -54,6 +54,7 @@
 //! frontend (@tauri-apps/api/event listen())
 //! ```
 
+pub mod analytics;
 pub mod app_events;
 pub mod commands;
 pub mod database;
@@ -75,6 +76,7 @@ use std::sync::Arc;
 
 use tauri::Manager;
 
+use analytics::AnalyticsEngine;
 use duplicates::DuplicateDetectionEngine;
 use graph::GraphEngine;
 use repositories::{
@@ -155,6 +157,17 @@ pub fn run() {
                 settings_repository.clone(),
             );
 
+            // --- Analytics Engine & Service (Phase 5B) ---
+            let analytics_repository =
+                analytics::repository::AnalyticsRepository::new(pool.clone());
+            let analytics_service = analytics::service::AnalyticsService::new(
+                analytics_repository,
+                context_service.clone(),
+                workspace_repository.clone(),
+                file_repository.clone(),
+            );
+            let analytics_engine = AnalyticsEngine::new(analytics_service);
+
             // --- Duplicate Detection Engine (Phase 5 Stage 2) ---
             let duplicate_engine = DuplicateDetectionEngine::new(file_repository.clone())
                 .with_event_emitter(
@@ -193,6 +206,7 @@ pub fn run() {
             app.manage(graph_service);
             app.manage(ml_service);
             app.manage(context_service);
+            app.manage(analytics_engine);
             app.manage(timeline_engine);
             app.manage(search_engine);
             app.manage(graph_engine);
@@ -243,6 +257,13 @@ pub fn run() {
             commands::session::get_latest_workspace_session,
             commands::session::set_session_inactivity_threshold,
             commands::session::get_session_inactivity_threshold,
+            commands::analytics::get_daily_briefing,
+            commands::analytics::get_today_summary,
+            commands::analytics::get_yesterday_summary,
+            commands::analytics::get_this_week_summary,
+            commands::analytics::get_last_week_summary,
+            commands::analytics::get_this_month_summary,
+            commands::analytics::get_workspace_insight,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ChronoDesk");

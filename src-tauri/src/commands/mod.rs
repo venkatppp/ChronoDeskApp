@@ -5,6 +5,7 @@
 //! is defined outside this module, so the full surface area callable from
 //! the frontend is always visible in one place.
 
+pub mod analytics;
 pub mod duplicates;
 pub mod graph;
 pub mod search;
