@@ -12,7 +12,7 @@ export function SearchResults({ results, isLoading, onSelect }: SearchResultsPro
     return (
       <div className="space-y-4 py-6">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="bg-background-secondary h-32 rounded-xl animate-pulse" />
+          <div key={i} className="bg-surface-hover h-32 rounded-xl animate-pulse" />
         ))}
       </div>
     );
@@ -21,7 +21,7 @@ export function SearchResults({ results, isLoading, onSelect }: SearchResultsPro
   if (results.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="bg-background-secondary p-6 rounded-full mb-4">
+        <div className="bg-surface-hover p-6 rounded-full mb-4">
           <FileText className="h-12 w-12 text-muted-foreground opacity-20" />
         </div>
         <h3 className="text-xl font-semibold text-foreground mb-2">No results found</h3>
@@ -38,11 +38,11 @@ export function SearchResults({ results, isLoading, onSelect }: SearchResultsPro
         <button
           key={`${result.entityType}-${result.entityId}`}
           onClick={() => onSelect(result)}
-          className="w-full text-left bg-background-secondary p-5 rounded-xl border border-border hover:border-primary/40 hover:shadow-lg transition-all group"
+          className="w-full text-left bg-surface-hover p-5 rounded-xl border border-border hover:border-accent/40 hover:shadow-lg transition-all group"
         >
           <div className="flex items-start gap-4">
             <div className={`p-3 rounded-lg ${
-              result.entityType === "workspace" ? "bg-blue-500/10 text-blue-500" : "bg-primary/10 text-primary"
+              result.entityType === "workspace" ? "bg-accent/10 text-accent" : "bg-accent-muted/10 text-accent-muted"
             }`}>
               {result.entityType === "workspace" ? (
                 <Folder className="h-5 w-5" />
@@ -52,11 +52,11 @@ export function SearchResults({ results, isLoading, onSelect }: SearchResultsPro
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-1">
-                <h4 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                <h4 className="font-semibold text-foreground truncate group-hover:text-accent transition-colors">
                   {result.title}
                 </h4>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-background-tertiary px-2 py-0.5 rounded border border-border">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-surface-hover px-2 py-0.5 rounded border border-border">
                     {result.entityType}
                   </span>
                   <div className="flex items-center text-amber-500">
@@ -65,10 +65,11 @@ export function SearchResults({ results, isLoading, onSelect }: SearchResultsPro
                   </div>
                 </div>
               </div>
-              <p 
+              <p
                 className="text-sm text-muted-foreground line-clamp-2 leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: result.snippet }}
-              />
+              >
+                {result.snippet.replace(/<[^>]*>/g, "")}
+              </p>
             </div>
           </div>
         </button>

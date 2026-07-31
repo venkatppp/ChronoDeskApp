@@ -17,10 +17,10 @@ export function GraphSidebar({
   onSearch,
 }: GraphSidebarProps) {
   const EDGE_TYPES: { type: GraphEdgeType; label: string; color: string }[] = [
-    { type: "co_occurrence", label: "Co-occurrence", color: "bg-blue-500" },
-    { type: "semantic_similarity", label: "Semantic", color: "bg-purple-500" },
-    { type: "explicit_reference", label: "Reference", color: "bg-amber-500" },
-    { type: "derivation", label: "Derivation", color: "bg-emerald-500" },
+    { type: "co_occurrence", label: "Co-occurrence", color: "bg-accent" },
+    { type: "semantic_similarity", label: "Semantic", color: "bg-accent-muted" },
+    { type: "explicit_reference", label: "Reference", color: "bg-warning" },
+    { type: "derivation", label: "Derivation", color: "bg-success" },
   ];
 
   const toggleEdgeType = (type: GraphEdgeType) => {
@@ -40,7 +40,7 @@ export function GraphSidebar({
             type="text"
             placeholder="Search nodes..."
             onChange={(e) => onSearch(e.target.value)}
-            className="w-full h-10 pl-10 pr-4 bg-background-secondary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+            className="w-full h-10 pl-10 pr-4 bg-background-secondary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
           />
         </div>
 
@@ -56,7 +56,7 @@ export function GraphSidebar({
                   type="checkbox"
                   checked={edgeTypes.includes(et.type)}
                   onChange={() => toggleEdgeType(et.type)}
-                  className="w-4 h-4 rounded border-border bg-background-secondary text-primary focus:ring-primary"
+                  className="w-4 h-4 rounded border-border bg-background-secondary text-accent focus:ring-accent"
                 />
                 <div className={`w-2 h-2 rounded-full ${et.color}`} />
                 <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
@@ -73,7 +73,7 @@ export function GraphSidebar({
           <div className="animate-in fade-in slide-in-from-right-4">
             <div className="flex items-start justify-between mb-6">
               <div className={`p-3 rounded-xl ${
-                selectedNode.entityType === "workspace" ? "bg-blue-500/10 text-blue-500" : "bg-primary/10 text-primary"
+                selectedNode.entityType === "workspace" ? "bg-accent/10 text-accent" : "bg-accent-muted/10 text-accent-muted"
               }`}>
                 {selectedNode.entityType === "workspace" ? (
                   <Folder className="h-6 w-6" />

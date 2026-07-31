@@ -64,6 +64,10 @@ chrono = { version = "0.4", features = ["serde"] }
 # drift going unnoticed until a real compile.
 notify = "6.1"
 
+# --- Phase 5 Stage 2: Duplicate Detection ---
+# SHA-256 hashing for content-based duplicate file detection.
+sha2 = "0.10"
+
 [dev-dependencies]
 # Used only by repository/migration tests to create disposable on-disk
 # SQLite databases that never touch a real user's app-data directory.

@@ -3,7 +3,7 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::errors::DatabaseError;
-use crate::models::workspace::WorkspaceRow;
+use crate::models::workspace::{WorkspaceRow, WorkspaceStats};
 use crate::models::{CreateWorkspaceInput, UpdateWorkspaceInput, Workspace, WorkspaceStatus};
 
 /// Owns every SQL statement that touches the `workspaces` table.
@@ -284,6 +284,43 @@ impl WorkspaceRepository {
         rows.into_iter().map(Workspace::try_from).collect()
     }
 
+    /// Aggregated statistics for a single workspace — file count, timeline
+    /// event count, recency, and health score — in one round-trip.
+    ///
+    /// Uses correlated subqueries against indexed columns
+    /// (`idx_files_workspace_id`, `idx_timeline_events_workspace_occurred`),
+    /// so each count is a fast index scan even as the tables grow.
+    ///
+    /// # Errors
+    /// [`DatabaseError::NotFound`] if no workspace with that id exists.
+    pub async fn get_workspace_stats(
+        &self,
+        workspace_id: Uuid,
+    ) -> Result<WorkspaceStats, DatabaseError> {
+        let row: WorkspaceStatsRow = sqlx::query_as(
+            "SELECT
+                w.id,
+                (SELECT COUNT(*) FROM files WHERE workspace_id = w.id) as file_count,
+                (SELECT COUNT(*) FROM timeline_events WHERE workspace_id = w.id) as timeline_event_count,
+                w.last_active_at,
+                w.health_score
+             FROM workspaces w
+             WHERE w.id = ?",
+        )
+        .bind(workspace_id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or_else(|| DatabaseError::not_found("workspace", workspace_id.to_string()))?;
+
+        Ok(WorkspaceStats {
+            workspace_id: row.id,
+            file_count: row.file_count,
+            timeline_event_count: row.timeline_event_count,
+            last_activity: row.last_active_at,
+            health_score: row.health_score,
+        })
+    }
+
     /// Case-insensitive substring search over `name` and `description`,
     /// most-recently-active first. Returns an empty list (not an error)
     /// for a blank query — callers don't need to special-case "no query
@@ -308,6 +345,17 @@ impl WorkspaceRepository {
 
         rows.into_iter().map(Workspace::try_from).collect()
     }
+}
+
+/// Raw shape of the `get_workspace_stats` query result. Kept private to
+/// this module — `WorkspaceStats` is what callers see.
+#[derive(Debug, sqlx::FromRow)]
+struct WorkspaceStatsRow {
+    id: Uuid,
+    file_count: i64,
+    timeline_event_count: i64,
+    last_active_at: chrono::DateTime<chrono::Utc>,
+    health_score: f64,
 }
 
 /// Escapes `\`, `%`, and `_` so user-typed search text can't inject

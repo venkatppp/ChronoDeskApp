@@ -25,7 +25,7 @@ use crate::app_events::{
     EVENT_WORKSPACE_UPDATED,
 };
 use crate::errors::DatabaseError;
-use crate::models::{CreateWorkspaceInput, UpdateWorkspaceInput, Workspace};
+use crate::models::{CreateWorkspaceInput, UpdateWorkspaceInput, Workspace, WorkspaceStats};
 use crate::services::WorkspaceService;
 
 /// Lists every active workspace, most recently active first.
@@ -57,6 +57,22 @@ pub async fn get_workspace(
     id: Uuid,
 ) -> Result<Workspace, DatabaseError> {
     service.get_workspace(id).await
+}
+
+/// Aggregated statistics for a workspace — file count, timeline event
+/// count, recency, and health score — in a single round-trip.
+///
+/// Named `get_workspace_statistics` (not `get_workspace_stats`, which
+/// would collide with `commands::search::get_workspace_stats`).
+///
+/// # Errors
+/// [`DatabaseError::NotFound`] if `id` doesn't exist.
+#[tauri::command]
+pub async fn get_workspace_statistics(
+    service: State<'_, WorkspaceService>,
+    workspace_id: Uuid,
+) -> Result<WorkspaceStats, DatabaseError> {
+    service.get_workspace_stats(workspace_id).await
 }
 
 /// Creates a new workspace and emits [`EVENT_WORKSPACE_CREATED`] so every

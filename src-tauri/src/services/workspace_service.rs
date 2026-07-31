@@ -3,7 +3,7 @@ use uuid::Uuid;
 use crate::errors::DatabaseError;
 use crate::models::{
     CreateWorkspaceInput, NewTimelineEvent, TimelineEventType, UpdateWorkspaceInput, Workspace,
-    WorkspaceStatus,
+    WorkspaceStats, WorkspaceStatus,
 };
 use crate::repositories::{TimelineRepository, WorkspaceRepository};
 
@@ -47,6 +47,17 @@ impl WorkspaceService {
     /// Fetches a single workspace by id.
     pub async fn get_workspace(&self, id: Uuid) -> Result<Workspace, DatabaseError> {
         self.workspace_repository.get_by_id(id).await
+    }
+
+    /// Aggregated statistics for a workspace — file count, timeline event
+    /// count, recency, and health score — in one round-trip.
+    pub async fn get_workspace_stats(
+        &self,
+        workspace_id: Uuid,
+    ) -> Result<WorkspaceStats, DatabaseError> {
+        self.workspace_repository
+            .get_workspace_stats(workspace_id)
+            .await
     }
 
     /// Looks up the workspace matching a filesystem root path, if any.

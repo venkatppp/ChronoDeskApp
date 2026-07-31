@@ -25,11 +25,11 @@ export function SavedSearches({
         {savedSearches.map((search) => (
           <div
             key={search.id}
-            className="flex items-center justify-between p-4 bg-background-secondary border border-border rounded-xl hover:border-primary/50 transition-all cursor-pointer group"
+            className="flex items-center justify-between p-4 bg-background-secondary border border-border rounded-xl hover:border-accent/50 transition-all cursor-pointer group"
             onClick={() => onSelect(search.query)}
           >
             <div>
-              <div className="font-medium text-foreground group-hover:text-primary transition-colors">
+              <div className="font-medium text-foreground group-hover:text-accent transition-colors">
                 {search.query}
               </div>
               <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-1">
@@ -42,7 +42,7 @@ export function SavedSearches({
                 e.stopPropagation();
                 onDelete(search.id);
               }}
-              className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+              className="p-2 rounded-lg text-muted-foreground hover:bg-danger/10 hover:text-danger transition-colors opacity-0 group-hover:opacity-100"
             >
               <Trash2 className="h-4 w-4" />
             </button>

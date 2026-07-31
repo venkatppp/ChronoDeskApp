@@ -20,7 +20,8 @@
 ///     (Phase 4 Knowledge Graph).
 /// 7 = unique index on `graph_edges` (6 identifying columns).
 ///     (Milestone 2 Backend Reliability).
-pub const CURRENT_SCHEMA_VERSION: i64 = 7;
+/// 8 = `embeddings` table for Phase 5 ML Layer vector storage.
+pub const CURRENT_SCHEMA_VERSION: i64 = 8;
 
 /// Table name constants. Repository query strings use literal SQL for
 /// readability (and because `sqlx::query_as` takes a plain `&str`, not a
@@ -41,4 +42,5 @@ pub mod tables {
     pub const GRAPH_EDGES: &str = "graph_edges";
     pub const SEARCH_HISTORY: &str = "search_history";
     pub const SAVED_SEARCHES: &str = "saved_searches";
+    pub const EMBEDDINGS: &str = "embeddings";
 }

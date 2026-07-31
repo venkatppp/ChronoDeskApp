@@ -20,11 +20,11 @@ export function GraphStatistics({ stats, isLoading }: GraphStatisticsProps) {
   if (!stats) return null;
 
   const cards = [
-    { label: "Nodes", value: stats.nodeCount, icon: Network, color: "text-blue-500" },
-    { label: "Edges", value: stats.edgeCount, icon: GitBranch, color: "text-primary" },
-    { label: "Avg Weight", value: stats.avgWeight.toFixed(2), icon: Weight, color: "text-amber-500" },
-    { label: "Max Weight", value: stats.maxWeight.toFixed(2), icon: Activity, color: "text-emerald-500" },
-    { label: "Density", value: (stats.density * 100).toFixed(1) + "%", icon: Grid3X3, color: "text-purple-500" },
+    { label: "Nodes", value: stats.nodeCount, icon: Network, color: "text-accent" },
+    { label: "Edges", value: stats.edgeCount, icon: GitBranch, color: "text-accent" },
+    { label: "Avg Weight", value: stats.avgWeight.toFixed(2), icon: Weight, color: "text-warning" },
+    { label: "Max Weight", value: stats.maxWeight.toFixed(2), icon: Activity, color: "text-success" },
+    { label: "Density", value: (stats.density * 100).toFixed(1) + "%", icon: Grid3X3, color: "text-accent-muted" },
   ];
 
   return (
@@ -32,7 +32,7 @@ export function GraphStatistics({ stats, isLoading }: GraphStatisticsProps) {
       {cards.map((card) => (
         <div 
           key={card.label} 
-          className="p-4 bg-background-secondary border border-border rounded-2xl flex flex-col justify-between hover:border-primary/30 transition-all hover:shadow-lg"
+          className="p-4 bg-background-secondary border border-border rounded-2xl flex flex-col justify-between hover:border-accent/30 transition-all hover:shadow-lg"
         >
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{card.label}</span>

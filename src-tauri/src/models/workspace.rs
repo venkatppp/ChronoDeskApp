@@ -116,6 +116,21 @@ impl TryFrom<WorkspaceRow> for Workspace {
     }
 }
 
+/// Aggregated statistics for a single workspace, returned by
+/// [`WorkspaceRepository::get_workspace_stats`].
+/// Combines file count, timeline event count, health score, and recency
+/// in a single IPC-friendly response so the dashboard doesn't need
+/// multiple round-trips to render a workspace card.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceStats {
+    pub workspace_id: Uuid,
+    pub file_count: i64,
+    pub timeline_event_count: i64,
+    pub last_activity: DateTime<Utc>,
+    pub health_score: f64,
+}
+
 /// Input for [`WorkspaceRepository::create`](crate::repositories::workspace_repository::WorkspaceRepository::create).
 /// Deserialized directly from the JSON payload a Tauri command receives
 /// from the frontend.

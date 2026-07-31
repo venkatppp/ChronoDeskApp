@@ -1,5 +1,7 @@
 import type { SearchEntityType } from "./search";
 
+export type GraphEntityType = SearchEntityType | "folder" | "language" | "project";
+
 export type GraphEdgeType =
   | "co_occurrence"
   | "semantic_similarity"
@@ -7,17 +9,18 @@ export type GraphEdgeType =
   | "derivation";
 
 export interface GraphNode {
-  entityType: SearchEntityType;
+  entityType: GraphEntityType;
   entityId: string;
   title: string;
   workspaceId: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface GraphEdge {
   id: string;
-  sourceEntityType: SearchEntityType;
+  sourceEntityType: GraphEntityType;
   sourceEntityId: string;
-  targetEntityType: SearchEntityType;
+  targetEntityType: GraphEntityType;
   targetEntityId: string;
   edgeType: GraphEdgeType;
   weight: number;

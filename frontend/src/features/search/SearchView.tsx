@@ -128,7 +128,7 @@ export function SearchView() {
         {query && (
           <button
             onClick={handleSaveSearch}
-            className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg font-medium transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent hover:bg-accent/20 rounded-lg font-medium transition-all"
           >
             Save Query
           </button>
@@ -147,7 +147,7 @@ export function SearchView() {
       </div>
 
       {error && (
-        <div className="my-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-sm">
+        <div className="my-6 p-4 bg-danger/10 border border-danger/20 rounded-xl text-danger text-sm">
           {error}
         </div>
       )}

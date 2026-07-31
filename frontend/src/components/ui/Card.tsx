@@ -1,11 +1,6 @@
 import { forwardRef, type HTMLAttributes } from "react";
 import { cn } from "@/utils/cn";
 
-/**
- * Base surface used across the dashboard, workspace, and settings screens.
- * A 1px hairline border plus a slightly lighter top edge gives the flat
- * "glass" look used by Linear/Raycast without resorting to drop shadows.
- */
 export const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
@@ -13,7 +8,7 @@ export const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
       className={cn(
         "rounded-[var(--radius-card)] border border-(--color-border) bg-(--color-surface)",
         "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03)]",
-        "transition-[background-color,border-color] duration-150",
+        "transition-all duration-[350ms] ease-[cubic-bezier(0.32,0.08,0.24,1)]",
         className,
       )}
       {...props}

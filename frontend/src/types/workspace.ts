@@ -27,6 +27,15 @@ export interface Workspace {
   updatedAt: string;
 }
 
+/** Aggregated statistics for a workspace, returned by `get_workspace_statistics`. */
+export interface WorkspaceStats {
+  workspaceId: string;
+  fileCount: number;
+  timelineEventCount: number;
+  lastActivity: string;
+  healthScore: number;
+}
+
 /** Payload for `invoke("create_workspace", { input })`. */
 export interface CreateWorkspaceInput {
   name: string;
@@ -41,6 +50,22 @@ export interface UpdateWorkspaceInput {
   healthScore?: number;
 }
 
+export interface ProductivityBrief {
+  greeting: string;
+  lastActiveRelative: string | null;
+  workspacesCount: number;
+  healthyCount: number;
+  attentionCount: number;
+  topWorkspaceName: string | null;
+  topWorkspaceHealth: number;
+  attentionWorkspaces: { name: string; health: number }[];
+  todayEventsCount: number;
+  hoursWorked: number;
+  filesEdited: number;
+  mostActiveLanguage: string | null;
+  mostEditedFile: string | null;
+}
+
 /**
  * A single item in the "Today's Briefing" / recommendation feed on the
  * dashboard (blueprint §3.2, Home Dashboard + Recommendations Panel).
@@ -50,11 +75,18 @@ export interface UpdateWorkspaceInput {
  * Engine (blueprint §6) is a later phase; this is an honest, if simple,
  * heuristic layer over data that's actually real today, not a mock.
  */
-export type RecommendationKind = "resume" | "archive" | "duplicate" | "deadline";
+export type RecommendationKind = "resume" | "archive" | "attention" | "duplicate" | "deadline";
+
+export type RecommendationCategory = "maintenance" | "productivity" | "health" | "exploration";
 
 export interface Recommendation {
   id: string;
   kind: RecommendationKind;
   message: string;
   workspaceId?: string;
+  priority: number;
+  reason: string;
+  estimatedEffort: "quick" | "moderate" | "significant";
+  expectedImpact: "low" | "medium" | "high";
+  category: RecommendationCategory;
 }

@@ -121,6 +121,23 @@ impl TimelineRepository {
 
         rows.into_iter().map(TimelineEvent::try_from).collect()
     }
+
+    /// Lists recent events across all workspaces, newest first.
+    ///
+    /// Used for Smart Resume to find the most recent session regardless
+    /// of workspace. Limited to a reasonable number to avoid scanning
+    /// the entire timeline table.
+    pub async fn list_recent(&self, limit: i64) -> Result<Vec<TimelineEvent>, DatabaseError> {
+        let rows: Vec<TimelineEventRow> = sqlx::query_as(&format!(
+            "SELECT {SELECT_COLUMNS} FROM timeline_events
+             ORDER BY occurred_at DESC LIMIT ?"
+        ))
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter().map(TimelineEvent::try_from).collect()
+    }
 }
 
 #[cfg(test)]

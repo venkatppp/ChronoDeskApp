@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { getWorkspaceRepository } from "@/services/workspaceRepository";
 import { getTimelineRepository } from "@/services/timelineRepository";
+import { getSessionRepository } from "@/services/sessionRepository";
 import { useAppEvents } from "@/hooks/useAppEvents";
 import { DASHBOARD_REFRESH_EVENTS } from "@/utils/backendEvents";
-import type { Recommendation, Workspace } from "@/types/workspace";
+import type { Recommendation, Workspace, WorkspaceStats, ProductivityBrief } from "@/types/workspace";
 import type { TimelineEvent } from "@/types/timeline";
+import type { SessionSummary } from "@/types/session";
 
 interface DashboardData {
   workspaces: Workspace[];
-  briefing: string | null;
+  briefing: ProductivityBrief | null;
   recommendations: Recommendation[];
-  /** Recent timeline events for the most-recently-active workspace, if any. */
+  workspaceStats: Record<string, WorkspaceStats>;
   recentActivity: TimelineEvent[];
+  smartResumeSession: SessionSummary | null;
   isLoading: boolean;
   error: string | null;
 }
@@ -20,48 +23,62 @@ const INITIAL_STATE: DashboardData = {
   workspaces: [],
   briefing: null,
   recommendations: [],
+  workspaceStats: {},
   recentActivity: [],
+  smartResumeSession: null,
   isLoading: true,
   error: null,
 };
 
-/**
- * Loads everything the Home Dashboard needs (blueprint §3.2) through the
- * repository abstraction, and keeps it live: subscribed to every backend
- * event that could mean the dashboard is stale
- * (`DASHBOARD_REFRESH_EVENTS`, emitted by the watcher pipeline and the
- * workspace commands — see `src-tauri/src/app_events.rs`), so a file
- * change on disk or a workspace edit from another window reaches this
- * screen with no manual refresh. Component code stays purely
- * presentational.
- */
 export function useDashboardData(): DashboardData {
   const [state, setState] = useState<DashboardData>(INITIAL_STATE);
 
   const load = useCallback(async () => {
     const workspaceRepository = getWorkspaceRepository();
     const timelineRepository = getTimelineRepository();
+    const sessionRepository = getSessionRepository();
 
     try {
-      const [workspaces, briefing, recommendations] = await Promise.all([
+      const [workspaces, briefing, recommendations, smartResumeSession] = await Promise.all([
         workspaceRepository.listActiveWorkspaces(),
         workspaceRepository.getBriefing(),
         workspaceRepository.listRecommendations(),
+        sessionRepository.getSmartResumeSession().catch(() => null),
       ]);
 
-      const mostRecentWorkspace = [...workspaces].sort(
+      const sorted = [...workspaces].sort(
         (a, b) => new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime(),
-      )[0];
+      );
+      const mostRecentWorkspace = sorted[0];
 
-      const recentActivity = mostRecentWorkspace
-        ? await timelineRepository.getRecentActivity(mostRecentWorkspace.id)
-        : [];
+      const [allStats, recentActivity] = await Promise.all([
+        workspaces.length > 0
+          ? Promise.all(
+              workspaces.map((w) =>
+                workspaceRepository.getDashboardStats(w.id).catch(() => null),
+              ),
+            )
+          : Promise.resolve([]),
+        mostRecentWorkspace
+          ? timelineRepository.getRecentActivity(mostRecentWorkspace.id)
+          : Promise.resolve([] as TimelineEvent[]),
+      ]);
+
+      const statsMap: Record<string, WorkspaceStats> = {};
+      if (allStats.length > 0) {
+        for (let i = 0; i < workspaces.length; i++) {
+          const s = allStats[i];
+          if (s) statsMap[workspaces[i].id] = s;
+        }
+      }
 
       setState({
         workspaces,
         briefing,
         recommendations,
+        workspaceStats: statsMap,
         recentActivity,
+        smartResumeSession,
         isLoading: false,
         error: null,
       });
@@ -78,9 +95,6 @@ export function useDashboardData(): DashboardData {
     void load();
   }, [load]);
 
-  // Re-run the load whenever the backend reports something changed —
-  // this is what makes the dashboard "just update" per Phase 3's
-  // "no manual refresh" requirement, rather than polling on a timer.
   useAppEvents(DASHBOARD_REFRESH_EVENTS, () => {
     void load();
   });

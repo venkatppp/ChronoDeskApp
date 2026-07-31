@@ -126,6 +126,132 @@ impl FileRepository {
         rows.into_iter().map(FileArtifact::try_from).collect()
     }
 
+    /// Lists files that have no content_hash (never hashed).
+    ///
+    /// Used by duplicate detection to find files that need initial hashing.
+    /// If `workspace_id` is provided, only returns files from that workspace.
+    pub async fn list_unhashed_files(
+        &self,
+        workspace_id: Option<Uuid>,
+    ) -> Result<Vec<FileArtifact>, DatabaseError> {
+        let rows: Vec<FileRow> = if let Some(ws_id) = workspace_id {
+            sqlx::query_as(&format!(
+                "SELECT {SELECT_COLUMNS} FROM files WHERE content_hash IS NULL AND workspace_id = ? ORDER BY created_at ASC"
+            ))
+            .bind(ws_id)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query_as(&format!(
+                "SELECT {SELECT_COLUMNS} FROM files WHERE content_hash IS NULL ORDER BY created_at ASC"
+            ))
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        rows.into_iter().map(FileArtifact::try_from).collect()
+    }
+
+    /// Lists files that have been modified since they were last hashed.
+    ///
+    /// Compares `updated_at` with a threshold timestamp to identify files
+    /// that may have changed content since their hash was computed.
+    /// Used for incremental rehashing.
+    pub async fn list_files_modified_since(
+        &self,
+        since: chrono::DateTime<chrono::Utc>,
+        workspace_id: Option<Uuid>,
+    ) -> Result<Vec<FileArtifact>, DatabaseError> {
+        let rows: Vec<FileRow> = if let Some(ws_id) = workspace_id {
+            sqlx::query_as(&format!(
+                "SELECT {SELECT_COLUMNS} FROM files WHERE updated_at > ? AND workspace_id = ? ORDER BY updated_at ASC"
+            ))
+            .bind(since)
+            .bind(ws_id)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query_as(&format!(
+                "SELECT {SELECT_COLUMNS} FROM files WHERE updated_at > ? ORDER BY updated_at ASC"
+            ))
+            .bind(since)
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        rows.into_iter().map(FileArtifact::try_from).collect()
+    }
+
+    /// Finds all duplicate groups (sets of files sharing the same content_hash).
+    ///
+    /// Returns only hashes that have 2+ files. Each group is a tuple of
+    /// (content_hash, Vec<FileArtifact>). Groups are ordered by file count
+    /// descending (largest duplicate sets first).
+    pub async fn get_duplicate_groups(
+        &self,
+        workspace_id: Option<Uuid>,
+    ) -> Result<Vec<(String, Vec<FileArtifact>)>, DatabaseError> {
+        // Find hashes with 2+ files
+        let hashes: Vec<String> = if let Some(ws_id) = workspace_id {
+            sqlx::query_scalar(
+                "SELECT content_hash FROM files 
+                 WHERE content_hash IS NOT NULL AND workspace_id = ?
+                 GROUP BY content_hash 
+                 HAVING COUNT(*) > 1
+                 ORDER BY COUNT(*) DESC",
+            )
+            .bind(ws_id)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query_scalar(
+                "SELECT content_hash FROM files 
+                 WHERE content_hash IS NOT NULL
+                 GROUP BY content_hash 
+                 HAVING COUNT(*) > 1
+                 ORDER BY COUNT(*) DESC",
+            )
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        // For each duplicate hash, fetch all files
+        let mut groups = Vec::new();
+        for hash in hashes {
+            let files = self.find_by_content_hash(&hash).await?;
+            if files.len() > 1 {
+                groups.push((hash, files));
+            }
+        }
+
+        Ok(groups)
+    }
+
+    /// Updates the content hash for a file (used by Phase 5 ML Layer for
+    /// duplicate detection).
+    ///
+    /// # Errors
+    /// [`DatabaseError::NotFound`] if `id` doesn't exist.
+    pub async fn update_content_hash(
+        &self,
+        id: Uuid,
+        content_hash: Option<String>,
+    ) -> Result<(), DatabaseError> {
+        let result = sqlx::query("UPDATE files SET content_hash = ?, updated_at = ? WHERE id = ?")
+            .bind(&content_hash)
+            .bind(Utc::now())
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(DatabaseError::not_found("file", id.to_string()));
+        }
+
+        tracing::info!(file_id = %id, "file content_hash updated");
+        Ok(())
+    }
+
     /// Deletes a single artifact. Any `timeline_events` row referencing it
     /// has its `file_id` set to `NULL` (schema's `ON DELETE SET NULL`) —
     /// the historical event is kept, just detached from the now-gone file.

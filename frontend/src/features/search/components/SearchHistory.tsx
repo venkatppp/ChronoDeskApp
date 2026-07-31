@@ -24,7 +24,7 @@ export function SearchHistory({
         </div>
         <button
           onClick={onClear}
-          className="text-xs font-medium text-muted-foreground hover:text-destructive transition-colors"
+          className="text-xs font-medium text-muted-foreground hover:text-danger transition-colors"
         >
           Clear History
         </button>
@@ -33,7 +33,7 @@ export function SearchHistory({
         {history.map((query) => (
           <div
             key={query}
-            className="flex items-center gap-1 group bg-background-secondary border border-border rounded-full pl-3 pr-2 py-1.5 hover:border-primary/50 transition-all cursor-pointer"
+            className="flex items-center gap-1 group bg-background-secondary border border-border rounded-full pl-3 pr-2 py-1.5 hover:border-accent/50 transition-all cursor-pointer"
             onClick={() => onSelect(query)}
           >
             <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">

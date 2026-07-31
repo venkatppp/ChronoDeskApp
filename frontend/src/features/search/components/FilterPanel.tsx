@@ -48,7 +48,7 @@ export function FilterPanel({
             onClick={() => toggleEntityType(type)}
             className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
               entityTypes.includes(type)
-                ? "bg-primary text-primary-foreground shadow-sm"
+                ? "bg-accent text-accent-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -62,7 +62,7 @@ export function FilterPanel({
           onClick={() => setIsOpen(!isOpen)}
           className={`flex items-center gap-2 px-4 py-1.5 bg-background-secondary border border-border rounded-lg text-sm font-medium transition-all ${
             workspaceId ? "text-foreground" : "text-muted-foreground"
-          } hover:border-primary/50`}
+          } hover:border-accent/50`}
         >
           {selectedWorkspace ? selectedWorkspace.name : "All Workspaces"}
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -75,10 +75,10 @@ export function FilterPanel({
                 onWorkspaceChange(null);
                 setIsOpen(false);
               }}
-              className="w-full px-4 py-2 text-left text-sm hover:bg-background-tertiary flex items-center justify-between"
+              className="w-full px-4 py-2 text-left text-sm hover:bg-surface-hover flex items-center justify-between"
             >
               All Workspaces
-              {!workspaceId && <Check className="h-4 w-4 text-primary" />}
+              {!workspaceId && <Check className="h-4 w-4 text-accent" />}
             </button>
             <div className="h-px bg-border my-1" />
             <div className="max-h-60 overflow-y-auto">
@@ -89,10 +89,10 @@ export function FilterPanel({
                     onWorkspaceChange(w.id);
                     setIsOpen(false);
                   }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-background-tertiary flex items-center justify-between"
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-surface-hover flex items-center justify-between"
                 >
                   <span className="truncate">{w.name}</span>
-                  {workspaceId === w.id && <Check className="h-4 w-4 text-primary" />}
+                  {workspaceId === w.id && <Check className="h-4 w-4 text-accent" />}
                 </button>
               ))}
             </div>
@@ -103,7 +103,7 @@ export function FilterPanel({
       {activeFilterCount > 0 && (
         <button
           onClick={onClear}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-destructive transition-colors ml-auto"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-danger transition-colors ml-auto"
         >
           <X className="h-4 w-4" />
           Clear all

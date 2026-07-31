@@ -46,12 +46,14 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search files, workspaces... (Cmd+K)"
-        className="w-full h-12 pl-12 pr-12 bg-background-secondary border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-foreground"
+        aria-label="Search files and workspaces"
+        className="w-full h-12 pl-12 pr-12 bg-surface-hover border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all text-foreground"
       />
       {query && (
         <button
           onClick={handleClear}
           className="absolute inset-y-0 right-4 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+          aria-label="Clear search"
         >
           <X className="h-5 w-5" />
         </button>

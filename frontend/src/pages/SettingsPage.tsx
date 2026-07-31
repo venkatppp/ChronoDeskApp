@@ -67,18 +67,18 @@ export function SettingsPage() {
       </div>
 
       {error && (
-        <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-sm">
+        <div className="mb-6 p-4 bg-danger/10 border border-danger/20 rounded-xl text-danger text-sm">
           {error}
         </div>
       )}
 
       <div className="space-y-8">
         {/* Watched Folders */}
-        <section className="bg-background-secondary border border-border rounded-3xl overflow-hidden">
+        <section className="bg-surface-hover border border-border rounded-3xl overflow-hidden">
           <div className="p-8 border-b border-border bg-background-tertiary/30">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-primary/10 text-primary rounded-xl">
+                <div className="p-2.5 bg-accent/10 text-accent rounded-xl">
                   <Folder className="h-6 w-6" />
                 </div>
                 <div>
@@ -88,7 +88,7 @@ export function SettingsPage() {
               </div>
               <button 
                 onClick={handleAddPath}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-[0.98] transition-all"
+                className="flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-[0.98] transition-all"
               >
                 <Plus className="h-4 w-4" />
                 Add Folder
@@ -110,14 +110,14 @@ export function SettingsPage() {
             ) : (
               <div className="space-y-3">
                 {watchPaths.map((path) => (
-                  <div key={path} className="group flex items-center justify-between p-4 bg-background-tertiary/50 border border-border rounded-2xl hover:border-primary/30 transition-all">
+                  <div key={path} className="group flex items-center justify-between p-4 bg-background-tertiary/50 border border-border rounded-2xl hover:border-accent/30 transition-all">
                     <div className="flex items-center gap-3 min-w-0">
                       <Folder className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm font-mono text-foreground truncate">{path}</span>
                     </div>
                     <button 
                       onClick={() => handleRemovePath(path)}
-                      className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                      className="p-2 text-muted-foreground hover:text-danger hover:bg-danger/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -129,10 +129,10 @@ export function SettingsPage() {
         </section>
 
         {/* Appearance */}
-        <section className="bg-background-secondary border border-border rounded-3xl overflow-hidden">
+        <section className="bg-surface-hover border border-border rounded-3xl overflow-hidden">
           <div className="p-8 border-b border-border bg-background-tertiary/30">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-blue-500/10 text-blue-500 rounded-xl">
+              <div className="p-2.5 bg-accent/10 text-accent rounded-xl">
                 <Monitor className="h-6 w-6" />
               </div>
               <div>
@@ -152,9 +152,10 @@ export function SettingsPage() {
                 <button
                   key={item.id}
                   onClick={() => setTheme(item.id as ThemePreference)}
+                  aria-pressed={theme === item.id}
                   className={`flex flex-col items-center gap-3 p-6 rounded-2xl border-2 transition-all ${
                     theme === item.id 
-                      ? "bg-primary/5 border-primary text-primary" 
+                      ? "bg-accent/5 border-accent text-accent" 
                       : "bg-background-tertiary border-transparent text-muted-foreground hover:border-border"
                   }`}
                 >
@@ -167,7 +168,7 @@ export function SettingsPage() {
         </section>
 
         {/* About */}
-        <section className="bg-background-secondary border border-border rounded-3xl overflow-hidden">
+        <section className="bg-surface-hover border border-border rounded-3xl overflow-hidden">
           <div className="p-8">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -191,8 +192,8 @@ export function SettingsPage() {
             <div className="mt-8 pt-8 border-t border-border flex items-center justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               <span>© 2026 ChronoDesk Labs</span>
               <div className="flex items-center gap-4">
-                <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
-                <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>
+                <a href="#" className="hover:text-accent transition-colors">Privacy Policy</a>
+                <a href="#" className="hover:text-accent transition-colors">Terms of Service</a>
               </div>
             </div>
           </div>
