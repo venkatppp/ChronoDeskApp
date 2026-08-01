@@ -355,26 +355,26 @@ pub fn run() {
             // --- Copilot Engine (Phase 7A) ---
             let copilot_repository = copilot::CopilotRepository::new(pool.clone());
             let tool_executor = Arc::new(copilot::ToolExecutor::new(
-                Arc::new(workspace_service),
-                Arc::new(session_engine),
+                Arc::new(workspace_service.clone()),
+                Arc::new(session_engine.clone()),
                 Arc::new(timeline_engine.clone()),
             ));
             let conversation_manager = Arc::new(copilot::ConversationManager::new(
                 Arc::new(copilot_repository.clone()),
                 Arc::new(context_memory_engine.clone()),
-                Arc::new(session_engine),
+                Arc::new(session_engine.clone()),
                 Arc::new(timeline_engine.clone()),
             ));
             let copilot_engine = Arc::new(copilot::CopilotEngine::new(
                 conversation_manager,
                 tool_executor,
                 Arc::new(copilot_repository),
-                Arc::new(reasoning_engine),
+                Arc::new(reasoning_engine.clone()),
                 Arc::new(predictive_engine.clone()),
                 learning_engine.clone(),
                 Arc::new(recommendation_engine.clone()),
                 Arc::new(context_memory_engine.clone()),
-                Arc::new(session_engine),
+                Arc::new(session_engine.clone()),
                 Arc::new(timeline_engine.clone()),
             ));
 
