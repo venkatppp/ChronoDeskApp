@@ -280,10 +280,8 @@ impl AdaptiveLearningEngine {
 
             // Update typical duration (moving average)
             let count = existing.sample_count as i64;
-            existing.typical_duration_seconds = (existing.typical_duration_seconds
-                * (count - 1)
-                + duration_seconds)
-                / count;
+            existing.typical_duration_seconds =
+                (existing.typical_duration_seconds * (count - 1) + duration_seconds) / count;
 
             // Add new files to typical files
             for file in files {

@@ -5,6 +5,7 @@ import {
   Share2,
   BarChart3,
   Settings,
+  Brain,
 } from "lucide-react";
 import { NavItem } from "@/components/navigation/NavItem";
 
@@ -14,6 +15,7 @@ const PRIMARY_NAV = [
   { to: "/timeline", label: "Timeline", icon: History },
   { to: "/graph", label: "Knowledge Graph", icon: Share2 },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
+  { to: "/learning", label: "Learning", icon: Brain },
 ] as const;
 
 export function Sidebar() {

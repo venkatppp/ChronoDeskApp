@@ -62,7 +62,8 @@ impl LearningRepository {
         let mut feedback = Vec::new();
         for (id, feedback_type, target_type_str, target_id, action, context, created_at) in rows {
             feedback.push(UserFeedback {
-                id: uuid::Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                id: uuid::Uuid::parse_str(&id)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?,
                 feedback_type: FeedbackType::from_str(&feedback_type)?,
                 target_type: FeedbackTargetType::from_str(&target_type_str)?,
                 target_id,
@@ -78,7 +79,10 @@ impl LearningRepository {
     }
 
     /// Stores or updates a user preference.
-    pub async fn upsert_preference(&self, preference: &UserPreference) -> Result<(), DatabaseError> {
+    pub async fn upsert_preference(
+        &self,
+        preference: &UserPreference,
+    ) -> Result<(), DatabaseError> {
         sqlx::query(
             r#"
             INSERT INTO learning_preferences (
@@ -120,7 +124,8 @@ impl LearningRepository {
         let mut preferences = Vec::new();
         for (id, preference_type, key, value, confidence, evidence_count, last_updated) in rows {
             preferences.push(UserPreference {
-                id: uuid::Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                id: uuid::Uuid::parse_str(&id)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?,
                 preference_type: PreferenceType::from_str(&preference_type)?,
                 key,
                 value: serde_json::from_str(&value).unwrap_or_default(),
@@ -154,9 +159,11 @@ impl LearningRepository {
         .await?;
 
         let mut preferences = Vec::new();
-        for (id, preference_type_str, key, value, confidence, evidence_count, last_updated) in rows {
+        for (id, preference_type_str, key, value, confidence, evidence_count, last_updated) in rows
+        {
             preferences.push(UserPreference {
-                id: uuid::Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                id: uuid::Uuid::parse_str(&id)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?,
                 preference_type: PreferenceType::from_str(&preference_type_str)?,
                 key,
                 value: serde_json::from_str(&value).unwrap_or_default(),
@@ -203,7 +210,17 @@ impl LearningRepository {
 
     /// Gets all behavioral patterns.
     pub async fn get_all_patterns(&self) -> Result<Vec<BehavioralPattern>, DatabaseError> {
-        type PatternRow = (String, String, String, String, f64, f64, i32, String, String);
+        type PatternRow = (
+            String,
+            String,
+            String,
+            String,
+            f64,
+            f64,
+            i32,
+            String,
+            String,
+        );
         let rows: Vec<PatternRow> = sqlx::query_as(
             r#"
             SELECT id, pattern_type, description, conditions, frequency, confidence,
@@ -216,9 +233,21 @@ impl LearningRepository {
         .await?;
 
         let mut patterns = Vec::new();
-        for (id, pattern_type, description, conditions, frequency, confidence, occurrences, first_seen, last_seen) in rows {
+        for (
+            id,
+            pattern_type,
+            description,
+            conditions,
+            frequency,
+            confidence,
+            occurrences,
+            first_seen,
+            last_seen,
+        ) in rows
+        {
             patterns.push(BehavioralPattern {
-                id: uuid::Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                id: uuid::Uuid::parse_str(&id)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?,
                 pattern_type: PatternType::from_str(&pattern_type)?,
                 description,
                 conditions: serde_json::from_str(&conditions).unwrap_or_default(),
@@ -286,9 +315,20 @@ impl LearningRepository {
         .await?;
 
         let mut adjustments = Vec::new();
-        for (id, target_type_str, target_id, original_confidence, adjusted_confidence, adjustment_factor, reason, applied_at) in rows {
+        for (
+            id,
+            target_type_str,
+            target_id,
+            original_confidence,
+            adjusted_confidence,
+            adjustment_factor,
+            reason,
+            applied_at,
+        ) in rows
+        {
             adjustments.push(ConfidenceAdjustment {
-                id: uuid::Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                id: uuid::Uuid::parse_str(&id)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?,
                 target_type: FeedbackTargetType::from_str(&target_type_str)?,
                 target_id,
                 original_confidence,
@@ -345,7 +385,17 @@ impl LearningRepository {
         &self,
         workflow_type: &str,
     ) -> Result<Option<WorkflowLearningData>, DatabaseError> {
-        type WorkflowRow = (String, String, i64, String, String, String, f64, i32, String);
+        type WorkflowRow = (
+            String,
+            String,
+            i64,
+            String,
+            String,
+            String,
+            f64,
+            i32,
+            String,
+        );
         let row: Option<WorkflowRow> = sqlx::query_as(
             r#"
             SELECT id, workflow_type, typical_duration_seconds, typical_files, typical_time_of_day,
@@ -358,9 +408,21 @@ impl LearningRepository {
         .fetch_optional(&self.pool)
         .await?;
 
-        if let Some((id, workflow_type, typical_duration_seconds, typical_files, typical_time_of_day, success_indicators, confidence, sample_count, last_updated)) = row {
+        if let Some((
+            id,
+            workflow_type,
+            typical_duration_seconds,
+            typical_files,
+            typical_time_of_day,
+            success_indicators,
+            confidence,
+            sample_count,
+            last_updated,
+        )) = row
+        {
             Ok(Some(WorkflowLearningData {
-                id: uuid::Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                id: uuid::Uuid::parse_str(&id)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?,
                 workflow_type,
                 typical_duration_seconds,
                 typical_files: serde_json::from_str(&typical_files).unwrap_or_default(),
@@ -384,19 +446,17 @@ impl LearningRepository {
             .await
             .unwrap_or(0);
 
-        let accepted: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM learning_feedback WHERE action = 'accepted'"
-        )
-        .fetch_one(&self.pool)
-        .await
-        .unwrap_or(0);
+        let accepted: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM learning_feedback WHERE action = 'accepted'")
+                .fetch_one(&self.pool)
+                .await
+                .unwrap_or(0);
 
-        let rejected: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM learning_feedback WHERE action = 'rejected'"
-        )
-        .fetch_one(&self.pool)
-        .await
-        .unwrap_or(0);
+        let rejected: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM learning_feedback WHERE action = 'rejected'")
+                .fetch_one(&self.pool)
+                .await
+                .unwrap_or(0);
 
         let acceptance_rate = if total_feedback > 0 {
             accepted as f64 / total_feedback as f64
@@ -404,10 +464,11 @@ impl LearningRepository {
             0.0
         };
 
-        let total_preferences: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM learning_preferences")
-            .fetch_one(&self.pool)
-            .await
-            .unwrap_or(0);
+        let total_preferences: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM learning_preferences")
+                .fetch_one(&self.pool)
+                .await
+                .unwrap_or(0);
 
         let total_patterns: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM learning_patterns")
             .fetch_one(&self.pool)
@@ -453,7 +514,7 @@ impl LearningRepository {
                 .and_hms_opt(0, 0, 0)
                 .ok_or_else(|| DatabaseError::IoError("Invalid time".to_string()))?
                 .and_utc();
-            
+
             trends.push(ConfidenceTrend {
                 date,
                 avg_confidence,
@@ -474,7 +535,10 @@ impl FeedbackType {
             "prediction" => Ok(Self::Prediction),
             "action" => Ok(Self::Action),
             "workflow_detection" => Ok(Self::WorkflowDetection),
-            _ => Err(DatabaseError::InvalidInput(format!("Invalid feedback type: {}", s))),
+            _ => Err(DatabaseError::InvalidInput(format!(
+                "Invalid feedback type: {}",
+                s
+            ))),
         }
     }
 
@@ -497,7 +561,10 @@ impl FeedbackTargetType {
             "file_prediction" => Ok(Self::FilePrediction),
             "action_prediction" => Ok(Self::ActionPrediction),
             "workflow_transition" => Ok(Self::WorkflowTransition),
-            _ => Err(DatabaseError::InvalidInput(format!("Invalid target type: {}", s))),
+            _ => Err(DatabaseError::InvalidInput(format!(
+                "Invalid target type: {}",
+                s
+            ))),
         }
     }
 
@@ -521,7 +588,10 @@ impl FeedbackAction {
             "dismissed" => Ok(Self::Dismissed),
             "not_helpful" => Ok(Self::NotHelpful),
             "helpful" => Ok(Self::Helpful),
-            _ => Err(DatabaseError::InvalidInput(format!("Invalid feedback action: {}", s))),
+            _ => Err(DatabaseError::InvalidInput(format!(
+                "Invalid feedback action: {}",
+                s
+            ))),
         }
     }
 
@@ -546,7 +616,10 @@ impl PreferenceType {
             "technology" => Ok(Self::Technology),
             "recommendation_category" => Ok(Self::RecommendationCategory),
             "workflow" => Ok(Self::Workflow),
-            _ => Err(DatabaseError::InvalidInput(format!("Invalid preference type: {}", s))),
+            _ => Err(DatabaseError::InvalidInput(format!(
+                "Invalid preference type: {}",
+                s
+            ))),
         }
     }
 
@@ -571,7 +644,10 @@ impl PatternType {
             "time_based" => Ok(Self::TimeBased),
             "workflow_transition" => Ok(Self::WorkflowTransition),
             "focus_session" => Ok(Self::FocusSession),
-            _ => Err(DatabaseError::InvalidInput(format!("Invalid pattern type: {}", s))),
+            _ => Err(DatabaseError::InvalidInput(format!(
+                "Invalid pattern type: {}",
+                s
+            ))),
         }
     }
 
