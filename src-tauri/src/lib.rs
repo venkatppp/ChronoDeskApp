@@ -165,9 +165,8 @@ pub fn run() {
             let graph_engine = GraphEngine::new(graph_service.clone());
 
             // --- Session Engine & Context Service (Phase 5A) ---
-            let session_engine = Arc::new(
-                SessionEngine::new(timeline_repository.clone(), file_repository.clone())
-            );
+            let session_engine =
+                SessionEngine::new(timeline_repository.clone(), file_repository.clone());
             let context_service = ContextService::new(
                 session_engine.clone(),
                 workspace_repository.clone(),
