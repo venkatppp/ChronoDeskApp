@@ -71,6 +71,7 @@ pub mod predictive;
 pub mod repositories;
 pub mod runtime;
 pub mod search;
+pub mod semantic;
 pub mod services;
 pub mod session;
 pub mod timeline;
@@ -291,6 +292,27 @@ pub fn run() {
             // Start background workers
             runtime_workers.clone().start();
 
+            // --- Semantic Intelligence Layer (Phase 6A) ---
+            let semantic_repository = semantic::SemanticRepository::new(pool.clone());
+            tauri::async_runtime::block_on(semantic_repository.initialize())?;
+
+            let embedding_provider = Arc::new(semantic::LocalEmbeddingProvider::default());
+            let semantic_engine = semantic::SemanticMemoryEngine::new(
+                semantic_repository.clone(),
+                embedding_provider,
+            );
+            let semantic_search = semantic::SemanticSearchEngine::new(
+                semantic_engine.clone(),
+                semantic_repository.clone(),
+            );
+            let reasoning_engine = semantic::ContextReasoningEngine::new(
+                semantic_engine.clone(),
+                semantic_search.clone(),
+                predictive_engine.clone(),
+                recommendation_engine.clone(),
+                context_memory_engine.clone(),
+            );
+
             // --- File Watcher, wired to a real AppEventEmitter (the AppHandle) ---
             let file_watcher = FileWatcher::new(workspace_manager, timeline_engine.clone())
                 .with_event_emitter(
@@ -343,6 +365,9 @@ pub fn run() {
             app.manage(health_service);
             app.manage(diagnostics_service);
             app.manage(recovery_service);
+            app.manage(semantic_engine);
+            app.manage(semantic_search);
+            app.manage(reasoning_engine);
 
             tracing::info!("ChronoDesk backend ready");
 
@@ -425,6 +450,13 @@ pub fn run() {
             commands::runtime::get_runtime_health,
             commands::runtime::get_runtime_diagnostics,
             commands::runtime::get_runtime_summary,
+            commands::semantic::semantic_search,
+            commands::semantic::find_similar_documents,
+            commands::semantic::infer_related_work,
+            commands::semantic::detect_recurring_workflows,
+            commands::semantic::find_similar_sessions,
+            commands::semantic::explain_recommendation,
+            commands::semantic::infer_missing_context,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ChronoDesk");

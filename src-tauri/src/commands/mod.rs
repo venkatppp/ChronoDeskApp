@@ -14,6 +14,7 @@ pub mod intelligence;
 pub mod predictive;
 pub mod runtime;
 pub mod search;
+pub mod semantic;
 pub mod session;
 pub mod system;
 pub mod timeline;
