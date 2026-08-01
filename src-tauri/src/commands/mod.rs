@@ -9,6 +9,7 @@ pub mod actions;
 pub mod ai;
 pub mod analytics;
 pub mod context_memory;
+pub mod copilot;
 pub mod duplicates;
 pub mod graph;
 pub mod intelligence;

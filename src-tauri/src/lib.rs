@@ -60,6 +60,7 @@ pub mod analytics;
 pub mod app_events;
 pub mod commands;
 pub mod context_memory;
+pub mod copilot;
 pub mod database;
 pub mod duplicates;
 pub mod errors;
@@ -351,6 +352,32 @@ pub fn run() {
             tauri::async_runtime::spawn(preference_worker.start());
             tauri::async_runtime::spawn(calibration_worker.start());
 
+            // --- Copilot Engine (Phase 7A) ---
+            let copilot_repository = copilot::CopilotRepository::new(pool.clone());
+            let tool_executor = Arc::new(copilot::ToolExecutor::new(
+                workspace_service.clone(),
+                session_engine.clone(),
+                timeline_engine.clone(),
+            ));
+            let conversation_manager = Arc::new(copilot::ConversationManager::new(
+                Arc::new(copilot_repository.clone()),
+                context_memory_engine.clone(),
+                session_engine.clone(),
+                timeline_engine.clone(),
+            ));
+            let copilot_engine = Arc::new(copilot::CopilotEngine::new(
+                conversation_manager,
+                tool_executor,
+                Arc::new(copilot_repository),
+                reasoning_engine,
+                predictive_engine.clone(),
+                learning_engine.clone(),
+                recommendation_engine.clone(),
+                context_memory_engine.clone(),
+                session_engine.clone(),
+                timeline_engine.clone(),
+            ));
+
             // --- File Watcher, wired to a real AppEventEmitter (the AppHandle) ---
             let file_watcher = FileWatcher::new(workspace_manager, timeline_engine.clone())
                 .with_event_emitter(
@@ -409,6 +436,7 @@ pub fn run() {
             app.manage(learning_repository);
             app.manage(learning_engine);
             app.manage(ai_state);
+            app.manage(copilot_engine);
 
             tracing::info!("ChronoDesk backend ready");
 
@@ -517,6 +545,12 @@ pub fn run() {
             commands::learning::get_behavioral_patterns,
             commands::learning::get_confidence_trends,
             commands::learning::get_learning_stats,
+            commands::copilot::copilot_send_message,
+            commands::copilot::copilot_get_conversation,
+            commands::copilot::copilot_get_recent_conversations,
+            commands::copilot::copilot_get_daily_briefing,
+            commands::copilot::copilot_get_tools,
+            commands::copilot::copilot_ask_question,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ChronoDesk");
