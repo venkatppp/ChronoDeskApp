@@ -175,7 +175,7 @@ impl Benchmark {
         {
             // Use mach task_info on macOS
             use std::mem;
-            
+
             extern "C" {
                 fn mach_task_self() -> u32;
                 fn task_info(

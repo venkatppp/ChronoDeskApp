@@ -66,6 +66,7 @@ pub mod errors;
 pub mod graph;
 pub mod hashing;
 pub mod intelligence;
+pub mod learning;
 pub mod ml;
 pub mod models;
 pub mod predictive;
@@ -333,6 +334,23 @@ pub fn run() {
                 context_memory_engine.clone(),
             );
 
+            // --- Adaptive Learning Engine (Phase 6C) ---
+            let learning_repository = learning::LearningRepository::new(pool.clone());
+            let learning_engine = Arc::new(learning::AdaptiveLearningEngine::new(Arc::new(
+                learning_repository.clone(),
+            )));
+
+            // Start learning workers
+            let learning_worker = learning::LearningWorker::new(learning_engine.clone(), 3600);
+            let preference_worker =
+                learning::PreferenceLearningWorker::new(learning_engine.clone(), 1800);
+            let calibration_worker =
+                learning::ConfidenceCalibrationWorker::new(learning_engine.clone(), 7200);
+
+            tauri::async_runtime::spawn(learning_worker.start());
+            tauri::async_runtime::spawn(preference_worker.start());
+            tauri::async_runtime::spawn(calibration_worker.start());
+
             // --- File Watcher, wired to a real AppEventEmitter (the AppHandle) ---
             let file_watcher = FileWatcher::new(workspace_manager, timeline_engine.clone())
                 .with_event_emitter(
@@ -388,6 +406,8 @@ pub fn run() {
             app.manage(semantic_engine);
             app.manage(semantic_search);
             app.manage(reasoning_engine);
+            app.manage(learning_repository);
+            app.manage(learning_engine);
             app.manage(ai_state);
 
             tracing::info!("ChronoDesk backend ready");
@@ -489,6 +509,14 @@ pub fn run() {
             commands::ai::get_inference_statistics,
             commands::ai::get_ai_diagnostics,
             commands::ai::rerank_documents,
+            commands::learning::submit_feedback,
+            commands::learning::get_learning_insights,
+            commands::learning::adjust_prediction_confidence,
+            commands::learning::learn_workflow_patterns,
+            commands::learning::get_user_preferences,
+            commands::learning::get_behavioral_patterns,
+            commands::learning::get_confidence_trends,
+            commands::learning::get_learning_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ChronoDesk");

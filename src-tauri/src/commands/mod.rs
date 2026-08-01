@@ -12,6 +12,7 @@ pub mod context_memory;
 pub mod duplicates;
 pub mod graph;
 pub mod intelligence;
+pub mod learning;
 pub mod predictive;
 pub mod runtime;
 pub mod search;

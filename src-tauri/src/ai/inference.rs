@@ -52,7 +52,7 @@ impl EmbeddingInferenceEngine {
     /// TODO: Implement real ONNX inference when runtime is ready.
     pub fn embed(&self, text: &str) -> Result<Vec<f32>, DatabaseError> {
         let _tokenized = self.tokenizer.tokenize(text)?;
-        
+
         // Placeholder: Generate deterministic embedding based on text hash
         // This will be replaced with real ONNX inference
         Ok(self.generate_deterministic_embedding(text))
@@ -134,17 +134,14 @@ impl RerankerInferenceEngine {
     /// Computes relevance score for a query-document pair.
     pub fn score(&self, query: &str, document: &str) -> Result<f32, DatabaseError> {
         let _tokenized = self.tokenizer.tokenize_pair(query, document)?;
-        
+
         // Placeholder: Simple string matching score
         Ok(self.compute_simple_score(query, document))
     }
 
     /// Computes relevance scores for a query and multiple documents in batch.
     pub fn score_batch(&self, query: &str, documents: &[&str]) -> Result<Vec<f32>, DatabaseError> {
-        documents
-            .iter()
-            .map(|doc| self.score(query, doc))
-            .collect()
+        documents.iter().map(|doc| self.score(query, doc)).collect()
     }
 
     /// Simple placeholder scoring based on word overlap.
