@@ -22,11 +22,16 @@ pub struct CopilotEngine {
     conversation_manager: Arc<ConversationManager>,
     tool_executor: Arc<ToolExecutor>,
     repository: Arc<CopilotRepository>,
+    #[allow(dead_code)]
     reasoning_engine: Arc<ContextReasoningEngine>,
+    #[allow(dead_code)]
     predictive_engine: Arc<PredictiveEngine>,
+    #[allow(dead_code)]
     learning_engine: Arc<AdaptiveLearningEngine>,
     recommendation_engine: Arc<RecommendationEngine>,
+    #[allow(dead_code)]
     context_memory: Arc<ContextMemoryEngine>,
+    #[allow(dead_code)]
     session_engine: Arc<SessionEngine>,
     timeline_engine: Arc<TimelineEngine>,
 }

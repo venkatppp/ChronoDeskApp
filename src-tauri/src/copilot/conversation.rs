@@ -14,7 +14,9 @@ use crate::timeline::TimelineEngine;
 /// Manages conversation state and context.
 pub struct ConversationManager {
     repository: Arc<CopilotRepository>,
+    #[allow(dead_code)]
     context_memory: Arc<ContextMemoryEngine>,
+    #[allow(dead_code)]
     session_engine: Arc<SessionEngine>,
     timeline_engine: Arc<TimelineEngine>,
 }
