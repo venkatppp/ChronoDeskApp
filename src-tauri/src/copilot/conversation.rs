@@ -134,16 +134,8 @@ impl ConversationManager {
             .map(|e| format!("{:?}", e.event_type))
             .collect();
 
-        // Get session summary if workspace is active
-        let session_summary = if let Some(ws_id) = workspace_id {
-            self.session_engine
-                .get_session_summary(ws_id, None)
-                .await
-                .ok()
-                .map(|s| format!("Duration: {}s, Files: {}", s.duration_seconds, s.file_count))
-        } else {
-            None
-        };
+        // Get session summary - not available without actual Session object
+        let session_summary = None;
 
         // For now, active files are derived from recent events - would need file_id lookup
         let active_files: Vec<String> = vec![];

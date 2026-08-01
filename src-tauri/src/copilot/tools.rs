@@ -184,11 +184,20 @@ impl ToolExecutor {
             .map_err(|e| DatabaseError::InvalidInput(e.to_string()))?;
 
         if let Some(ws_id) = workspace_id {
-            let summary = self.session_engine.get_session_summary(ws_id, None).await?;
-            Ok(serde_json::to_value(summary).map_err(|e| DatabaseError::IoError(e.to_string()))?)
+            // Get the latest session for this workspace
+            if let Some(session) = self.session_engine.get_latest_session(ws_id, None).await? {
+                // Get workspace name
+                let workspace = self.workspace_service.get_workspace(ws_id).await?;
+                let summary = self.session_engine.get_session_summary(&session, workspace.name).await?;
+                Ok(serde_json::to_value(summary).map_err(|e| DatabaseError::IoError(e.to_string()))?)
+            } else {
+                Ok(serde_json::json!({
+                    "message": "No session found for this workspace"
+                }))
+            }
         } else {
             Ok(serde_json::json!({
-                "message": "No active session"
+                "message": "No workspace specified"
             }))
         }
     }
