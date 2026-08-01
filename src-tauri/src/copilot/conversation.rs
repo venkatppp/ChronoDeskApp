@@ -180,14 +180,8 @@ impl ConversationManager {
             }
         }
 
-        // Add session info
-        if let Some(ws_id) = workspace_id {
-            if let Ok(summary) = self.session_engine.get_session_summary(ws_id, None).await {
-                context_parts.push(format!(
-                    "Session: {} files accessed, {}s active",
-                    summary.file_count, summary.duration_seconds
-                ));
-            }
+        // Session info not directly available without Session object
+        // Would require fetching latest session first
         }
 
         Ok(context_parts.join("\n"))
