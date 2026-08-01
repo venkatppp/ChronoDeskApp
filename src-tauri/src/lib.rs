@@ -371,7 +371,7 @@ pub fn run() {
                 Arc::new(copilot_repository),
                 Arc::new(reasoning_engine),
                 Arc::new(predictive_engine.clone()),
-                Arc::new(learning_engine.clone()),
+                learning_engine.clone(),
                 Arc::new(recommendation_engine.clone()),
                 Arc::new(context_memory_engine.clone()),
                 Arc::new(session_engine),
