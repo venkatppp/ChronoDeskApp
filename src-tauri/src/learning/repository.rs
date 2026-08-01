@@ -270,7 +270,8 @@ impl LearningRepository {
         target_type: FeedbackTargetType,
         target_id: &str,
     ) -> Result<Vec<ConfidenceAdjustment>, DatabaseError> {
-        let rows: Vec<(String, String, String, f64, f64, f64, String, String)> = sqlx::query_as(
+        type AdjustmentRow = (String, String, String, f64, f64, f64, String, String);
+        let rows: Vec<AdjustmentRow> = sqlx::query_as(
             r#"
             SELECT id, target_type, target_id, original_confidence, adjusted_confidence,
                    adjustment_factor, reason, applied_at
@@ -344,7 +345,8 @@ impl LearningRepository {
         &self,
         workflow_type: &str,
     ) -> Result<Option<WorkflowLearningData>, DatabaseError> {
-        let row: Option<(String, String, i64, String, String, String, f64, i32, String)> = sqlx::query_as(
+        type WorkflowRow = (String, String, i64, String, String, String, f64, i32, String);
+        let row: Option<WorkflowRow> = sqlx::query_as(
             r#"
             SELECT id, workflow_type, typical_duration_seconds, typical_files, typical_time_of_day,
                    success_indicators, confidence, sample_count, last_updated
