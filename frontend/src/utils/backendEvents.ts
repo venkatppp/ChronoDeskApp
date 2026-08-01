@@ -15,6 +15,11 @@ export const BACKEND_EVENTS = {
   workflowChanged: "workflow:changed",
   actionExecuted: "action:executed",
   predictionUpdated: "prediction:updated",
+  recommendationUpdated: "recommendation:updated",
+  healthUpdated: "health:updated",
+  snapshotCreated: "snapshot:created",
+  searchIndexed: "search:indexed",
+  graphEdgeAdded: "graph:edge_added",
 } as const;
 
 /** Every event that should trigger a dashboard refresh. */
@@ -29,4 +34,7 @@ export const DASHBOARD_REFRESH_EVENTS: string[] = [
   BACKEND_EVENTS.workflowChanged,
   BACKEND_EVENTS.actionExecuted,
   BACKEND_EVENTS.predictionUpdated,
+  BACKEND_EVENTS.recommendationUpdated,
+  BACKEND_EVENTS.healthUpdated,
+  BACKEND_EVENTS.snapshotCreated,
 ];

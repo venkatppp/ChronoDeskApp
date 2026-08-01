@@ -2,18 +2,35 @@
 
 use crate::actions::models::ExecuteActionRequest;
 use crate::actions::service::ActionService;
+use crate::runtime::IntelligenceEmitter;
 use tauri::State;
+use uuid::Uuid;
 
 /// Execute an action.
 #[tauri::command]
 pub async fn execute_action(
     request: ExecuteActionRequest,
     service: State<'_, ActionService>,
+    emitter: State<'_, IntelligenceEmitter>,
 ) -> Result<crate::actions::models::ActionResult, String> {
-    service
-        .execute_action(request)
+    let result = service
+        .execute_action(request.clone())
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // Emit action executed event
+    if let Some(workspace_id_str) = &request.workspace_id {
+        if let Ok(workspace_id) = Uuid::parse_str(workspace_id_str) {
+            emitter.emit_action_executed(
+                workspace_id,
+                format!("{:?}", request.action_type),
+                result.success,
+                result.error.clone(),
+            );
+        }
+    }
+
+    Ok(result)
 }
 
 /// Undo an action.
@@ -31,7 +48,7 @@ pub async fn undo_action(
 /// Get action history for a workspace.
 #[tauri::command]
 pub async fn get_action_history(
-    workspace_id: i64,
+    workspace_id: String,
     limit: Option<i64>,
     service: State<'_, ActionService>,
 ) -> Result<Vec<crate::actions::models::ActionHistory>, String> {
@@ -62,7 +79,7 @@ pub async fn clear_action_history(service: State<'_, ActionService>) -> Result<(
 /// Clear action history for a workspace.
 #[tauri::command]
 pub async fn clear_workspace_action_history(
-    workspace_id: i64,
+    workspace_id: String,
     service: State<'_, ActionService>,
 ) -> Result<(), String> {
     service

@@ -80,10 +80,7 @@ export function useDashboardData(): DashboardData {
       let recommendations: Recommendation[] = [];
       if (mostRecentWorkspace) {
         try {
-          // Convert UUID string to number for intelligence API
-          // This is a temporary bridge - in production, the API should accept UUIDs
-          const workspaceIdNumber = 1; // Placeholder: needs proper UUID to i64 conversion
-          recommendations = await intelligenceRepository.getWorkspaceRecommendations(workspaceIdNumber);
+          recommendations = await intelligenceRepository.getWorkspaceRecommendations(mostRecentWorkspace.id);
         } catch (err) {
           console.warn("Failed to load recommendations:", err);
           recommendations = [];

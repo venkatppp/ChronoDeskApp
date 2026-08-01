@@ -13,6 +13,7 @@ use crate::services::ContextService;
 pub struct WorkflowEngine {
     timeline_repo: TimelineRepository,
     file_repo: FileRepository,
+    #[allow(dead_code)]
     context_service: ContextService,
 }
 
@@ -182,7 +183,7 @@ impl WorkflowEngine {
     ) -> Result<f64, DatabaseError> {
         // Simple heuristic: more events = higher confidence
         let event_count = events.len();
-        let confidence = (event_count as f64 / 30.0).min(0.95).max(0.5);
+        let confidence = (event_count as f64 / 30.0).clamp(0.5, 0.95);
         Ok(confidence)
     }
 }

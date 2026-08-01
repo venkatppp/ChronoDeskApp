@@ -16,9 +16,11 @@ use crate::repositories::{FileRepository, WorkspaceRepository};
 #[derive(Clone)]
 pub struct AutomationEngine {
     repository: PredictiveRepository,
+    #[allow(dead_code)]
     workspace_repo: WorkspaceRepository,
     file_repo: FileRepository,
     context_memory_engine: ContextMemoryEngine,
+    #[allow(dead_code)]
     recommendation_engine: RecommendationEngine,
 }
 

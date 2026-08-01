@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceHealth {
     /// Workspace ID this health assessment belongs to.
-    pub workspace_id: i64,
+    pub workspace_id: String,
 
     /// Overall health score (0.0 - 1.0, where 1.0 is healthiest).
     pub overall_score: f64,
@@ -124,8 +124,8 @@ impl HealthMetric {
 }
 
 impl WorkspaceHealth {
-    /// Creates a new workspace health assessment.
-    pub fn new(workspace_id: i64) -> Self {
+    /// Creates a new health assessment.
+    pub fn new(workspace_id: String) -> Self {
         Self {
             workspace_id,
             overall_score: 0.0,

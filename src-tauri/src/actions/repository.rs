@@ -21,7 +21,7 @@ impl ActionRepository {
     pub async fn create(
         &self,
         action_type: ActionType,
-        workspace_id: Option<i64>,
+        workspace_id: Option<String>,
         recommendation_id: Option<String>,
         success: bool,
         metadata: serde_json::Value,
@@ -39,7 +39,7 @@ impl ActionRepository {
             "#,
         )
         .bind(&action_type_str)
-        .bind(workspace_id)
+        .bind(workspace_id.as_deref())
         .bind(recommendation_id.as_deref())
         .bind(success)
         .bind(&metadata_str)
@@ -112,7 +112,7 @@ impl ActionRepository {
     /// Gets action history for a workspace.
     pub async fn get_by_workspace(
         &self,
-        workspace_id: i64,
+        workspace_id: String,
         limit: i64,
     ) -> Result<Vec<ActionHistory>, DatabaseError> {
         let rows = sqlx::query(
@@ -222,7 +222,7 @@ impl ActionRepository {
     }
 
     /// Clears action history for a workspace.
-    pub async fn clear_by_workspace(&self, workspace_id: i64) -> Result<(), DatabaseError> {
+    pub async fn clear_by_workspace(&self, workspace_id: String) -> Result<(), DatabaseError> {
         sqlx::query("DELETE FROM action_history WHERE workspace_id = ?")
             .bind(workspace_id)
             .execute(&self.pool)

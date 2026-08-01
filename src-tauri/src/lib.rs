@@ -69,6 +69,7 @@ pub mod ml;
 pub mod models;
 pub mod predictive;
 pub mod repositories;
+pub mod runtime;
 pub mod search;
 pub mod services;
 pub mod session;
@@ -249,6 +250,24 @@ pub fn run() {
                 recommendation_engine.clone(),
             );
 
+            // --- Real-Time Intelligence Runtime (Phase 5G) ---
+            let emitter = runtime::IntelligenceEmitter::new(
+                Arc::new(app_handle.clone()) as Arc<dyn app_events::AppEventEmitter>
+            );
+            let cache = runtime::IntelligenceCache::new();
+            let runtime_workers = Arc::new(runtime::RuntimeWorkers::new(
+                emitter.clone(),
+                cache.clone(),
+                predictive_engine.clone(),
+                workflow_engine.clone(),
+                health_engine.clone(),
+                recommendation_engine.clone(),
+                context_memory_engine.clone(),
+            ));
+
+            // Start background workers
+            runtime_workers.clone().start();
+
             // --- File Watcher, wired to a real AppEventEmitter (the AppHandle) ---
             let file_watcher = FileWatcher::new(workspace_manager, timeline_engine.clone())
                 .with_event_emitter(
@@ -295,6 +314,9 @@ pub fn run() {
             app.manage(graph_engine);
             app.manage(duplicate_engine);
             app.manage(file_watcher);
+            app.manage(emitter);
+            app.manage(cache);
+            app.manage(runtime_workers);
 
             tracing::info!("ChronoDesk backend ready");
 

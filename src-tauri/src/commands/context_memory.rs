@@ -4,18 +4,28 @@ use crate::context_memory::{
     ContextMemoryEngine, CreateSnapshotRequest, KnowledgeQuery, KnowledgeSearchResult,
     RelatedWorkspace,
 };
+use crate::runtime::IntelligenceEmitter;
 use tauri::State;
+use uuid::Uuid;
 
 /// Create a context snapshot.
 #[tauri::command]
 pub async fn create_context_snapshot(
     request: CreateSnapshotRequest,
     engine: State<'_, ContextMemoryEngine>,
+    emitter: State<'_, IntelligenceEmitter>,
 ) -> Result<crate::context_memory::ContextSnapshot, String> {
-    engine
-        .create_snapshot(request)
+    let snapshot = engine
+        .create_snapshot(request.clone())
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // Emit snapshot created event
+    if let Ok(workspace_id) = Uuid::parse_str(&request.workspace_id) {
+        emitter.emit_snapshot_created(workspace_id, snapshot.id);
+    }
+
+    Ok(snapshot)
 }
 
 /// Get context snapshots for a workspace.

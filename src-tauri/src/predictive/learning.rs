@@ -101,7 +101,7 @@ impl AdaptiveLearning {
 
         // Get top 8 hours
         let mut hours: Vec<(i32, i32)> = hour_counts.into_iter().collect();
-        hours.sort_by(|a, b| b.1.cmp(&a.1));
+        hours.sort_by_key(|a| std::cmp::Reverse(a.1));
 
         hours.into_iter().take(8).map(|(hour, _)| hour).collect()
     }

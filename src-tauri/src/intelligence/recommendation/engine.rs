@@ -3,12 +3,13 @@
 use crate::errors::DatabaseError;
 use crate::repositories::{FileRepository, WorkspaceRepository};
 use crate::services::ContextService;
+use uuid::Uuid;
 
 use super::generators::{
     ActivityRecommendationGenerator, ContextRecommendationGenerator,
     OrganizationRecommendationGenerator, RecommendationGenerator,
 };
-use super::models::Recommendation;
+use super::models::{Recommendation, RecommendationCategory, RecommendationPriority};
 use super::scoring::RecommendationScoringEngine;
 
 /// Main recommendation engine that coordinates generators and scoring.
@@ -38,7 +39,7 @@ impl RecommendationEngine {
     /// Generates all recommendations for a workspace.
     pub async fn generate_recommendations(
         &self,
-        workspace_id: i64,
+        workspace_id: Uuid,
     ) -> Result<Vec<Recommendation>, DatabaseError> {
         // Create generators
         let activity_gen = ActivityRecommendationGenerator::new(self.workspace_repository.clone());
@@ -78,8 +79,8 @@ impl RecommendationEngine {
     /// Generates recommendations for a specific category.
     pub async fn generate_category_recommendations(
         &self,
-        workspace_id: i64,
-        category: super::models::RecommendationCategory,
+        workspace_id: Uuid,
+        category: RecommendationCategory,
     ) -> Result<Vec<Recommendation>, DatabaseError> {
         // Generate all and filter by category
         let all_recommendations = self.generate_recommendations(workspace_id).await?;
@@ -96,8 +97,8 @@ impl RecommendationEngine {
     /// Generates top priority recommendations only.
     pub async fn generate_priority_recommendations(
         &self,
-        workspace_id: i64,
-        min_priority: super::models::RecommendationPriority,
+        workspace_id: Uuid,
+        min_priority: RecommendationPriority,
     ) -> Result<Vec<Recommendation>, DatabaseError> {
         let all_recommendations = self.generate_recommendations(workspace_id).await?;
 

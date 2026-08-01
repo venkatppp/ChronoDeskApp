@@ -17,6 +17,7 @@
 //! `commands::workspace`, which is how the Rust side organizes and
 //! documents them even though the JS side calls them by bare name.
 
+use std::sync::Arc;
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
@@ -28,6 +29,7 @@ use crate::context_memory::ContextMemoryEngine;
 use crate::errors::DatabaseError;
 use crate::models::{CreateWorkspaceInput, UpdateWorkspaceInput, Workspace, WorkspaceStats};
 use crate::repositories::FileRepository;
+use crate::runtime::RuntimeWorkers;
 use crate::services::WorkspaceService;
 
 /// Lists every active workspace, most recently active first.
@@ -140,6 +142,7 @@ pub async fn switch_workspace(
     service: State<'_, WorkspaceService>,
     context_memory_engine: State<'_, ContextMemoryEngine>,
     file_repository: State<'_, FileRepository>,
+    runtime_workers: State<'_, Arc<RuntimeWorkers>>,
     id: Uuid,
 ) -> Result<(), DatabaseError> {
     // Create auto snapshot before switching
@@ -149,6 +152,12 @@ pub async fn switch_workspace(
     let _ = context_memory_engine.auto_snapshot(id, active_files).await;
 
     service.switch_workspace(id).await?;
+
+    // Update runtime workers with new active workspace
+    runtime_workers.set_active_workspace(Some(id)).await;
+
+    // Invalidate cache and trigger immediate updates
+    runtime_workers.invalidate_and_update(id).await;
 
     app_events::emit(
         &app,

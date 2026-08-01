@@ -41,8 +41,8 @@ pub struct ExecuteActionRequest {
     /// Type of action to execute.
     pub action_type: ActionType,
 
-    /// Target workspace ID.
-    pub workspace_id: Option<i64>,
+    /// Target workspace ID (UUID string).
+    pub workspace_id: Option<String>,
 
     /// Associated recommendation ID.
     pub recommendation_id: Option<String>,
@@ -67,6 +67,9 @@ pub struct ActionResult {
     /// Data returned by the action.
     #[serde(default)]
     pub data: serde_json::Value,
+
+    /// Optional error message.
+    pub error: Option<String>,
 }
 
 /// Stored action history record.
@@ -78,8 +81,8 @@ pub struct ActionHistory {
     /// Type of action executed.
     pub action_type: ActionType,
 
-    /// Target workspace ID.
-    pub workspace_id: Option<i64>,
+    /// Target workspace ID (UUID string).
+    pub workspace_id: Option<String>,
 
     /// Associated recommendation ID.
     pub recommendation_id: Option<String>,

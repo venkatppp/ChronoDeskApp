@@ -38,7 +38,7 @@ impl ActionService {
     /// Gets action history for a workspace.
     pub async fn get_workspace_history(
         &self,
-        workspace_id: i64,
+        workspace_id: String,
         limit: i64,
     ) -> Result<Vec<ActionHistory>, DatabaseError> {
         self.action_repo.get_by_workspace(workspace_id, limit).await
@@ -55,7 +55,7 @@ impl ActionService {
     }
 
     /// Clears action history for a workspace.
-    pub async fn clear_workspace_history(&self, workspace_id: i64) -> Result<(), DatabaseError> {
+    pub async fn clear_workspace_history(&self, workspace_id: String) -> Result<(), DatabaseError> {
         self.action_repo.clear_by_workspace(workspace_id).await
     }
 }

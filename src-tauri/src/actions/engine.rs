@@ -41,7 +41,7 @@ impl ActionEngine {
         let result = execute_action(
             &ctx,
             request.action_type.clone(),
-            request.workspace_id,
+            request.workspace_id.clone(),
             &request.metadata,
         )
         .await?;
@@ -64,6 +64,7 @@ impl ActionEngine {
             message: result.message,
             action_id: history.id,
             data: result.data,
+            error: None,
         })
     }
 
@@ -96,7 +97,7 @@ impl ActionEngine {
                         execute_action(
                             &ctx,
                             ActionType::RestoreWorkspace,
-                            action.workspace_id,
+                            action.workspace_id.clone(),
                             &metadata,
                         )
                         .await?
@@ -119,7 +120,7 @@ impl ActionEngine {
                         execute_action(
                             &ctx,
                             ActionType::ArchiveWorkspace,
-                            action.workspace_id,
+                            action.workspace_id.clone(),
                             &metadata,
                         )
                         .await?
@@ -139,7 +140,7 @@ impl ActionEngine {
                 execute_action(
                     &ctx,
                     ActionType::UnpinWorkspace,
-                    action.workspace_id,
+                    action.workspace_id.clone(),
                     &metadata,
                 )
                 .await?
@@ -149,7 +150,7 @@ impl ActionEngine {
                 execute_action(
                     &ctx,
                     ActionType::PinWorkspace,
-                    action.workspace_id,
+                    action.workspace_id.clone(),
                     &metadata,
                 )
                 .await?
@@ -193,6 +194,7 @@ impl ActionEngine {
             message: format!("Undone: {}", result.message),
             action_id: history.id,
             data: result.data,
+            error: None,
         })
     }
 }

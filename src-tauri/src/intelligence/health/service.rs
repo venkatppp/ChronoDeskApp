@@ -3,6 +3,7 @@
 use crate::errors::DatabaseError;
 use chrono::{DateTime, Duration, Utc};
 use sqlx::SqlitePool;
+use uuid::Uuid;
 
 use super::models::WorkspaceHealth;
 
@@ -28,7 +29,7 @@ impl HealthService {
             VALUES (?, ?, ?, ?)
             "#
         )
-        .bind(health.workspace_id)
+        .bind(&health.workspace_id)
         .bind(health.overall_score)
         .bind(&health_json)
         .bind(health.calculated_at)
@@ -41,8 +42,9 @@ impl HealthService {
     /// Gets the most recent health assessment for a workspace.
     pub async fn get_latest_health(
         &self,
-        workspace_id: i64,
+        workspace_id: Uuid,
     ) -> Result<Option<WorkspaceHealth>, DatabaseError> {
+        let workspace_id_str = workspace_id.to_string();
         let record = sqlx::query_as::<_, HealthRow>(
             r#"
             SELECT workspace_id, overall_score, factors_json, calculated_at
@@ -52,7 +54,7 @@ impl HealthService {
             LIMIT 1
             "#,
         )
-        .bind(workspace_id)
+        .bind(&workspace_id_str)
         .fetch_optional(&self.pool)
         .await?;
 
@@ -69,9 +71,10 @@ impl HealthService {
     /// Gets health history for a workspace within a time range.
     pub async fn get_health_history(
         &self,
-        workspace_id: i64,
+        workspace_id: Uuid,
         since: DateTime<Utc>,
     ) -> Result<Vec<WorkspaceHealth>, DatabaseError> {
+        let workspace_id_str = workspace_id.to_string();
         let records = sqlx::query_as::<_, HealthRow>(
             r#"
             SELECT workspace_id, overall_score, factors_json, calculated_at
@@ -80,7 +83,7 @@ impl HealthService {
             ORDER BY calculated_at ASC
             "#,
         )
-        .bind(workspace_id)
+        .bind(&workspace_id_str)
         .bind(since)
         .fetch_all(&self.pool)
         .await?;
@@ -99,9 +102,10 @@ impl HealthService {
     /// Calculates trend by comparing current score to previous assessment.
     pub async fn calculate_trend(
         &self,
-        workspace_id: i64,
+        workspace_id: Uuid,
         current_score: f64,
     ) -> Result<Option<f64>, DatabaseError> {
+        let workspace_id_str = workspace_id.to_string();
         let record = sqlx::query_as::<_, (f64,)>(
             r#"
             SELECT overall_score
@@ -111,7 +115,7 @@ impl HealthService {
             LIMIT 1 OFFSET 1
             "#,
         )
-        .bind(workspace_id)
+        .bind(&workspace_id_str)
         .fetch_optional(&self.pool)
         .await?;
 
@@ -139,7 +143,7 @@ impl HealthService {
 /// Row type for deserializing health records.
 #[derive(sqlx::FromRow)]
 struct HealthRow {
-    workspace_id: i64,
+    workspace_id: String,
     overall_score: f64,
     factors_json: String,
     #[allow(dead_code)]

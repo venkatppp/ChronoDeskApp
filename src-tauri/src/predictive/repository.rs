@@ -9,6 +9,8 @@ use crate::predictive::models::{
     TriggerType,
 };
 
+type AutomationRuleRow = (i64, String, bool, String, String, String, String, String);
+
 /// Repository for predictive intelligence persistence.
 #[derive(Clone)]
 pub struct PredictiveRepository {
@@ -147,7 +149,7 @@ impl PredictiveRepository {
 
     /// Lists all automation rules.
     pub async fn list_automation_rules(&self) -> Result<Vec<AutomationRule>, DatabaseError> {
-        let rows: Vec<(i64, String, bool, String, String, String, String, String)> =
+        let rows: Vec<AutomationRuleRow> =
             sqlx::query_as(
                 r#"
             SELECT id, name, enabled, trigger_type, trigger_config, action_type, action_config, created_at

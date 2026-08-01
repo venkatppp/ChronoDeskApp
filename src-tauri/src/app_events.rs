@@ -38,6 +38,22 @@ pub const EVENT_TIMELINE_EVENT_ADDED: &str = "timeline:event_added";
 pub const EVENT_SEARCH_INDEXED: &str = "search:indexed";
 pub const EVENT_GRAPH_EDGE_ADDED: &str = "graph:edge_added";
 
+// Session events
+pub const EVENT_SESSION_STARTED: &str = "session:started";
+pub const EVENT_SESSION_ENDED: &str = "session:ended";
+
+// Intelligence events
+pub const EVENT_WORKFLOW_CHANGED: &str = "workflow:changed";
+pub const EVENT_PREDICTION_UPDATED: &str = "prediction:updated";
+pub const EVENT_RECOMMENDATION_UPDATED: &str = "recommendation:updated";
+pub const EVENT_HEALTH_UPDATED: &str = "health:updated";
+
+// Context memory events
+pub const EVENT_SNAPSHOT_CREATED: &str = "snapshot:created";
+
+// Action events
+pub const EVENT_ACTION_EXECUTED: &str = "action:executed";
+
 /// Serializes `payload` and emits it. Serialization failure is logged,
 /// not propagated — event emission is always best-effort and must never
 /// fail the operation that triggered it (e.g. a workspace creation

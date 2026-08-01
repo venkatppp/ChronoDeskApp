@@ -23,31 +23,17 @@ impl ActivityRecommendationGenerator {
             workspace_repository,
         }
     }
-
-    /// Converts i64 workspace_id to Uuid (temporary helper for Phase 5C)
-    fn id_to_uuid(&self, workspace_id: i64) -> Uuid {
-        // For now, we'll use a simple conversion
-        // In production, workspaces table uses UUID, but health table uses i64
-        // This is a temporary bridge until data model is unified
-        let bytes = workspace_id.to_le_bytes();
-        let mut uuid_bytes = [0u8; 16];
-        uuid_bytes[..8].copy_from_slice(&bytes);
-        Uuid::from_bytes(uuid_bytes)
-    }
 }
 
 #[async_trait::async_trait]
 impl RecommendationGenerator for ActivityRecommendationGenerator {
-    async fn generate(&self, workspace_id: i64) -> Result<Vec<Recommendation>, DatabaseError> {
+    async fn generate(&self, workspace_id: Uuid) -> Result<Vec<Recommendation>, DatabaseError> {
         let mut recommendations = Vec::new();
-
-        // Convert to UUID for repository access
-        let workspace_uuid = self.id_to_uuid(workspace_id);
 
         // Get workspace stats
         let stats = match self
             .workspace_repository
-            .get_workspace_stats(workspace_uuid)
+            .get_workspace_stats(workspace_id)
             .await
         {
             Ok(stats) => stats,
@@ -61,7 +47,7 @@ impl RecommendationGenerator for ActivityRecommendationGenerator {
         if time_since_last_activity > Duration::days(7) {
             recommendations.push(
                 Recommendation::new(
-                    workspace_id,
+                    workspace_id.to_string(),
                     RecommendationCategory::Productivity,
                     "Workspace appears inactive",
                     format!(
@@ -80,7 +66,7 @@ impl RecommendationGenerator for ActivityRecommendationGenerator {
             // Low activity warning
             recommendations.push(
                 Recommendation::new(
-                    workspace_id,
+                    workspace_id.to_string(),
                     RecommendationCategory::Productivity,
                     "Low recent activity",
                     format!(
@@ -98,7 +84,7 @@ impl RecommendationGenerator for ActivityRecommendationGenerator {
         if stats.timeline_event_count > 500 && time_since_last_activity < Duration::days(1) {
             recommendations.push(
                 Recommendation::new(
-                    workspace_id,
+                    workspace_id.to_string(),
                     RecommendationCategory::Productivity,
                     "High productivity workspace",
                     format!(
@@ -116,7 +102,7 @@ impl RecommendationGenerator for ActivityRecommendationGenerator {
         if stats.file_count > 100 && stats.timeline_event_count < 50 {
             recommendations.push(
                 Recommendation::new(
-                    workspace_id,
+                    workspace_id.to_string(),
                     RecommendationCategory::Organization,
                     "Large workspace with low activity",
                     format!(

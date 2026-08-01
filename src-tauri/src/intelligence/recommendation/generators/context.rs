@@ -1,5 +1,7 @@
 //! Context-based recommendation generator.
 
+use uuid::Uuid;
+
 use crate::errors::DatabaseError;
 use crate::intelligence::recommendation::models::{
     Recommendation, RecommendationAction, RecommendationCategory,
@@ -22,7 +24,7 @@ impl ContextRecommendationGenerator {
 
 #[async_trait::async_trait]
 impl RecommendationGenerator for ContextRecommendationGenerator {
-    async fn generate(&self, _workspace_id: i64) -> Result<Vec<Recommendation>, DatabaseError> {
+    async fn generate(&self, _workspace_id: Uuid) -> Result<Vec<Recommendation>, DatabaseError> {
         let mut recommendations = Vec::new();
 
         // Get smart resume session (no workspace_id parameter)
@@ -31,7 +33,7 @@ impl RecommendationGenerator for ContextRecommendationGenerator {
             if session.duration_seconds < 600 {
                 recommendations.push(
                     Recommendation::new(
-                        session.workspace_id.as_simple().to_string().parse().unwrap_or(0),
+                        session.workspace_id.to_string(),
                         RecommendationCategory::Context,
                         "Short session detected",
                         "Your last session was brief. Use Smart Resume to quickly restore your context."
@@ -50,7 +52,7 @@ impl RecommendationGenerator for ContextRecommendationGenerator {
             if session.file_count > 15 {
                 recommendations.push(
                     Recommendation::new(
-                        session.workspace_id.as_simple().to_string().parse().unwrap_or(0),
+                        session.workspace_id.to_string(),
                         RecommendationCategory::Organization,
                         "Many files in recent session",
                         format!(
@@ -71,12 +73,7 @@ impl RecommendationGenerator for ContextRecommendationGenerator {
             if session.duration_seconds > 3600 && session.file_count <= 10 {
                 recommendations.push(
                     Recommendation::new(
-                        session
-                            .workspace_id
-                            .as_simple()
-                            .to_string()
-                            .parse()
-                            .unwrap_or(0),
+                        session.workspace_id.to_string(),
                         RecommendationCategory::Productivity,
                         "Strong focus session detected",
                         "You had a well-focused session. Great work!",
@@ -86,19 +83,6 @@ impl RecommendationGenerator for ContextRecommendationGenerator {
                     .with_effort(0.0),
                 );
             }
-        } else {
-            // No session data - generic recommendation
-            recommendations.push(
-                Recommendation::new(
-                    0,
-                    RecommendationCategory::Context,
-                    "Start a new session",
-                    "No recent activity detected. Open some files to begin working.",
-                )
-                .with_confidence(0.5)
-                .with_impact(0.3)
-                .with_effort(0.1),
-            );
         }
 
         Ok(recommendations)

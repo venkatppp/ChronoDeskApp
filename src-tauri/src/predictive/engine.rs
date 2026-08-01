@@ -82,7 +82,7 @@ impl PredictiveEngine {
                     score += 0.2;
                     reasons.push("frequently used workspace".to_string());
                 }
-                
+
                 // Factor for recent activity
                 if insight.weekly_edits > 50 {
                     score += 0.2;
@@ -155,7 +155,7 @@ impl PredictiveEngine {
 
         // Convert to predictions
         let mut file_scores: Vec<(String, i32)> = file_counts.into_iter().collect();
-        file_scores.sort_by(|a, b| b.1.cmp(&a.1));
+        file_scores.sort_by_key(|a| std::cmp::Reverse(a.1));
 
         for (path, count) in file_scores.iter().take(limit) {
             let confidence = (*count as f64) / (events.len() as f64).max(1.0);

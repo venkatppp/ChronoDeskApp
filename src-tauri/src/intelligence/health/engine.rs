@@ -1,6 +1,7 @@
 //! Workspace health calculation engine.
 
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 use crate::errors::DatabaseError;
 use crate::repositories::{FileRepository, TimelineRepository, WorkspaceRepository};
@@ -43,11 +44,9 @@ impl WorkspaceHealthEngine {
     /// Calculates current health for a workspace.
     pub async fn calculate_health(
         &self,
-        workspace_id: i64,
+        workspace_id: Uuid,
     ) -> Result<WorkspaceHealth, DatabaseError> {
-        // Convert i64 to Uuid (workspace_id stored as i64 in health table, but Uuid in main tables)
-        // For now, we'll work with the data we have
-        let mut health = WorkspaceHealth::new(workspace_id);
+        let mut health = WorkspaceHealth::new(workspace_id.to_string());
 
         // Calculate individual health factors
         let activity_factor = self.calculate_activity_factor(workspace_id).await?;
@@ -80,7 +79,7 @@ impl WorkspaceHealthEngine {
     /// Gets the latest health assessment for a workspace.
     pub async fn get_latest_health(
         &self,
-        workspace_id: i64,
+        workspace_id: Uuid,
     ) -> Result<Option<WorkspaceHealth>, DatabaseError> {
         self.health_service.get_latest_health(workspace_id).await
     }
@@ -88,7 +87,7 @@ impl WorkspaceHealthEngine {
     /// Gets health history for a workspace.
     pub async fn get_health_history(
         &self,
-        workspace_id: i64,
+        workspace_id: Uuid,
         since: DateTime<Utc>,
     ) -> Result<Vec<WorkspaceHealth>, DatabaseError> {
         self.health_service
@@ -99,7 +98,7 @@ impl WorkspaceHealthEngine {
     /// Calculates activity level health factor.
     async fn calculate_activity_factor(
         &self,
-        _workspace_id: i64,
+        _workspace_id: Uuid,
     ) -> Result<HealthFactor, DatabaseError> {
         // For now, return a placeholder factor
         // TODO: Implement proper activity tracking based on timeline events
@@ -126,7 +125,7 @@ impl WorkspaceHealthEngine {
     /// Calculates organization health factor.
     async fn calculate_organization_factor(
         &self,
-        _workspace_id: i64,
+        _workspace_id: Uuid,
     ) -> Result<HealthFactor, DatabaseError> {
         // Placeholder - calculate based on file organization patterns
         let organization_score = 0.75;
@@ -152,7 +151,7 @@ impl WorkspaceHealthEngine {
     /// Calculates context health factor (how well context is maintained).
     async fn calculate_context_factor(
         &self,
-        _workspace_id: i64,
+        _workspace_id: Uuid,
     ) -> Result<HealthFactor, DatabaseError> {
         // Get smart resume session (no workspace_id parameter)
         let session = self.context_service.get_smart_resume_session().await?;

@@ -10,7 +10,7 @@ pub struct Recommendation {
     pub id: String,
 
     /// Workspace this recommendation applies to.
-    pub workspace_id: i64,
+    pub workspace_id: String,
 
     /// Category of recommendation.
     pub category: RecommendationCategory,
@@ -108,9 +108,9 @@ pub enum RecommendationAction {
 }
 
 impl Recommendation {
-    /// Creates a new recommendation.
+    /// Creates a new recommendation builder.
     pub fn new(
-        workspace_id: i64,
+        workspace_id: String,
         category: RecommendationCategory,
         title: impl Into<String>,
         description: impl Into<String>,

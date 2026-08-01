@@ -71,11 +71,11 @@ impl ExecutionResult {
 /// Archive a workspace.
 pub async fn execute_archive_workspace(
     ctx: &ExecutorContext,
-    workspace_id: i64,
+    workspace_id: Uuid,
     _metadata: &serde_json::Value,
 ) -> Result<ExecutionResult, DatabaseError> {
     // Convert i64 to Uuid
-    let workspace_uuid = id_to_uuid(workspace_id)?;
+    let workspace_uuid = workspace_id;
 
     // Get current workspace state
     let workspace = ctx.workspace_repo.get_by_id(workspace_uuid).await?;
@@ -114,10 +114,10 @@ pub async fn execute_archive_workspace(
 /// Restore an archived workspace.
 pub async fn execute_restore_workspace(
     ctx: &ExecutorContext,
-    workspace_id: i64,
+    workspace_id: Uuid,
     _metadata: &serde_json::Value,
 ) -> Result<ExecutionResult, DatabaseError> {
-    let workspace_uuid = id_to_uuid(workspace_id)?;
+    let workspace_uuid = workspace_id;
 
     let workspace = ctx.workspace_repo.get_by_id(workspace_uuid).await?;
 
@@ -154,10 +154,10 @@ pub async fn execute_restore_workspace(
 /// Pin a workspace.
 pub async fn execute_pin_workspace(
     ctx: &ExecutorContext,
-    workspace_id: i64,
+    workspace_id: Uuid,
     _metadata: &serde_json::Value,
 ) -> Result<ExecutionResult, DatabaseError> {
-    let workspace_uuid = id_to_uuid(workspace_id)?;
+    let workspace_uuid = workspace_id;
 
     let workspace = ctx.workspace_repo.get_by_id(workspace_uuid).await?;
 
@@ -180,10 +180,10 @@ pub async fn execute_pin_workspace(
 /// Unpin a workspace.
 pub async fn execute_unpin_workspace(
     ctx: &ExecutorContext,
-    workspace_id: i64,
+    workspace_id: Uuid,
     _metadata: &serde_json::Value,
 ) -> Result<ExecutionResult, DatabaseError> {
-    let workspace_uuid = id_to_uuid(workspace_id)?;
+    let workspace_uuid = workspace_id;
 
     let workspace = ctx.workspace_repo.get_by_id(workspace_uuid).await?;
 
@@ -203,10 +203,10 @@ pub async fn execute_unpin_workspace(
 /// Clean duplicate files.
 pub async fn execute_clean_duplicate_files(
     ctx: &ExecutorContext,
-    workspace_id: i64,
+    workspace_id: Uuid,
     metadata: &serde_json::Value,
 ) -> Result<ExecutionResult, DatabaseError> {
-    let workspace_uuid = id_to_uuid(workspace_id)?;
+    let workspace_uuid = workspace_id;
 
     let workspace = ctx.workspace_repo.get_by_id(workspace_uuid).await?;
 
@@ -253,10 +253,10 @@ pub async fn execute_clean_duplicate_files(
 /// Open suggested workspace.
 pub async fn execute_open_suggested_workspace(
     ctx: &ExecutorContext,
-    workspace_id: i64,
+    workspace_id: Uuid,
     _metadata: &serde_json::Value,
 ) -> Result<ExecutionResult, DatabaseError> {
-    let workspace_uuid = id_to_uuid(workspace_id)?;
+    let workspace_uuid = workspace_id;
 
     let workspace = ctx.workspace_repo.get_by_id(workspace_uuid).await?;
 
@@ -276,7 +276,7 @@ pub async fn execute_open_suggested_workspace(
 /// Resume previous session.
 pub async fn execute_resume_previous_session(
     _ctx: &ExecutorContext,
-    workspace_id: i64,
+    workspace_id: Uuid,
     metadata: &serde_json::Value,
 ) -> Result<ExecutionResult, DatabaseError> {
     // Extract session data from metadata
@@ -306,7 +306,7 @@ pub async fn execute_resume_previous_session(
 /// Open most relevant files.
 pub async fn execute_open_most_relevant_files(
     _ctx: &ExecutorContext,
-    workspace_id: i64,
+    workspace_id: Uuid,
     metadata: &serde_json::Value,
 ) -> Result<ExecutionResult, DatabaseError> {
     // Extract file paths from metadata
@@ -334,7 +334,7 @@ pub async fn execute_open_most_relevant_files(
 /// Mark recommendation as complete.
 pub async fn execute_mark_recommendation_complete(
     _ctx: &ExecutorContext,
-    _workspace_id: i64,
+    _workspace_id: Uuid,
     metadata: &serde_json::Value,
 ) -> Result<ExecutionResult, DatabaseError> {
     let recommendation_id = metadata
@@ -352,35 +352,38 @@ pub async fn execute_mark_recommendation_complete(
 pub async fn execute_action(
     ctx: &ExecutorContext,
     action_type: ActionType,
-    workspace_id: Option<i64>,
+    workspace_id: Option<String>,
     metadata: &serde_json::Value,
 ) -> Result<ExecutionResult, DatabaseError> {
-    let workspace_id = workspace_id
+    let workspace_id_str = workspace_id
         .ok_or_else(|| DatabaseError::InvalidInput("Missing workspace_id".to_string()))?;
+
+    let workspace_uuid = Uuid::from_str(&workspace_id_str)
+        .map_err(|e| DatabaseError::InvalidInput(format!("Invalid workspace UUID: {}", e)))?;
 
     match action_type {
         ActionType::ArchiveWorkspace => {
-            execute_archive_workspace(ctx, workspace_id, metadata).await
+            execute_archive_workspace(ctx, workspace_uuid, metadata).await
         }
         ActionType::RestoreWorkspace => {
-            execute_restore_workspace(ctx, workspace_id, metadata).await
+            execute_restore_workspace(ctx, workspace_uuid, metadata).await
         }
-        ActionType::PinWorkspace => execute_pin_workspace(ctx, workspace_id, metadata).await,
-        ActionType::UnpinWorkspace => execute_unpin_workspace(ctx, workspace_id, metadata).await,
+        ActionType::PinWorkspace => execute_pin_workspace(ctx, workspace_uuid, metadata).await,
+        ActionType::UnpinWorkspace => execute_unpin_workspace(ctx, workspace_uuid, metadata).await,
         ActionType::CleanDuplicateFiles => {
-            execute_clean_duplicate_files(ctx, workspace_id, metadata).await
+            execute_clean_duplicate_files(ctx, workspace_uuid, metadata).await
         }
         ActionType::OpenSuggestedWorkspace => {
-            execute_open_suggested_workspace(ctx, workspace_id, metadata).await
+            execute_open_suggested_workspace(ctx, workspace_uuid, metadata).await
         }
         ActionType::ResumePreviousSession => {
-            execute_resume_previous_session(ctx, workspace_id, metadata).await
+            execute_resume_previous_session(ctx, workspace_uuid, metadata).await
         }
         ActionType::OpenMostRelevantFiles => {
-            execute_open_most_relevant_files(ctx, workspace_id, metadata).await
+            execute_open_most_relevant_files(ctx, workspace_uuid, metadata).await
         }
         ActionType::MarkRecommendationComplete => {
-            execute_mark_recommendation_complete(ctx, workspace_id, metadata).await
+            execute_mark_recommendation_complete(ctx, workspace_uuid, metadata).await
         }
     }
 }
@@ -389,6 +392,7 @@ pub async fn execute_action(
 /// Note: This is a temporary bridge. The workspace table uses UUID,
 /// but some parts of the system still use i64. This converts the i64
 /// to a UUID by treating it as the low 64 bits.
+#[allow(dead_code)]
 fn id_to_uuid(id: i64) -> Result<Uuid, DatabaseError> {
     // For now, we'll format as a simple UUID
     // In production, you'd have a proper mapping or use consistent IDs

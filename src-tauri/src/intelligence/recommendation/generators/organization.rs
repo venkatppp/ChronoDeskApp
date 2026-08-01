@@ -25,28 +25,17 @@ impl OrganizationRecommendationGenerator {
             file_repository,
         }
     }
-
-    /// Converts i64 workspace_id to Uuid (temporary helper for Phase 5C)
-    fn id_to_uuid(&self, workspace_id: i64) -> Uuid {
-        let bytes = workspace_id.to_le_bytes();
-        let mut uuid_bytes = [0u8; 16];
-        uuid_bytes[..8].copy_from_slice(&bytes);
-        Uuid::from_bytes(uuid_bytes)
-    }
 }
 
 #[async_trait::async_trait]
 impl RecommendationGenerator for OrganizationRecommendationGenerator {
-    async fn generate(&self, workspace_id: i64) -> Result<Vec<Recommendation>, DatabaseError> {
+    async fn generate(&self, workspace_id: Uuid) -> Result<Vec<Recommendation>, DatabaseError> {
         let mut recommendations = Vec::new();
-
-        // Convert to UUID for repository access
-        let workspace_uuid = self.id_to_uuid(workspace_id);
 
         // Get workspace stats
         let stats = match self
             .workspace_repository
-            .get_workspace_stats(workspace_uuid)
+            .get_workspace_stats(workspace_id)
             .await
         {
             Ok(stats) => stats,
@@ -59,7 +48,7 @@ impl RecommendationGenerator for OrganizationRecommendationGenerator {
         if file_count > 100 {
             recommendations.push(
                 Recommendation::new(
-                    workspace_id,
+                    workspace_id.to_string(),
                     RecommendationCategory::Organization,
                     "Large workspace detected",
                     format!(
@@ -77,7 +66,7 @@ impl RecommendationGenerator for OrganizationRecommendationGenerator {
         if file_count > 50 && file_count <= 100 {
             recommendations.push(
                 Recommendation::new(
-                    workspace_id,
+                    workspace_id.to_string(),
                     RecommendationCategory::Organization,
                     "Growing workspace",
                     format!(
@@ -95,7 +84,7 @@ impl RecommendationGenerator for OrganizationRecommendationGenerator {
         if file_count > 50 {
             recommendations.push(
                 Recommendation::new(
-                    workspace_id,
+                    workspace_id.to_string(),
                     RecommendationCategory::Files,
                     "Scan for duplicate files",
                     "Run a duplicate scan to identify and clean up redundant files.",
@@ -105,7 +94,7 @@ impl RecommendationGenerator for OrganizationRecommendationGenerator {
                 .with_effort(0.2)
                 .with_action(RecommendationAction::ExecuteCommand {
                     command: "scan_duplicates".to_string(),
-                    args: vec![workspace_uuid.to_string()],
+                    args: vec![workspace_id.to_string()],
                 }),
             );
         }
@@ -114,7 +103,7 @@ impl RecommendationGenerator for OrganizationRecommendationGenerator {
         if file_count > 0 && file_count < 5 && stats.timeline_event_count < 10 {
             recommendations.push(
                 Recommendation::new(
-                    workspace_id,
+                    workspace_id.to_string(),
                     RecommendationCategory::Organization,
                     "Small workspace with low activity",
                     format!(
