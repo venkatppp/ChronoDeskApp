@@ -422,10 +422,10 @@ impl AdaptiveLearningEngine {
 mod tests {
     use super::*;
 
-    #[test]
-    fn calculates_confidence_correctly() {
+    #[tokio::test]
+    async fn calculates_confidence_correctly() {
         // Mock repository for testing
-        let pool = sqlx::SqlitePool::connect_lazy("sqlite::memory:").unwrap();
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
         let repository = LearningRepository::new(pool);
         let engine = AdaptiveLearningEngine::new(Arc::new(repository));
 
