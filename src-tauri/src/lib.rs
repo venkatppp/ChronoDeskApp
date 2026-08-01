@@ -378,6 +378,17 @@ pub fn run() {
                 Arc::new(timeline_engine.clone()),
             ));
 
+            // --- Proactive AI Engine (Phase 7B) ---
+            let proactive_engine = Arc::new(copilot::ProactiveEngine::new(
+                Arc::new(timeline_engine.clone()),
+                Arc::new(session_engine.clone()),
+                Arc::new(predictive_engine.clone()),
+                learning_engine.clone(),
+                Arc::new(recommendation_engine.clone()),
+                Arc::new(context_memory_engine.clone()),
+                Arc::new(reasoning_engine.clone()),
+            ));
+
             // --- File Watcher, wired to a real AppEventEmitter (the AppHandle) ---
             let file_watcher = FileWatcher::new(workspace_manager, timeline_engine.clone())
                 .with_event_emitter(
@@ -437,6 +448,7 @@ pub fn run() {
             app.manage(learning_engine);
             app.manage(ai_state);
             app.manage(copilot_engine);
+            app.manage(proactive_engine);
 
             tracing::info!("ChronoDesk backend ready");
 
@@ -551,6 +563,15 @@ pub fn run() {
             commands::copilot::copilot_get_daily_briefing,
             commands::copilot::copilot_get_tools,
             commands::copilot::copilot_ask_question,
+            commands::proactive::copilot_get_notifications,
+            commands::proactive::copilot_dismiss_notification,
+            commands::proactive::copilot_get_resume_context,
+            commands::proactive::copilot_generate_plan,
+            commands::proactive::copilot_set_permission,
+            commands::proactive::copilot_check_permission,
+            commands::proactive::copilot_get_enhanced_briefing,
+            commands::proactive::copilot_query_timeline,
+            commands::proactive::copilot_check_opportunities,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ChronoDesk");

@@ -15,6 +15,7 @@ pub mod graph;
 pub mod intelligence;
 pub mod learning;
 pub mod predictive;
+pub mod proactive;
 pub mod runtime;
 pub mod search;
 pub mod semantic;

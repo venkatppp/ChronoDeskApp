@@ -54,6 +54,12 @@ pub const EVENT_SNAPSHOT_CREATED: &str = "snapshot:created";
 // Action events
 pub const EVENT_ACTION_EXECUTED: &str = "action:executed";
 
+// Proactive AI events
+pub const EVENT_PROACTIVE_NOTIFICATION: &str = "proactive:notification";
+pub const EVENT_RESUME_CONTEXT_READY: &str = "proactive:resume_context_ready";
+pub const EVENT_PLAN_GENERATED: &str = "proactive:plan_generated";
+pub const EVENT_AUTOMATION_REQUEST: &str = "proactive:automation_request";
+
 /// Serializes `payload` and emits it. Serialization failure is logged,
 /// not propagated — event emission is always best-effort and must never
 /// fail the operation that triggered it (e.g. a workspace creation
