@@ -361,7 +361,7 @@ pub fn run() {
             ));
             let conversation_manager = Arc::new(copilot::ConversationManager::new(
                 Arc::new(copilot_repository.clone()),
-                context_memory_engine.clone(),
+                Arc::new(context_memory_engine.clone()),
                 Arc::new(session_engine),
                 Arc::new(timeline_engine.clone()),
             ));
@@ -370,10 +370,10 @@ pub fn run() {
                 tool_executor,
                 Arc::new(copilot_repository),
                 Arc::new(reasoning_engine),
-                predictive_engine.clone(),
-                learning_engine.clone(),
-                recommendation_engine.clone(),
-                context_memory_engine.clone(),
+                Arc::new(predictive_engine.clone()),
+                Arc::new(learning_engine.clone()),
+                Arc::new(recommendation_engine.clone()),
+                Arc::new(context_memory_engine.clone()),
                 Arc::new(session_engine),
                 Arc::new(timeline_engine.clone()),
             ));
