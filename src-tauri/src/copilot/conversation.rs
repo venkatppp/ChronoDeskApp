@@ -182,7 +182,6 @@ impl ConversationManager {
 
         // Session info not directly available without Session object
         // Would require fetching latest session first
-        }
 
         Ok(context_parts.join("\n"))
     }
