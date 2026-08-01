@@ -356,13 +356,13 @@ pub fn run() {
             let copilot_repository = copilot::CopilotRepository::new(pool.clone());
             let tool_executor = Arc::new(copilot::ToolExecutor::new(
                 Arc::new(workspace_service.clone()),
-                session_engine.clone(),
+                Arc::new(session_engine.clone()),
                 Arc::new(timeline_engine.clone()),
             ));
             let conversation_manager = Arc::new(copilot::ConversationManager::new(
                 Arc::new(copilot_repository.clone()),
                 Arc::new(context_memory_engine.clone()),
-                session_engine.clone(),
+                Arc::new(session_engine.clone()),
                 Arc::new(timeline_engine.clone()),
             ));
             let copilot_engine = Arc::new(copilot::CopilotEngine::new(
@@ -374,7 +374,7 @@ pub fn run() {
                 learning_engine.clone(),
                 Arc::new(recommendation_engine.clone()),
                 Arc::new(context_memory_engine.clone()),
-                session_engine.clone(),
+                Arc::new(session_engine.clone()),
                 Arc::new(timeline_engine.clone()),
             ));
 
