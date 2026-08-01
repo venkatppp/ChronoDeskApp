@@ -12,6 +12,7 @@ pub mod duplicates;
 pub mod graph;
 pub mod intelligence;
 pub mod predictive;
+pub mod runtime;
 pub mod search;
 pub mod session;
 pub mod system;

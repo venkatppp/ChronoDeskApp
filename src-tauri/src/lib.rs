@@ -255,6 +255,29 @@ pub fn run() {
                 Arc::new(app_handle.clone()) as Arc<dyn app_events::AppEventEmitter>
             );
             let cache = runtime::IntelligenceCache::new();
+
+            // --- Runtime Health & Diagnostics (Phase 5H) ---
+            let health_service = runtime::RuntimeHealthService::new(cache.clone());
+            let diagnostics_service = runtime::DiagnosticsService::new(health_service.clone());
+            let recovery_service = runtime::RecoveryService::new(pool.clone());
+
+            // Initialize recovery system
+            tauri::async_runtime::block_on(recovery_service.initialize())?;
+
+            // Check if recovery is needed
+            if tauri::async_runtime::block_on(recovery_service.needs_recovery())? {
+                tracing::warn!("Detected interrupted shutdown, performing recovery");
+                let recovered_jobs = tauri::async_runtime::block_on(recovery_service.recover())?;
+                tracing::info!("Recovered {} interrupted jobs", recovered_jobs.len());
+            }
+
+            // Record clean startup
+            tauri::async_runtime::block_on(recovery_service.checkpoint(
+                runtime::RecoveryState::Clean,
+                vec![],
+                serde_json::Value::Null,
+            ))?;
+
             let runtime_workers = Arc::new(runtime::RuntimeWorkers::new(
                 emitter.clone(),
                 cache.clone(),
@@ -317,6 +340,9 @@ pub fn run() {
             app.manage(emitter);
             app.manage(cache);
             app.manage(runtime_workers);
+            app.manage(health_service);
+            app.manage(diagnostics_service);
+            app.manage(recovery_service);
 
             tracing::info!("ChronoDesk backend ready");
 
@@ -396,6 +422,9 @@ pub fn run() {
             commands::predictive::list_automation_rules,
             commands::predictive::update_automation_rule_enabled,
             commands::predictive::delete_automation_rule,
+            commands::runtime::get_runtime_health,
+            commands::runtime::get_runtime_diagnostics,
+            commands::runtime::get_runtime_summary,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ChronoDesk");

@@ -275,7 +275,7 @@ mod tests {
 
     #[tokio::test]
     async fn count_events_aggregates_correctly() {
-        let (repo, workspace_id, _guard) = setup().await;
+        let (_repo, _workspace_id, _guard) = setup().await;
 
         let (database, _temp_dir) = test_database().await;
         let timeline_repo = TimelineRepository::new(database.pool().clone());
