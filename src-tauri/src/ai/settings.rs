@@ -39,6 +39,13 @@ pub struct AISettings {
 
     /// Enable automatic model updates.
     pub auto_update_models: bool,
+
+    /// Persist loaded models across restarts.
+    pub persist_loaded_models: bool,
+
+    /// Loaded model IDs (persisted state).
+    #[serde(default)]
+    pub loaded_model_ids: Vec<String>,
 }
 
 impl Default for AISettings {
@@ -55,6 +62,8 @@ impl Default for AISettings {
             embedding_workers: 2,
             embedding_batch_size: 32,
             auto_update_models: false,
+            persist_loaded_models: true,
+            loaded_model_ids: Vec::new(),
         }
     }
 }
@@ -78,5 +87,18 @@ impl AISettings {
     pub fn with_reranker_model(mut self, model_id: String) -> Self {
         self.active_reranker_model = Some(model_id);
         self
+    }
+
+    /// Saves settings to a file.
+    pub async fn save(&self, path: &std::path::Path) -> Result<(), std::io::Error> {
+        let json = serde_json::to_string_pretty(self)?;
+        tokio::fs::write(path, json).await
+    }
+
+    /// Loads settings from a file.
+    pub async fn load(path: &std::path::Path) -> Result<Self, std::io::Error> {
+        let json = tokio::fs::read_to_string(path).await?;
+        serde_json::from_str(&json)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 }

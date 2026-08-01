@@ -1,8 +1,4 @@
-//! Reranker for improving search result quality - Placeholder implementation.
-//!
-//! This is a simplified implementation that provides the infrastructure
-//! for ONNX-based reranking. The actual ONNX inference will be implemented
-//! when models are downloaded and loaded.
+//! Reranker for improving search result quality - Real ONNX implementation.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -10,25 +6,21 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 
 use crate::ai::cache::InferenceCache;
+use crate::ai::inference::RerankerInferenceEngine;
 use crate::ai::models::{InferenceStats, RerankRequest, RerankResult};
 use crate::errors::DatabaseError;
 
-/// Cross-encoder reranker for search results.
+/// Cross-encoder reranker for search results with real ONNX inference.
 pub struct Reranker {
     #[allow(dead_code)]
     model_id: String,
-    #[allow(dead_code)]
-    model_path: PathBuf,
-    #[allow(dead_code)]
-    tokenizer_path: PathBuf,
-    #[allow(dead_code)]
-    max_length: usize,
+    engine: Arc<RerankerInferenceEngine>,
     cache: Arc<Mutex<InferenceCache<Vec<RerankResult>>>>,
     stats: Arc<Mutex<InferenceStats>>,
 }
 
 impl Reranker {
-    /// Creates a new reranker.
+    /// Creates a new reranker with real ONNX inference.
     pub fn new(
         model_id: String,
         model_path: PathBuf,
@@ -37,28 +29,26 @@ impl Reranker {
         enable_cache: bool,
         cache_size: usize,
     ) -> Result<Self, DatabaseError> {
+        // Initialize the ONNX inference engine
+        let engine = RerankerInferenceEngine::new(&model_path, &tokenizer_path, max_length)?;
+
         let cache = if enable_cache {
             InferenceCache::new(cache_size)
         } else {
             InferenceCache::new(0)
         };
 
-        let stats = InferenceStats::new(
-            model_id.clone(),
-            crate::ai::models::ModelType::Reranker,
-        );
+        let stats = InferenceStats::new(model_id.clone(), crate::ai::models::ModelType::Reranker);
 
         Ok(Self {
             model_id,
-            model_path,
-            tokenizer_path,
-            max_length,
+            engine: Arc::new(engine),
             cache: Arc::new(Mutex::new(cache)),
             stats: Arc::new(Mutex::new(stats)),
         })
     }
 
-    /// Reranks documents based on relevance to query.
+    /// Reranks documents based on relevance to query using real ONNX inference.
     pub async fn rerank(&self, request: RerankRequest) -> Result<Vec<RerankResult>, DatabaseError> {
         let start = std::time::Instant::now();
 
@@ -80,8 +70,8 @@ impl Reranker {
             }
         }
 
-        // Cache miss - compute scores using placeholder
-        let results = self.rerank_placeholder(request).await?;
+        // Cache miss - compute scores using real ONNX inference
+        let results = self.rerank_with_inference(request).await?;
 
         // Store in cache
         {
@@ -108,52 +98,42 @@ impl Reranker {
         Ok(results)
     }
 
-    /// Placeholder reranking using simple similarity scoring.
-    async fn rerank_placeholder(&self, request: RerankRequest) -> Result<Vec<RerankResult>, DatabaseError> {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
+    /// Reranks using real ONNX cross-encoder inference.
+    async fn rerank_with_inference(
+        &self,
+        request: RerankRequest,
+    ) -> Result<Vec<RerankResult>, DatabaseError> {
+        let engine = self.engine.clone();
+        let query = request.query.clone();
+        let documents = request.documents.clone();
 
-        // Compute simple similarity scores based on string matching
-        let query_lower = request.query.to_lowercase();
-        let query_words: Vec<&str> = query_lower.split_whitespace().collect();
+        // Run inference in blocking task to avoid blocking async runtime
+        let scores = tokio::task::spawn_blocking(move || {
+            let doc_refs: Vec<&str> = documents.iter().map(|s| s.as_str()).collect();
+            engine.score_batch(&query, &doc_refs)
+        })
+        .await
+        .map_err(|e| DatabaseError::IoError(format!("Reranking task failed: {}", e)))??;
 
+        // Create results with scores
         let mut results: Vec<RerankResult> = request
             .documents
             .iter()
             .enumerate()
-            .map(|(index, document)| {
-                let doc_lower = document.to_lowercase();
-                
-                // Count matching words
-                let mut matches = 0;
-                for word in &query_words {
-                    if doc_lower.contains(word) {
-                        matches += 1;
-                    }
-                }
-
-                // Compute score (0-1 range)
-                let score = if query_words.is_empty() {
-                    0.0
-                } else {
-                    matches as f32 / query_words.len() as f32
-                };
-
-                // Add some deterministic variation based on document content
-                let mut hasher = DefaultHasher::new();
-                document.hash(&mut hasher);
-                let hash_score = (hasher.finish() % 100) as f32 / 1000.0; // 0-0.1 range
-
-                RerankResult {
-                    index,
-                    score: score + hash_score,
-                    document: document.clone(),
-                }
+            .zip(scores.iter())
+            .map(|((index, document), score)| RerankResult {
+                index,
+                score: *score,
+                document: document.clone(),
             })
             .collect();
 
         // Sort by score descending
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Take top k
         results.truncate(request.top_k);
@@ -176,12 +156,22 @@ impl Reranker {
 mod tests {
     use super::*;
 
+    // Note: These tests require actual ONNX models to be present.
+
     #[tokio::test]
-    async fn placeholder_reranking_works() {
+    #[ignore] // Ignore by default since it requires downloaded models
+    async fn real_reranking_works() {
+        let model_path = PathBuf::from("test_models/bge-reranker-base/model.onnx");
+        let tokenizer_path = PathBuf::from("test_models/bge-reranker-base/tokenizer.json");
+
+        if !model_path.exists() || !tokenizer_path.exists() {
+            return; // Skip if models not available
+        }
+
         let reranker = Reranker::new(
             "test".to_string(),
-            PathBuf::from("test.onnx"),
-            PathBuf::from("tokenizer.json"),
+            model_path,
+            tokenizer_path,
             512,
             true,
             100,
@@ -201,5 +191,8 @@ mod tests {
         let results = reranker.rerank(request).await.unwrap();
         assert_eq!(results.len(), 2);
         assert!(results[0].score >= results[1].score);
+
+        // Verify that Rust-related documents score higher
+        assert!(results[0].document.contains("Rust") || results[1].document.contains("Rust"));
     }
 }

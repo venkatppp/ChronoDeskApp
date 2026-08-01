@@ -120,12 +120,8 @@ impl EmbeddingWorkerPool {
         let (sender, receiver) = mpsc::channel(queue_size);
 
         // Spawn the first worker with the receiver
-        let worker = EmbeddingWorker::new(
-            provider.clone(),
-            repository.clone(),
-            receiver,
-            batch_size,
-        );
+        let worker =
+            EmbeddingWorker::new(provider.clone(), repository.clone(), receiver, batch_size);
 
         tokio::spawn(async move {
             worker.run().await;

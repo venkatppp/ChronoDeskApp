@@ -1,8 +1,4 @@
-//! ONNX Embedding Provider - Placeholder implementation.
-//!
-//! This is a simplified implementation that provides the infrastructure
-//! for ONNX-based embeddings. The actual ONNX inference will be implemented
-//! when models are downloaded and loaded.
+//! ONNX Embedding Provider - Real ONNX Runtime inference implementation.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -11,26 +7,22 @@ use async_trait::async_trait;
 use parking_lot::Mutex;
 
 use crate::ai::cache::EmbeddingCache;
+use crate::ai::inference::EmbeddingInferenceEngine;
 use crate::ai::models::InferenceStats;
 use crate::errors::DatabaseError;
 use crate::semantic::embeddings::EmbeddingProvider;
 
-/// ONNX-based embedding provider.
+/// ONNX-based embedding provider with real inference.
 pub struct ONNXEmbeddingProvider {
     model_id: String,
-    #[allow(dead_code)]
-    model_path: PathBuf,
-    #[allow(dead_code)]
-    tokenizer_path: PathBuf,
+    engine: Arc<EmbeddingInferenceEngine>,
     dimensions: usize,
-    #[allow(dead_code)]
-    max_length: usize,
     cache: Arc<Mutex<EmbeddingCache>>,
     stats: Arc<Mutex<InferenceStats>>,
 }
 
 impl ONNXEmbeddingProvider {
-    /// Creates a new ONNX embedding provider.
+    /// Creates a new ONNX embedding provider with real inference.
     pub fn new(
         model_id: String,
         model_path: PathBuf,
@@ -40,29 +32,28 @@ impl ONNXEmbeddingProvider {
         enable_cache: bool,
         cache_size: usize,
     ) -> Result<Self, DatabaseError> {
+        // Initialize the ONNX inference engine
+        let engine =
+            EmbeddingInferenceEngine::new(&model_path, &tokenizer_path, dimensions, max_length)?;
+
         let cache = if enable_cache {
             EmbeddingCache::new(cache_size)
         } else {
             EmbeddingCache::new(0)
         };
 
-        let stats = InferenceStats::new(
-            model_id.clone(),
-            crate::ai::models::ModelType::Embedding,
-        );
+        let stats = InferenceStats::new(model_id.clone(), crate::ai::models::ModelType::Embedding);
 
         Ok(Self {
             model_id,
-            model_path,
-            tokenizer_path,
+            engine: Arc::new(engine),
             dimensions,
-            max_length,
             cache: Arc::new(Mutex::new(cache)),
             stats: Arc::new(Mutex::new(stats)),
         })
     }
 
-    /// Generates embeddings with caching.
+    /// Generates embeddings with caching and real ONNX inference.
     async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>, DatabaseError> {
         let start = std::time::Instant::now();
 
@@ -76,9 +67,14 @@ impl ONNXEmbeddingProvider {
             }
         }
 
-        // Cache miss - generate embedding using placeholder
-        // TODO: Implement actual ONNX inference when models are ready
-        let embedding = self.generate_placeholder_embedding(text)?;
+        // Cache miss - generate embedding using real ONNX inference
+        let engine = self.engine.clone();
+        let text_owned = text.to_string();
+
+        // Run inference in blocking task to avoid blocking async runtime
+        let embedding = tokio::task::spawn_blocking(move || engine.embed(&text_owned))
+            .await
+            .map_err(|e| DatabaseError::IoError(format!("Inference task failed: {}", e)))??;
 
         // Store in cache
         {
@@ -105,34 +101,78 @@ impl ONNXEmbeddingProvider {
         Ok(embedding)
     }
 
-    /// Generates a placeholder embedding (deterministic hash-based).
-    fn generate_placeholder_embedding(&self, text: &str) -> Result<Vec<f32>, DatabaseError> {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let mut hasher = DefaultHasher::new();
-        text.hash(&mut hasher);
-        let hash = hasher.finish();
-
-        // Generate deterministic pseudo-random embedding
-        let mut embedding = Vec::with_capacity(self.dimensions);
-        let mut seed = hash;
-
-        for _ in 0..self.dimensions {
-            seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
-            let value = ((seed / 65536) % 32768) as f32 / 32768.0;
-            embedding.push(value);
+    /// Generates embeddings for multiple texts in batch.
+    pub async fn generate_embeddings_batch(
+        &self,
+        texts: &[String],
+    ) -> Result<Vec<Vec<f32>>, DatabaseError> {
+        if texts.is_empty() {
+            return Ok(Vec::new());
         }
 
-        // Normalize the embedding
-        let magnitude: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-        if magnitude > 0.0 {
-            for val in &mut embedding {
-                *val /= magnitude;
+        let start = std::time::Instant::now();
+        let mut results = Vec::with_capacity(texts.len());
+        let mut uncached_texts = Vec::new();
+        let mut uncached_indices = Vec::new();
+
+        // Check cache for all texts
+        {
+            let mut cache = self.cache.lock();
+            for (i, text) in texts.iter().enumerate() {
+                if let Some(embedding) = cache.get(text) {
+                    results.push((i, embedding));
+                    let mut stats = self.stats.lock();
+                    stats.update_cache_hit();
+                } else {
+                    uncached_texts.push(text.as_str());
+                    uncached_indices.push(i);
+                }
             }
         }
 
-        Ok(embedding)
+        // Generate embeddings for uncached texts in batch
+        if !uncached_texts.is_empty() {
+            let engine = self.engine.clone();
+            let texts_owned: Vec<String> = uncached_texts.iter().map(|s| s.to_string()).collect();
+
+            let embeddings = tokio::task::spawn_blocking(move || {
+                let text_refs: Vec<&str> = texts_owned.iter().map(|s| s.as_str()).collect();
+                engine.embed_batch(&text_refs)
+            })
+            .await
+            .map_err(|e| DatabaseError::IoError(format!("Batch inference task failed: {}", e)))??;
+
+            // Store in cache and add to results
+            {
+                let mut cache = self.cache.lock();
+                for (idx, embedding) in uncached_indices.iter().zip(embeddings.iter()) {
+                    cache.put(texts[*idx].clone(), embedding.clone());
+                    results.push((*idx, embedding.clone()));
+                }
+            }
+
+            // Update stats
+            {
+                let mut stats = self.stats.lock();
+                stats.update_cache_miss();
+                stats.total_inferences += uncached_texts.len() as u64;
+                stats.last_inference_at = Some(chrono::Utc::now());
+
+                let latency = start.elapsed().as_millis() as f32 / uncached_texts.len() as f32;
+                if stats.total_inferences == uncached_texts.len() as u64 {
+                    stats.avg_latency_ms = latency;
+                } else {
+                    stats.avg_latency_ms = (stats.avg_latency_ms
+                        * (stats.total_inferences - uncached_texts.len() as u64) as f32
+                        + latency * uncached_texts.len() as f32)
+                        / stats.total_inferences as f32;
+                }
+            }
+        }
+
+        // Sort results by original index
+        results.sort_by_key(|(idx, _)| *idx);
+        Ok(results.into_iter().map(|(_, emb)| emb).collect())
     }
 
     /// Gets inference statistics.
@@ -165,12 +205,23 @@ impl EmbeddingProvider for ONNXEmbeddingProvider {
 mod tests {
     use super::*;
 
+    // Note: These tests require actual ONNX models to be present.
+    // They are designed to run when models are downloaded.
+
     #[tokio::test]
-    async fn placeholder_generates_correct_dimensions() {
+    #[ignore] // Ignore by default since it requires downloaded models
+    async fn real_inference_generates_correct_dimensions() {
+        let model_path = PathBuf::from("test_models/all-minilm-l6-v2/model.onnx");
+        let tokenizer_path = PathBuf::from("test_models/all-minilm-l6-v2/tokenizer.json");
+
+        if !model_path.exists() || !tokenizer_path.exists() {
+            return; // Skip if models not available
+        }
+
         let provider = ONNXEmbeddingProvider::new(
             "test".to_string(),
-            PathBuf::from("test.onnx"),
-            PathBuf::from("tokenizer.json"),
+            model_path,
+            tokenizer_path,
             384,
             256,
             true,
@@ -180,14 +231,26 @@ mod tests {
 
         let embedding = provider.embed("test").await.unwrap();
         assert_eq!(embedding.len(), 384);
+
+        // Check that embedding is normalized
+        let magnitude: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
+        assert!((magnitude - 1.0).abs() < 0.01);
     }
 
     #[tokio::test]
-    async fn placeholder_is_deterministic() {
+    #[ignore]
+    async fn batch_inference_works() {
+        let model_path = PathBuf::from("test_models/all-minilm-l6-v2/model.onnx");
+        let tokenizer_path = PathBuf::from("test_models/all-minilm-l6-v2/tokenizer.json");
+
+        if !model_path.exists() || !tokenizer_path.exists() {
+            return;
+        }
+
         let provider = ONNXEmbeddingProvider::new(
             "test".to_string(),
-            PathBuf::from("test.onnx"),
-            PathBuf::from("tokenizer.json"),
+            model_path,
+            tokenizer_path,
             384,
             256,
             false,
@@ -195,8 +258,12 @@ mod tests {
         )
         .unwrap();
 
-        let embedding1 = provider.embed("test").await.unwrap();
-        let embedding2 = provider.embed("test").await.unwrap();
-        assert_eq!(embedding1, embedding2);
+        let texts = vec!["hello".to_string(), "world".to_string(), "test".to_string()];
+        let embeddings = provider.generate_embeddings_batch(&texts).await.unwrap();
+
+        assert_eq!(embeddings.len(), 3);
+        for embedding in embeddings {
+            assert_eq!(embedding.len(), 384);
+        }
     }
 }

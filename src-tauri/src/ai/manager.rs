@@ -173,7 +173,7 @@ impl ModelManager {
         Ok(())
     }
 
-    /// Downloads a model.
+    /// Downloads a model with resumption support.
     pub async fn download_model<F>(
         &self,
         model_id: &str,
@@ -204,6 +204,7 @@ impl ModelManager {
             let mut models = self.models.write();
             if let Some(model) = models.get_mut(model_id) {
                 model.status = ModelStatus::Downloading;
+                model.error_message = None;
             }
         }
 
@@ -218,23 +219,46 @@ impl ModelManager {
             DatabaseError::IoError(format!("Failed to create model directory: {}", e))
         })?;
 
-        // Download model file
+        // Download model file with recovery
         let model_path = model_dir.join("model.onnx");
-        self.download_file(
-            &metadata.download_url,
-            &model_path,
-            metadata.file_size_bytes,
-            model_id,
-            &progress_callback,
-        )
-        .await?;
+        let model_temp_path = model_dir.join("model.onnx.tmp");
+
+        if let Err(e) = self
+            .download_file_with_recovery(
+                &metadata.download_url,
+                &model_path,
+                &model_temp_path,
+                metadata.file_size_bytes,
+                model_id,
+                &progress_callback,
+            )
+            .await
+        {
+            // Clean up partial downloads on error
+            let _ = fs::remove_file(&model_temp_path).await;
+            self.mark_error(model_id, e.to_string())?;
+            return Err(e);
+        }
 
         // Download tokenizer if available
         if let Some(tokenizer_url) = &metadata.tokenizer_url {
             let tokenizer_path = model_dir.join("tokenizer.json");
-            // Tokenizer is typically much smaller, use simplified download
-            self.download_file_simple(tokenizer_url, &tokenizer_path)
-                .await?;
+            let tokenizer_temp_path = model_dir.join("tokenizer.json.tmp");
+
+            if let Err(e) = self
+                .download_file_simple_with_recovery(
+                    tokenizer_url,
+                    &tokenizer_path,
+                    &tokenizer_temp_path,
+                )
+                .await
+            {
+                // Clean up on error
+                let _ = fs::remove_file(&tokenizer_temp_path).await;
+                let _ = fs::remove_file(&model_path).await;
+                self.mark_error(model_id, e.to_string())?;
+                return Err(e);
+            }
         }
 
         // Update status to downloaded
@@ -244,17 +268,19 @@ impl ModelManager {
                 model.status = ModelStatus::Downloaded;
                 model.local_path = Some(model_dir);
                 model.downloaded_at = Some(Utc::now());
+                model.error_message = None;
             }
         }
 
         Ok(())
     }
 
-    /// Downloads a file with progress tracking.
-    async fn download_file<F>(
+    /// Downloads a file with progress tracking and resumption support.
+    async fn download_file_with_recovery<F>(
         &self,
         url: &str,
         path: &Path,
+        temp_path: &Path,
         total_size: u64,
         model_id: &str,
         progress_callback: &F,
@@ -262,25 +288,52 @@ impl ModelManager {
     where
         F: Fn(DownloadProgress),
     {
+        // Check if file already exists and is complete
+        if path.exists() {
+            let metadata = fs::metadata(path).await.map_err(|e| {
+                DatabaseError::IoError(format!("Failed to get file metadata: {}", e))
+            })?;
+            if metadata.len() == total_size {
+                return Ok(()); // Already downloaded
+            }
+        }
+
+        // Check for partial download
+        let mut downloaded = 0u64;
+        if temp_path.exists() {
+            let metadata = fs::metadata(temp_path).await.map_err(|e| {
+                DatabaseError::IoError(format!("Failed to get temp file metadata: {}", e))
+            })?;
+            downloaded = metadata.len();
+        }
+
         let client = reqwest::Client::new();
-        let response = client
-            .get(url)
+        let mut request = client.get(url);
+
+        // Resume from where we left off
+        if downloaded > 0 {
+            request = request.header("Range", format!("bytes={}-", downloaded));
+        }
+
+        let response = request
             .send()
             .await
             .map_err(|e| DatabaseError::IoError(format!("Failed to download model: {}", e)))?;
 
-        if !response.status().is_success() {
+        if !response.status().is_success() && response.status().as_u16() != 206 {
             return Err(DatabaseError::IoError(format!(
                 "Failed to download model: HTTP {}",
                 response.status()
             )));
         }
 
-        let mut file = fs::File::create(path)
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(temp_path)
             .await
-            .map_err(|e| DatabaseError::IoError(format!("Failed to create model file: {}", e)))?;
+            .map_err(|e| DatabaseError::IoError(format!("Failed to create temp file: {}", e)))?;
 
-        let mut downloaded = 0u64;
         let mut stream = response.bytes_stream();
 
         use futures::StreamExt;
@@ -289,9 +342,9 @@ impl ModelManager {
                 DatabaseError::IoError(format!("Failed to read download chunk: {}", e))
             })?;
 
-            file.write_all(&chunk).await.map_err(|e| {
-                DatabaseError::IoError(format!("Failed to write model file: {}", e))
-            })?;
+            file.write_all(&chunk)
+                .await
+                .map_err(|e| DatabaseError::IoError(format!("Failed to write temp file: {}", e)))?;
 
             downloaded += chunk.len() as u64;
 
@@ -306,13 +359,35 @@ impl ModelManager {
 
         file.flush()
             .await
-            .map_err(|e| DatabaseError::IoError(format!("Failed to flush model file: {}", e)))?;
+            .map_err(|e| DatabaseError::IoError(format!("Failed to flush temp file: {}", e)))?;
+
+        drop(file);
+
+        // Move temp file to final location
+        fs::rename(temp_path, path)
+            .await
+            .map_err(|e| DatabaseError::IoError(format!("Failed to finalize download: {}", e)))?;
 
         Ok(())
     }
 
-    /// Downloads a file without progress tracking.
-    async fn download_file_simple(&self, url: &str, path: &Path) -> Result<(), DatabaseError> {
+    /// Downloads a file without progress tracking, with resumption support.
+    async fn download_file_simple_with_recovery(
+        &self,
+        url: &str,
+        path: &Path,
+        temp_path: &Path,
+    ) -> Result<(), DatabaseError> {
+        // Check if file already exists
+        if path.exists() {
+            return Ok(());
+        }
+
+        // Check for partial download and clean it up (tokenizers are small, just restart)
+        if temp_path.exists() {
+            let _ = fs::remove_file(temp_path).await;
+        }
+
         let client = reqwest::Client::new();
         let response = client
             .get(url)
@@ -332,9 +407,14 @@ impl ModelManager {
             .await
             .map_err(|e| DatabaseError::IoError(format!("Failed to read download: {}", e)))?;
 
-        fs::write(path, bytes)
+        fs::write(temp_path, bytes)
             .await
-            .map_err(|e| DatabaseError::IoError(format!("Failed to write file: {}", e)))?;
+            .map_err(|e| DatabaseError::IoError(format!("Failed to write temp file: {}", e)))?;
+
+        // Move to final location
+        fs::rename(temp_path, path)
+            .await
+            .map_err(|e| DatabaseError::IoError(format!("Failed to finalize download: {}", e)))?;
 
         Ok(())
     }
@@ -394,6 +474,66 @@ impl ModelManager {
     pub fn get_model_path(&self, model_id: &str) -> Option<PathBuf> {
         let models = self.models.read();
         models.get(model_id)?.local_path.clone()
+    }
+
+    /// Persists the current loaded model state.
+    pub fn persist_loaded_models(&self) -> Result<(), DatabaseError> {
+        let models = self.models.read();
+        let loaded_ids: Vec<String> = models
+            .iter()
+            .filter(|(_, info)| info.status == ModelStatus::Loaded)
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        drop(models);
+        self.settings.write().loaded_model_ids = loaded_ids;
+        Ok(())
+    }
+
+    /// Gets the list of models that should be auto-loaded on startup.
+    pub fn get_persisted_models(&self) -> Vec<String> {
+        self.settings.read().loaded_model_ids.clone()
+    }
+
+    /// Cleans up incomplete downloads and temporary files.
+    pub async fn cleanup_partial_downloads(&self) -> Result<(), DatabaseError> {
+        let models_dir = self.settings.read().models_dir.clone();
+
+        if !models_dir.exists() {
+            return Ok(());
+        }
+
+        let mut entries = fs::read_dir(&models_dir).await.map_err(|e| {
+            DatabaseError::IoError(format!("Failed to read models directory: {}", e))
+        })?;
+
+        while let Some(entry) = entries
+            .next_entry()
+            .await
+            .map_err(|e| DatabaseError::IoError(format!("Failed to read directory entry: {}", e)))?
+        {
+            let path = entry.path();
+
+            if path.is_dir() {
+                // Clean up .tmp files in model directories
+                let mut model_entries = fs::read_dir(&path).await.map_err(|e| {
+                    DatabaseError::IoError(format!("Failed to read model directory: {}", e))
+                })?;
+
+                while let Some(model_entry) = model_entries.next_entry().await.map_err(|e| {
+                    DatabaseError::IoError(format!("Failed to read model entry: {}", e))
+                })? {
+                    let model_path = model_entry.path();
+                    if let Some(ext) = model_path.extension() {
+                        if ext == "tmp" {
+                            let _ = fs::remove_file(&model_path).await;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

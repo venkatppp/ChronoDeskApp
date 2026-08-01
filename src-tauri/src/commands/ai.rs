@@ -2,8 +2,8 @@
 
 use tauri::{Emitter, State};
 
-use crate::ai::{AIDiagnostics, DownloadProgress, InferenceStats, ModelInfo};
 use crate::ai::models::{RerankRequest, RerankResult};
+use crate::ai::{AIDiagnostics, DownloadProgress, InferenceStats, ModelInfo};
 
 /// AI state manager (to be added to lib.rs).
 pub struct AIState {
@@ -96,8 +96,8 @@ pub async fn load_model(model_id: String, state: State<'_, AIState>) -> Result<(
                 model_file,
                 tokenizer_file,
                 model.metadata.max_sequence_length,
-                true,  // enable_cache
-                1000,  // cache_size
+                true, // enable_cache
+                1000, // cache_size
             )
             .map_err(|e| e.to_string())?;
 
