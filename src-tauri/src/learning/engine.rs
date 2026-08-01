@@ -434,4 +434,3 @@ mod tests {
         assert!(engine.calculate_confidence(100) > 0.90);
     }
 }
-}

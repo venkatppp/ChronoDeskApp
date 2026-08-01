@@ -43,11 +43,38 @@ impl LearningRepository {
     /// Gets feedback for a specific target.
     pub async fn get_feedback_for_target(
         &self,
-        _target_type: FeedbackTargetType,
-        _target_id: &str,
+        target_type: FeedbackTargetType,
+        target_id: &str,
     ) -> Result<Vec<UserFeedback>, DatabaseError> {
-        // For now, return empty - full implementation would parse rows
-        Ok(Vec::new())
+        let rows: Vec<(String, String, String, String, String, String, String)> = sqlx::query_as(
+            r#"
+            SELECT id, feedback_type, target_type, target_id, action, context, created_at
+            FROM learning_feedback
+            WHERE target_type = ? AND target_id = ?
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(target_type.as_str())
+        .bind(target_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut feedback = Vec::new();
+        for (id, feedback_type, target_type_str, target_id, action, context, created_at) in rows {
+            feedback.push(UserFeedback {
+                id: uuid::Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                feedback_type: FeedbackType::from_str(&feedback_type)?,
+                target_type: FeedbackTargetType::from_str(&target_type_str)?,
+                target_id,
+                action: FeedbackAction::from_str(&action)?,
+                context: serde_json::from_str(&context).unwrap_or_default(),
+                created_at: chrono::DateTime::parse_from_rfc3339(&created_at)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                    .with_timezone(&chrono::Utc),
+            });
+        }
+
+        Ok(feedback)
     }
 
     /// Stores or updates a user preference.
@@ -79,16 +106,69 @@ impl LearningRepository {
 
     /// Gets all user preferences.
     pub async fn get_all_preferences(&self) -> Result<Vec<UserPreference>, DatabaseError> {
-        // Return empty for now - full implementation would parse rows
-        Ok(Vec::new())
+        type PreferenceRow = (String, String, String, String, f64, i32, String);
+        let rows: Vec<PreferenceRow> = sqlx::query_as(
+            r#"
+            SELECT id, preference_type, key, value, confidence, evidence_count, last_updated
+            FROM learning_preferences
+            ORDER BY confidence DESC, last_updated DESC
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut preferences = Vec::new();
+        for (id, preference_type, key, value, confidence, evidence_count, last_updated) in rows {
+            preferences.push(UserPreference {
+                id: uuid::Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                preference_type: PreferenceType::from_str(&preference_type)?,
+                key,
+                value: serde_json::from_str(&value).unwrap_or_default(),
+                confidence,
+                evidence_count,
+                last_updated: chrono::DateTime::parse_from_rfc3339(&last_updated)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                    .with_timezone(&chrono::Utc),
+            });
+        }
+
+        Ok(preferences)
     }
 
     /// Gets preferences by type.
     pub async fn get_preferences_by_type(
         &self,
-        _preference_type: PreferenceType,
+        preference_type: PreferenceType,
     ) -> Result<Vec<UserPreference>, DatabaseError> {
-        Ok(Vec::new())
+        type PreferenceRow = (String, String, String, String, f64, i32, String);
+        let rows: Vec<PreferenceRow> = sqlx::query_as(
+            r#"
+            SELECT id, preference_type, key, value, confidence, evidence_count, last_updated
+            FROM learning_preferences
+            WHERE preference_type = ?
+            ORDER BY confidence DESC
+            "#,
+        )
+        .bind(preference_type.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut preferences = Vec::new();
+        for (id, preference_type_str, key, value, confidence, evidence_count, last_updated) in rows {
+            preferences.push(UserPreference {
+                id: uuid::Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                preference_type: PreferenceType::from_str(&preference_type_str)?,
+                key,
+                value: serde_json::from_str(&value).unwrap_or_default(),
+                confidence,
+                evidence_count,
+                last_updated: chrono::DateTime::parse_from_rfc3339(&last_updated)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                    .with_timezone(&chrono::Utc),
+            });
+        }
+
+        Ok(preferences)
     }
 
     /// Stores a behavioral pattern.
@@ -123,7 +203,38 @@ impl LearningRepository {
 
     /// Gets all behavioral patterns.
     pub async fn get_all_patterns(&self) -> Result<Vec<BehavioralPattern>, DatabaseError> {
-        Ok(Vec::new())
+        type PatternRow = (String, String, String, String, f64, f64, i32, String, String);
+        let rows: Vec<PatternRow> = sqlx::query_as(
+            r#"
+            SELECT id, pattern_type, description, conditions, frequency, confidence,
+                   occurrences, first_seen, last_seen
+            FROM learning_patterns
+            ORDER BY confidence DESC, frequency DESC
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut patterns = Vec::new();
+        for (id, pattern_type, description, conditions, frequency, confidence, occurrences, first_seen, last_seen) in rows {
+            patterns.push(BehavioralPattern {
+                id: uuid::Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                pattern_type: PatternType::from_str(&pattern_type)?,
+                description,
+                conditions: serde_json::from_str(&conditions).unwrap_or_default(),
+                frequency,
+                confidence,
+                occurrences,
+                first_seen: chrono::DateTime::parse_from_rfc3339(&first_seen)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                    .with_timezone(&chrono::Utc),
+                last_seen: chrono::DateTime::parse_from_rfc3339(&last_seen)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                    .with_timezone(&chrono::Utc),
+            });
+        }
+
+        Ok(patterns)
     }
 
     /// Records a confidence adjustment.
@@ -156,10 +267,40 @@ impl LearningRepository {
     /// Gets confidence adjustments for a target.
     pub async fn get_confidence_adjustments(
         &self,
-        _target_type: FeedbackTargetType,
-        _target_id: &str,
+        target_type: FeedbackTargetType,
+        target_id: &str,
     ) -> Result<Vec<ConfidenceAdjustment>, DatabaseError> {
-        Ok(Vec::new())
+        let rows: Vec<(String, String, String, f64, f64, f64, String, String)> = sqlx::query_as(
+            r#"
+            SELECT id, target_type, target_id, original_confidence, adjusted_confidence,
+                   adjustment_factor, reason, applied_at
+            FROM learning_confidence_adjustments
+            WHERE target_type = ? AND target_id = ?
+            ORDER BY applied_at DESC
+            "#,
+        )
+        .bind(target_type.as_str())
+        .bind(target_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut adjustments = Vec::new();
+        for (id, target_type_str, target_id, original_confidence, adjusted_confidence, adjustment_factor, reason, applied_at) in rows {
+            adjustments.push(ConfidenceAdjustment {
+                id: uuid::Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                target_type: FeedbackTargetType::from_str(&target_type_str)?,
+                target_id,
+                original_confidence,
+                adjusted_confidence,
+                adjustment_factor,
+                reason,
+                applied_at: chrono::DateTime::parse_from_rfc3339(&applied_at)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                    .with_timezone(&chrono::Utc),
+            });
+        }
+
+        Ok(adjustments)
     }
 
     /// Stores workflow learning data.
@@ -201,9 +342,37 @@ impl LearningRepository {
     /// Gets workflow learning data.
     pub async fn get_workflow_learning(
         &self,
-        _workflow_type: &str,
+        workflow_type: &str,
     ) -> Result<Option<WorkflowLearningData>, DatabaseError> {
-        Ok(None)
+        let row: Option<(String, String, i64, String, String, String, f64, i32, String)> = sqlx::query_as(
+            r#"
+            SELECT id, workflow_type, typical_duration_seconds, typical_files, typical_time_of_day,
+                   success_indicators, confidence, sample_count, last_updated
+            FROM learning_workflows
+            WHERE workflow_type = ?
+            "#,
+        )
+        .bind(workflow_type)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some((id, workflow_type, typical_duration_seconds, typical_files, typical_time_of_day, success_indicators, confidence, sample_count, last_updated)) = row {
+            Ok(Some(WorkflowLearningData {
+                id: uuid::Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                workflow_type,
+                typical_duration_seconds,
+                typical_files: serde_json::from_str(&typical_files).unwrap_or_default(),
+                typical_time_of_day: serde_json::from_str(&typical_time_of_day).unwrap_or_default(),
+                success_indicators: serde_json::from_str(&success_indicators).unwrap_or_default(),
+                confidence,
+                sample_count,
+                last_updated: chrono::DateTime::parse_from_rfc3339(&last_updated)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                    .with_timezone(&chrono::Utc),
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Gets learning statistics.
@@ -258,9 +427,39 @@ impl LearningRepository {
     /// Gets recent confidence trends.
     pub async fn get_confidence_trends(
         &self,
-        _days: i64,
+        days: i64,
     ) -> Result<Vec<ConfidenceTrend>, DatabaseError> {
-        Ok(Vec::new())
+        let rows: Vec<(String, f64, i32)> = sqlx::query_as(
+            r#"
+            SELECT DATE(applied_at) as date,
+                   AVG(adjusted_confidence) as avg_conf,
+                   COUNT(*) as count
+            FROM learning_confidence_adjustments
+            WHERE applied_at >= datetime('now', ? || ' days')
+            GROUP BY DATE(applied_at)
+            ORDER BY date ASC
+            "#,
+        )
+        .bind(format!("-{}", days))
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut trends = Vec::new();
+        for (date_str, avg_confidence, adjustment_count) in rows {
+            let date = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
+                .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                .and_hms_opt(0, 0, 0)
+                .ok_or_else(|| DatabaseError::IoError("Invalid time".to_string()))?
+                .and_utc();
+            
+            trends.push(ConfidenceTrend {
+                date,
+                avg_confidence,
+                adjustment_count,
+            });
+        }
+
+        Ok(trends)
     }
 }
 
