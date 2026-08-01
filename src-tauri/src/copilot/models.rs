@@ -216,7 +216,7 @@ impl MessageRole {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "user" => Some(Self::User),
             "assistant" => Some(Self::Assistant),
@@ -236,7 +236,7 @@ impl ToolExecutionStatus {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(Self::Pending),
             "success" => Some(Self::Success),
@@ -258,7 +258,7 @@ impl PlanStatus {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "planning" => Some(Self::Planning),
             "executing" => Some(Self::Executing),

@@ -9,6 +9,7 @@ import { SearchPage } from "@/pages/SearchPage";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import LearningPage from "@/pages/LearningPage";
+import { CopilotPage } from "@/pages/CopilotPage";
 
 /**
  * `HashRouter` is used rather than `BrowserRouter` because Tauri serves the
@@ -29,6 +30,7 @@ export function App() {
             <Route path="search" element={<SearchPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="learning" element={<LearningPage />} />
+            <Route path="copilot" element={<CopilotPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>

@@ -178,9 +178,7 @@ impl CopilotEngine {
             }
             Intent::Unknown => {
                 reasoning_parts.push("Intent unclear, providing general help".to_string());
-                format!(
-                    "I can help you with:\n- Listing and managing workspaces\n- Searching your work history\n- Summarizing recent activity\n- Explaining recommendations\n- Resuming previous work\n- Answering questions about your projects\n\nWhat would you like to know?"
-                )
+                "I can help you with:\n- Listing and managing workspaces\n- Searching your work history\n- Summarizing recent activity\n- Explaining recommendations\n- Resuming previous work\n- Answering questions about your projects\n\nWhat would you like to know?".to_string()
             }
         };
 

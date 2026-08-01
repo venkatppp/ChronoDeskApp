@@ -64,7 +64,7 @@ impl ToolExecutor {
         _arguments: &serde_json::Value,
     ) -> Result<serde_json::Value, DatabaseError> {
         let workspaces = self.workspace_service.list_active_workspaces().await?;
-        Ok(serde_json::to_value(workspaces).map_err(|e| DatabaseError::IoError(e.to_string()))?)
+        serde_json::to_value(workspaces).map_err(|e| DatabaseError::IoError(e.to_string()))
     }
 
     /// Gets a specific workspace.
@@ -82,7 +82,7 @@ impl ToolExecutor {
 
         let workspace = self.workspace_service.get_workspace(workspace_uuid).await?;
 
-        Ok(serde_json::to_value(workspace).map_err(|e| DatabaseError::IoError(e.to_string()))?)
+        serde_json::to_value(workspace).map_err(|e| DatabaseError::IoError(e.to_string()))
     }
 
     /// Gets the currently active workspace.
@@ -116,7 +116,7 @@ impl ToolExecutor {
         let workspace_id = arguments
             .get("workspace_id")
             .and_then(|v| v.as_str())
-            .map(|s| Uuid::parse_str(s))
+            .map(Uuid::parse_str)
             .transpose()
             .map_err(|e| DatabaseError::InvalidInput(e.to_string()))?;
 
@@ -131,7 +131,7 @@ impl ToolExecutor {
             Vec::new()
         };
 
-        Ok(serde_json::to_value(events).map_err(|e| DatabaseError::IoError(e.to_string()))?)
+        serde_json::to_value(events).map_err(|e| DatabaseError::IoError(e.to_string()))
     }
 
     /// Searches timeline events.
@@ -147,7 +147,7 @@ impl ToolExecutor {
         let workspace_id = arguments
             .get("workspace_id")
             .and_then(|v| v.as_str())
-            .map(|s| Uuid::parse_str(s))
+            .map(Uuid::parse_str)
             .transpose()
             .map_err(|e| DatabaseError::InvalidInput(e.to_string()))?;
 
@@ -168,7 +168,7 @@ impl ToolExecutor {
             .take(20)
             .collect();
 
-        Ok(serde_json::to_value(filtered).map_err(|e| DatabaseError::IoError(e.to_string()))?)
+        serde_json::to_value(filtered).map_err(|e| DatabaseError::IoError(e.to_string()))
     }
 
     /// Gets a session summary.
@@ -179,7 +179,7 @@ impl ToolExecutor {
         let workspace_id = arguments
             .get("workspace_id")
             .and_then(|v| v.as_str())
-            .map(|s| Uuid::parse_str(s))
+            .map(Uuid::parse_str)
             .transpose()
             .map_err(|e| DatabaseError::InvalidInput(e.to_string()))?;
 

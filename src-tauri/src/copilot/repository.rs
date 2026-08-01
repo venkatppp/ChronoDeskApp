@@ -229,7 +229,7 @@ impl CopilotRepository {
             .to_string()
         };
 
-        let rows: Vec<(
+        type MessageRow = (
             String,
             String,
             String,
@@ -238,7 +238,9 @@ impl CopilotRepository {
             Option<String>,
             Option<String>,
             String,
-        )> = sqlx::query_as(&query)
+        );
+
+        let rows: Vec<MessageRow> = sqlx::query_as(&query)
             .bind(conversation_id.to_string())
             .fetch_all(&self.pool)
             .await?;
@@ -250,7 +252,7 @@ impl CopilotRepository {
                 id: Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
                 conversation_id: Uuid::parse_str(&conversation_id)
                     .map_err(|e| DatabaseError::IoError(e.to_string()))?,
-                role: MessageRole::from_str(&role).ok_or_else(|| {
+                role: MessageRole::parse(&role).ok_or_else(|| {
                     DatabaseError::InvalidInput(format!("Invalid role: {}", role))
                 })?,
                 content,
@@ -402,7 +404,7 @@ impl CopilotRepository {
         &self,
         message_id: Uuid,
     ) -> Result<Option<Plan>, DatabaseError> {
-        let row: Option<(
+        type PlanRow = (
             String,
             String,
             String,
@@ -411,7 +413,9 @@ impl CopilotRepository {
             String,
             String,
             Option<String>,
-        )> = sqlx::query_as(
+        );
+
+        let row: Option<PlanRow> = sqlx::query_as(
             r#"
             SELECT id, message_id, goal, steps, current_step, status, created_at, completed_at
             FROM copilot_plans
@@ -432,7 +436,7 @@ impl CopilotRepository {
                 goal,
                 steps: serde_json::from_str(&steps).unwrap_or_default(),
                 current_step: current_step as usize,
-                status: PlanStatus::from_str(&status).ok_or_else(|| {
+                status: PlanStatus::parse(&status).ok_or_else(|| {
                     DatabaseError::InvalidInput(format!("Invalid plan status: {}", status))
                 })?,
                 created_at: chrono::DateTime::parse_from_rfc3339(&created_at)
