@@ -355,7 +355,7 @@ pub fn run() {
             // --- Copilot Engine (Phase 7A) ---
             let copilot_repository = copilot::CopilotRepository::new(pool.clone());
             let tool_executor = Arc::new(copilot::ToolExecutor::new(
-                workspace_service.clone(),
+                Arc::new(workspace_service.clone()),
                 session_engine.clone(),
                 timeline_engine.clone(),
             ));
