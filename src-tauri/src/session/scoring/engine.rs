@@ -81,7 +81,7 @@ mod tests {
         let workspace_id = Uuid::new_v4();
         let now = Utc::now();
 
-        let events = vec![
+        let events = [
             NewTimelineEvent {
                 workspace_id,
                 file_id: Some(Uuid::new_v4()),

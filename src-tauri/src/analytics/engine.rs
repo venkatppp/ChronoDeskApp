@@ -196,7 +196,6 @@ mod tests {
     use super::*;
     use crate::analytics::repository::AnalyticsRepository;
     use crate::database::test_database;
-    use crate::models::CreateWorkspaceInput;
     use crate::repositories::{
         FileRepository, SettingsRepository, TimelineRepository, WorkspaceRepository,
     };

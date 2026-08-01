@@ -55,6 +55,7 @@
 //! ```
 
 pub mod actions;
+pub mod ai;
 pub mod analytics;
 pub mod app_events;
 pub mod commands;
@@ -292,11 +293,30 @@ pub fn run() {
             // Start background workers
             runtime_workers.clone().start();
 
+            // --- AI & Model Management (Phase 6B) ---
+            let models_dir = app_handle
+                .path()
+                .app_data_dir()
+                .expect("Failed to get app data dir")
+                .join("models");
+
+            let ai_settings = ai::AISettings::with_models_dir(models_dir);
+            let model_manager = ai::ModelManager::new(ai_settings);
+
+            // Initialize with LocalEmbeddingProvider as fallback
+            let embedding_provider: Arc<dyn semantic::EmbeddingProvider> =
+                Arc::new(semantic::LocalEmbeddingProvider::default());
+
+            let ai_state = commands::ai::AIState {
+                manager: model_manager,
+                reranker: None,
+                embedding_provider: None,
+            };
+
             // --- Semantic Intelligence Layer (Phase 6A) ---
             let semantic_repository = semantic::SemanticRepository::new(pool.clone());
             tauri::async_runtime::block_on(semantic_repository.initialize())?;
 
-            let embedding_provider = Arc::new(semantic::LocalEmbeddingProvider::default());
             let semantic_engine = semantic::SemanticMemoryEngine::new(
                 semantic_repository.clone(),
                 embedding_provider,
@@ -368,6 +388,7 @@ pub fn run() {
             app.manage(semantic_engine);
             app.manage(semantic_search);
             app.manage(reasoning_engine);
+            app.manage(ai_state);
 
             tracing::info!("ChronoDesk backend ready");
 
@@ -457,6 +478,17 @@ pub fn run() {
             commands::semantic::find_similar_sessions,
             commands::semantic::explain_recommendation,
             commands::semantic::infer_missing_context,
+            commands::ai::list_models,
+            commands::ai::get_model,
+            commands::ai::download_model,
+            commands::ai::load_model,
+            commands::ai::unload_model,
+            commands::ai::get_active_embedding_model,
+            commands::ai::get_active_reranker_model,
+            commands::ai::get_model_status,
+            commands::ai::get_inference_statistics,
+            commands::ai::get_ai_diagnostics,
+            commands::ai::rerank_documents,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ChronoDesk");

@@ -56,6 +56,10 @@ pub enum DatabaseError {
     /// JSON serialization/deserialization error.
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
+
+    /// I/O error (file operations, network, etc.).
+    #[error("I/O error: {0}")]
+    IoError(String),
 }
 
 impl DatabaseError {

@@ -6,6 +6,7 @@
 //! the frontend is always visible in one place.
 
 pub mod actions;
+pub mod ai;
 pub mod analytics;
 pub mod context_memory;
 pub mod duplicates;
