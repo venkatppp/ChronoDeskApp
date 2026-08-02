@@ -1,5 +1,6 @@
 //! Execution Memory IPC Commands - search, recommend, and inspect what
-//! ChronoDesk has learned from previous executions (RC-6 M1).
+//! ChronoDesk has learned from previous executions (RC-6 M1), plus the
+//! vector index status and manual re-index (RC-6 M2).
 //!
 //! Thin wrappers around the shared `MemoryEngine`; no business logic lives
 //! here.
@@ -10,8 +11,8 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::copilot::memory::{
-    AvoidedStrategy, LearnedWorkflow, MemoryEngine, MemoryHit, MemoryKind, MemoryRecommendation,
-    MemorySearchRequest, MemoryStats, MemoryStatus,
+    AvoidedStrategy, IndexResult, LearnedWorkflow, MemoryEngine, MemoryHit, MemoryKind,
+    MemoryRecommendation, MemorySearchRequest, MemoryStats, MemoryStatus, VectorIndexStatus,
 };
 
 /// Searches remembered runs by goal similarity, with optional filters.
@@ -88,4 +89,19 @@ pub async fn memory_learned_workflows(
 #[tauri::command]
 pub async fn memory_stats(engine: State<'_, Arc<MemoryEngine>>) -> Result<MemoryStats, String> {
     engine.stats().await.map_err(|e| e.to_string())
+}
+
+/// Status of the vector index and embedding cache (RC-6 M2).
+#[tauri::command]
+pub async fn memory_index_status(
+    engine: State<'_, Arc<MemoryEngine>>,
+) -> Result<VectorIndexStatus, String> {
+    engine.vector_status().await.map_err(|e| e.to_string())
+}
+
+/// Runs an index pass now (dashboard "index now" action); re-indexes
+/// everything when the store has drifted (RC-6 M2).
+#[tauri::command]
+pub async fn memory_reindex(engine: State<'_, Arc<MemoryEngine>>) -> Result<IndexResult, String> {
+    engine.reindex().await.map_err(|e| e.to_string())
 }

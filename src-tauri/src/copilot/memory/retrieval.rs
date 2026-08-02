@@ -1,25 +1,28 @@
 //! Execution Memory retrieval - semantic similarity over remembered goals
 //! and plans.
 //!
-//! Scoring blends embedding cosine similarity with token-overlap so the
-//! store is useful even with the placeholder hash embedding provider: two
-//! nearly identical goals score ~1.0, unrelated goals score near 0.
+//! Scoring blends embedding cosine similarity with a term-frequency
+//! weighted token overlap so the store stays useful even before the
+//! vector index has embedded a record:
+//! - identical goals score 1.0,
+//! - goals sharing repeated keywords score higher than one-off overlaps,
+//! - unrelated goals score near 0.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use crate::copilot::memory::models::{ExecutionMemoryRecord, MemoryHit, MemorySearchRequest};
 
 /// Weight of the embedding cosine in the blended similarity score.
 const COSINE_WEIGHT: f64 = 0.6;
-/// Weight of the token-overlap (Jaccard on word sets) in the blend.
+/// Weight of the weighted token overlap in the blend.
 const TOKEN_WEIGHT: f64 = 0.4;
 
 /// Cosine similarity between two *zero-centered* vectors (0 when lengths
 /// differ). Centering before the cosine is required for embedding providers
-/// that emit all-positive vectors (e.g. the local hash placeholder): the
-/// uncentered cosine of two independent positive vectors is far from 0,
-/// which would make every goal look similar to every other goal. Centered
-/// cosine is 1 for identical vectors and ~0 for unrelated ones.
+/// that emit all-positive vectors: the uncentered cosine of two
+/// independent positive vectors is far from 0, which would make every
+/// goal look similar to every other goal. Centered cosine is 1 for
+/// identical vectors and ~0 for unrelated ones.
 pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
     if a.len() != b.len() || a.is_empty() {
         return 0.0;
@@ -42,30 +45,58 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
     (dot / (mag_a * mag_b).sqrt()).clamp(0.0, 1.0)
 }
 
-/// Word-set Jaccard overlap between two goal strings (0..1).
-fn token_overlap(a: &str, b: &str) -> f64 {
-    let words_a: HashSet<&str> = a.split_whitespace().collect();
-    let words_b: HashSet<&str> = b.split_whitespace().collect();
-    if words_a.is_empty() || words_b.is_empty() {
+/// Term frequencies of the words in a text.
+fn term_frequencies(text: &str) -> HashMap<&str, u64> {
+    let mut frequencies = HashMap::new();
+    for word in text.split_whitespace() {
+        *frequencies.entry(word).or_insert(0) += 1;
+    }
+    frequencies
+}
+
+/// Term-frequency weighted token overlap (0..1): the share of token
+/// mass the two texts share. Unlike a set Jaccard, a word repeated in
+/// both texts counts as much as a unique one, so goals with a strong
+/// repeated keyword ("resume", "resume", "resume") are not diluted.
+fn weighted_token_overlap(a: &str, b: &str) -> f64 {
+    if a.is_empty() || b.is_empty() {
         return 0.0;
     }
-    let intersection = words_a.intersection(&words_b).count();
-    let union = words_a.union(&words_b).count();
-    if union == 0 {
-        return 0.0;
+    let fa = term_frequencies(a);
+    let fb = term_frequencies(b);
+    let shared: u64 = fa
+        .iter()
+        .map(|(word, count)| {
+            if let Some(other) = fb.get(word) {
+                (*count).min(*other)
+            } else {
+                0
+            }
+        })
+        .sum();
+    let total = fa.values().sum::<u64>().max(fb.values().sum::<u64>());
+    if total == 0 {
+        0.0
+    } else {
+        shared as f64 / total as f64
     }
-    intersection as f64 / union as f64
 }
 
 /// Blended similarity between a query goal and a remembered goal.
 /// Uses the record's stored goal embedding when present; without an
-/// embedding the token overlap alone determines the score.
+/// embedding the token overlap alone determines the score. An exact
+/// match normalizes to 1.0.
 pub fn goal_similarity(
     query: &str,
     query_embedding: Option<&[f32]>,
     record: &ExecutionMemoryRecord,
 ) -> f64 {
-    let tokens = token_overlap(&query.to_lowercase(), &record.goal.to_lowercase());
+    let query_normalized = query.trim().to_lowercase();
+    let goal_normalized = record.goal.trim().to_lowercase();
+    if !query_normalized.is_empty() && query_normalized == goal_normalized {
+        return 1.0;
+    }
+    let tokens = weighted_token_overlap(&query_normalized, &goal_normalized);
     match (query_embedding, record.goal_embedding.as_deref()) {
         (Some(q), Some(r)) => {
             let cosine = cosine_similarity(q, r);
@@ -170,12 +201,30 @@ mod tests {
     }
 
     #[test]
-    fn token_overlap_scores_shared_goals() {
-        let overlap = token_overlap("resume my focus session", "resume my focus session");
+    fn weighted_token_overlap_scores_shared_goals() {
+        let overlap = weighted_token_overlap("resume my focus session", "resume my focus session");
         assert!((overlap - 1.0).abs() < 1e-6);
-        let partial = token_overlap("resume my focus session", "resume another focus session");
+        let partial =
+            weighted_token_overlap("resume my focus session", "resume another focus session");
         assert!(partial > 0.0 && partial < 1.0);
-        assert_eq!(token_overlap("alpha beta", "gamma delta"), 0.0);
+        assert_eq!(weighted_token_overlap("alpha beta", "gamma delta"), 0.0);
+        assert_eq!(weighted_token_overlap("", "anything"), 0.0);
+    }
+
+    #[test]
+    fn weighted_overlap_reflects_term_frequencies() {
+        // The multiset coverage: shared mass over the larger text mass.
+        // A word repeated in one text but not the other counts once, so
+        // TF-aware scoring differs from a set Jaccard (which would give
+        // ("a a b c", "a b c") = 1.0).
+        let repeated = weighted_token_overlap("a a b c", "a b c");
+        assert!((repeated - 0.75).abs() < 1e-6, "got {repeated}");
+        let contained = weighted_token_overlap("resume", "resume my focus session");
+        assert!((contained - 0.25).abs() < 1e-6, "got {contained}");
+        let shared_word = weighted_token_overlap("a b c d", "a e f g");
+        assert!((shared_word - 0.25).abs() < 1e-6, "got {shared_word}");
+        let identical = weighted_token_overlap("a b c d", "a b c d");
+        assert!((identical - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -191,6 +240,16 @@ mod tests {
             "{score_same} should beat {score_diff}"
         );
         assert!((score_same - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn exact_match_normalizes_even_with_no_embedding() {
+        let same = record("  RESUME My Focus Session ", None);
+        let score = goal_similarity("resume my focus session", None, &same);
+        assert!(
+            (score - 1.0).abs() < 1e-6,
+            "case/space-insensitive exact match"
+        );
     }
 
     #[test]

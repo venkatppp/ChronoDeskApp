@@ -17,6 +17,7 @@ pub mod learning;
 pub mod models;
 pub mod repository;
 pub mod retrieval;
+pub mod vector;
 
 pub use engine::MemoryEngine;
 pub use models::{
@@ -24,3 +25,4 @@ pub use models::{
     MemoryRecommendation, MemorySearchRequest, MemoryStats, MemoryStatus,
 };
 pub use repository::MemoryRepository;
+pub use vector::{IndexResult, LocalVectorProvider, MemoryVectorSystem, VectorIndexStatus};

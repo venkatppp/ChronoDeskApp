@@ -76,3 +76,26 @@ export interface MemoryStats {
   total_replays: number;
   learned_workflows: number;
 }
+
+// --- RC-6 M2: vector memory system ---
+
+export interface VectorIndexStatus {
+  total_records: number;
+  indexed: number;
+  pending: number;
+  provider: string;
+  dimensions: number;
+  last_indexed_at: string | null;
+  cache_size: number;
+  cache_capacity: number;
+  cache_hits: number;
+  cache_misses: number;
+  cache_hit_rate: number;
+}
+
+export interface IndexResult {
+  requested: number;
+  indexed: number;
+  failed: number;
+  skipped: number;
+}

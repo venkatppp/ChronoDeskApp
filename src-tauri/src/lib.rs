@@ -414,14 +414,25 @@ pub fn run() {
                 Arc::new(reasoning_engine.clone()),
             ));
 
-            // --- Execution Memory & Learning (RC-6 M1) ---
-            // The same embedding provider the semantic layer uses; the
-            // store is consulted by the planner and the autonomous
-            // runtime, and captures every terminal execution/session.
+            // --- Execution Memory & Learning (RC-6 M1 + M2) ---
+            // The memory system uses its own vector provider (the local
+            // n-gram embedder by default; any `VectorProvider` — e.g. an
+            // ONNX adapter — can be swapped in). The semantic layer keeps
+            // its own `embedding_provider` above.
             let memory_engine = Arc::new(copilot::MemoryEngine::new(
                 copilot::MemoryRepository::new(pool.clone()),
-                embedding_provider.clone(),
+                Arc::new(copilot::memory::vector::LocalVectorProvider::default()),
             ));
+
+            // RC-6 M2: warm the in-memory k-NN index from the durable
+            // vector index, then start the background indexing worker
+            // (incremental + batched embedding, auto re-index on change).
+            let memory_indexer = memory_engine.vector_system().indexer().clone();
+            tauri::async_runtime::block_on(memory_indexer.warm_up())?;
+            tauri::async_runtime::spawn({
+                let memory_indexer = memory_indexer.clone();
+                async move { memory_indexer.run().await }
+            });
 
             // --- Execution Engine (RC-2) ---
             let execution_repository = Arc::new(copilot::ExecutionRepository::new(pool.clone()));
@@ -670,6 +681,8 @@ pub fn run() {
             commands::memory::memory_avoid,
             commands::memory::memory_learned_workflows,
             commands::memory::memory_stats,
+            commands::memory::memory_index_status,
+            commands::memory::memory_reindex,
             commands::autonomous::autonomous_start,
             commands::autonomous::autonomous_get_progress,
             commands::autonomous::autonomous_list_recent,

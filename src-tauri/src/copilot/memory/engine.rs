@@ -21,29 +21,54 @@ use crate::copilot::memory::models::{
 };
 use crate::copilot::memory::repository::MemoryRepository;
 use crate::copilot::memory::retrieval::{filter_records, rank_records};
+use crate::copilot::memory::vector::{
+    IndexResult, MemoryVectorSystem, VectorIndexStatus, VectorProvider,
+};
 use crate::copilot::planner::PlannerReport;
 use crate::copilot::proactive_models::ExecutionPlan;
 use crate::errors::DatabaseError;
-use crate::semantic::embeddings::EmbeddingProvider;
 
 /// The execution memory facade. Cheap to clone; all state lives behind the
-/// connection pool and the shared embedding provider.
+/// connection pool, the shared vector provider, and the in-memory k-NN
+/// index.
 #[derive(Clone)]
 pub struct MemoryEngine {
     repository: MemoryRepository,
-    embedding_provider: Arc<dyn EmbeddingProvider>,
+    vectors: MemoryVectorSystem,
 }
 
 impl MemoryEngine {
-    /// Creates a memory engine over a repository and embedding provider.
-    pub fn new(
-        repository: MemoryRepository,
-        embedding_provider: Arc<dyn EmbeddingProvider>,
-    ) -> Self {
+    /// Creates a memory engine over a repository and a vector provider
+    /// (RC-6 M2: the provider feeds the cache + k-NN index + background
+    /// indexer).
+    pub fn new(repository: MemoryRepository, provider: Arc<dyn VectorProvider>) -> Self {
+        let vectors = MemoryVectorSystem::new(repository.pool().clone(), provider);
         Self {
             repository,
-            embedding_provider,
+            vectors,
         }
+    }
+
+    /// The underlying vector system (indexer, k-NN index, cache).
+    pub fn vector_system(&self) -> &MemoryVectorSystem {
+        &self.vectors
+    }
+
+    /// Runs one background indexing pass over pending records (new or
+    /// changed goals). The indexer worker calls this on capture
+    /// notifications; exposed for the dashboard "index now" action.
+    pub async fn index_pending(&self, limit: usize) -> Result<IndexResult, DatabaseError> {
+        self.vectors.indexer().index_pending(limit).await
+    }
+
+    /// Drops and rebuilds the whole vector index.
+    pub async fn reindex(&self) -> Result<IndexResult, DatabaseError> {
+        self.vectors.indexer().reindex_all().await
+    }
+
+    /// Dashboard status of the vector index and embedding cache.
+    pub async fn vector_status(&self) -> Result<VectorIndexStatus, DatabaseError> {
+        self.vectors.status().await
     }
 
     // ------------------------------------------------------------------
@@ -52,7 +77,9 @@ impl MemoryEngine {
 
     /// Records a terminal plan execution (success/failure/cancellation)
     /// into memory. Best-effort by contract of the callers: a capture
-    /// failure never affects the execution lifecycle.
+    /// failure never affects the execution lifecycle. The record is
+    /// stored immediately and the background indexer is notified to
+    /// embed the goal (RC-6 M2: incremental, batched indexing).
     #[allow(clippy::too_many_arguments)] // one call site; the capture payload is the point
     pub async fn record_execution(
         &self,
@@ -69,7 +96,6 @@ impl MemoryEngine {
             ExecutionStatus::Failed => MemoryStatus::Failed,
             _ => MemoryStatus::Cancelled,
         };
-        let embedding = self.embed_goal(goal).await;
 
         let outcome = MemoryOutcome {
             steps: steps.len(),
@@ -101,12 +127,14 @@ impl MemoryEngine {
                 .collect(),
             error,
             outcome,
-            goal_embedding: embedding,
+            goal_embedding: None, // filled by the background indexer
             replay_count: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        self.repository.upsert(&record).await
+        self.repository.upsert(&record).await?;
+        self.vectors.indexer().notify();
+        Ok(())
     }
 
     /// Records a planner report: the final run summary (completed/skipped/
@@ -114,7 +142,6 @@ impl MemoryEngine {
     /// learning engine can rank planner-driven runs.
     pub async fn record_planner_report(&self, report: &PlannerReport) -> Result<(), DatabaseError> {
         let goal = report.plan.goal.clone();
-        let embedding = self.embed_goal(&goal).await;
         let status = if report.error.is_none() && !report.completed.is_empty() {
             MemoryStatus::Success
         } else {
@@ -155,12 +182,14 @@ impl MemoryEngine {
                 .collect(),
             error: report.error.clone(),
             outcome: outcome_from_report(report),
-            goal_embedding: embedding,
+            goal_embedding: None, // filled by the background indexer
             replay_count: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        self.repository.upsert(&record).await
+        self.repository.upsert(&record).await?;
+        self.vectors.indexer().notify();
+        Ok(())
     }
 
     /// Records a terminal autonomous session into memory.
@@ -173,7 +202,6 @@ impl MemoryEngine {
             AutonomousStatus::Failed => MemoryStatus::Failed,
             _ => MemoryStatus::Cancelled,
         };
-        let embedding = self.embed_goal(&progress.goal).await;
 
         let (plan, steps, tools, failed_steps): (
             Option<ExecutionPlan>,
@@ -222,12 +250,14 @@ impl MemoryEngine {
                 retries_used: progress.retries_used,
                 plans_attempted: progress.plans_attempted,
             },
-            goal_embedding: embedding,
+            goal_embedding: None, // filled by the background indexer
             replay_count: 0,
             created_at: progress.updated_at,
             updated_at: progress.updated_at,
         };
-        self.repository.upsert(&record).await
+        self.repository.upsert(&record).await?;
+        self.vectors.indexer().notify();
+        Ok(())
     }
 
     // ------------------------------------------------------------------
@@ -235,16 +265,26 @@ impl MemoryEngine {
     // ------------------------------------------------------------------
 
     /// Searches remembered runs by goal similarity, honoring the request's
-    /// filters.
+    /// filters. When the vector index holds embeddings, the query is
+    /// embedded once and k-NN selects the candidate ids before any SQL
+    /// row decode happens; without an index it falls back to the full
+    /// token-overlap scan (e.g. before the first index pass).
     pub async fn search(
         &self,
         request: &MemorySearchRequest,
     ) -> Result<Vec<MemoryHit>, DatabaseError> {
-        let query_embedding = self.embed_goal(&request.query).await;
-        let all = self.repository.list_all().await?;
+        let query_embedding = self.vectors.embed(&request.query).await;
+        let all = match self.knn_candidates(
+            query_embedding.as_deref(),
+            request.limit,
+            5,
+            request.query.trim().is_empty(),
+        ) {
+            Some(ids) if !ids.is_empty() => self.repository.get_many(&ids).await?,
+            _ => self.repository.list_all().await?,
+        };
         let filtered = filter_records(request, &all);
-        let hits = rank_records(&request.query, query_embedding.as_deref(), &filtered);
-        let mut hits = hits;
+        let mut hits = rank_records(&request.query, query_embedding.as_deref(), &filtered);
         hits.truncate(request.limit);
         Ok(hits)
     }
@@ -258,8 +298,16 @@ impl MemoryEngine {
         workspace_id: Option<Uuid>,
         limit: usize,
     ) -> Result<Vec<MemoryRecommendation>, DatabaseError> {
-        let query_embedding = self.embed_goal(goal).await;
-        let all = self.repository.list_all().await?;
+        let query_embedding = self.vectors.embed(goal).await;
+        let all = match self.knn_candidates(
+            query_embedding.as_deref(),
+            limit,
+            20,
+            goal.trim().is_empty(),
+        ) {
+            Some(ids) if !ids.is_empty() => self.repository.get_many(&ids).await?,
+            _ => self.repository.list_all().await?,
+        };
         let scoped = filter_records(
             &MemorySearchRequest {
                 query: goal.to_string(),
@@ -293,8 +341,16 @@ impl MemoryEngine {
         workspace_id: Option<Uuid>,
         limit: usize,
     ) -> Result<Vec<AvoidedStrategy>, DatabaseError> {
-        let query_embedding = self.embed_goal(goal).await;
-        let all = self.repository.list_all().await?;
+        let query_embedding = self.vectors.embed(goal).await;
+        let all = match self.knn_candidates(
+            query_embedding.as_deref(),
+            limit,
+            20,
+            goal.trim().is_empty(),
+        ) {
+            Some(ids) if !ids.is_empty() => self.repository.get_many(&ids).await?,
+            _ => self.repository.list_all().await?,
+        };
         let scoped = filter_records(
             &MemorySearchRequest {
                 query: goal.to_string(),
@@ -344,314 +400,40 @@ impl MemoryEngine {
             .any(|r| r.status == MemoryStatus::Success && goal_fingerprint(&r.goal) == fingerprint))
     }
 
-    async fn embed_goal(&self, goal: &str) -> Option<Vec<f32>> {
-        self.embedding_provider.embed(goal).await.ok()
+    /// Selects the candidate memory ids for a query: k-NN over the
+    /// in-memory vector index, oversampled so downstream filters
+    /// (workspace/status) do not starve the result list. Returns `None`
+    /// when the index is empty or the query cannot be embedded (callers
+    /// then fall back to the full scan).
+    fn knn_candidates(
+        &self,
+        query_embedding: Option<&[f32]>,
+        limit: usize,
+        oversample: usize,
+        skip: bool,
+    ) -> Option<Vec<Uuid>> {
+        if skip {
+            return None;
+        }
+        let query = query_embedding?;
+        let indexed = self.vectors.index_len();
+        if indexed == 0 {
+            return None;
+        }
+        let k = limit
+            .saturating_mul(oversample)
+            .clamp(50, 1000)
+            .min(indexed);
+        Some(
+            self.vectors
+                .knn(query, k)
+                .into_iter()
+                .map(|(id, _)| id)
+                .collect(),
+        )
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::database::test_database;
-    use crate::semantic::embeddings::LocalEmbeddingProvider;
-
-    async fn engine() -> (MemoryEngine, tempfile::TempDir) {
-        let (database, guard) = test_database().await;
-        let repo = MemoryRepository::new(database.pool().clone());
-        let provider: Arc<dyn EmbeddingProvider> = Arc::new(LocalEmbeddingProvider::default());
-        (MemoryEngine::new(repo, provider), guard)
-    }
-
-    fn step(tool: Option<&str>, description: &str, error: Option<&str>) -> ExecutionStep {
-        ExecutionStep {
-            id: Uuid::new_v4(),
-            execution_id: Uuid::new_v4(),
-            step_number: 0,
-            description: description.to_string(),
-            tool_name: tool.map(String::from),
-            arguments: None,
-            status: if error.is_some() {
-                crate::copilot::StepStatus::Failed
-            } else {
-                crate::copilot::StepStatus::Completed
-            },
-            result: None,
-            error: error.map(String::from),
-            started_at: None,
-            completed_at: None,
-            created_at: Utc::now(),
-        }
-    }
-
-    #[tokio::test]
-    async fn record_execution_and_search_find_it() {
-        let (engine, _guard) = engine().await;
-        let execution_id = Uuid::new_v4();
-        engine
-            .record_execution(
-                execution_id,
-                None,
-                "resume my focus session",
-                None,
-                &[
-                    step(Some("list_workspaces"), "List workspaces", None),
-                    step(Some("resume_workspace"), "Resume focused work", None),
-                ],
-                ExecutionStatus::Completed,
-                None,
-            )
-            .await
-            .expect("capture should succeed");
-
-        let hits = engine
-            .search(&MemorySearchRequest::new("resume my focus session"))
-            .await
-            .expect("search should succeed");
-        assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].record.source_id, execution_id);
-        assert!(matches!(hits[0].record.status, MemoryStatus::Success));
-        assert!(hits[0].similarity > 0.9);
-        assert_eq!(
-            hits[0].record.tools_used,
-            vec!["list_workspaces", "resume_workspace"]
-        );
-    }
-
-    #[tokio::test]
-    async fn failed_executions_are_retrievable_as_avoid_strategies() {
-        let (engine, _guard) = engine().await;
-        engine
-            .record_execution(
-                Uuid::new_v4(),
-                None,
-                "resume my focus session",
-                None,
-                &[step(
-                    Some("get_recent_events"),
-                    "Gather activity",
-                    Some("permission denied"),
-                )],
-                ExecutionStatus::Failed,
-                Some("permission denied".into()),
-            )
-            .await
-            .expect("capture should succeed");
-
-        let avoided = engine
-            .avoid("resume my focus session", None, 5)
-            .await
-            .expect("avoid should succeed");
-        assert_eq!(avoided.len(), 1);
-        assert!(avoided[0].failure.contains("permission denied"));
-    }
-
-    #[tokio::test]
-    async fn recommend_prefers_successful_workflows() {
-        let (engine, _guard) = engine().await;
-        engine
-            .record_execution(
-                Uuid::new_v4(),
-                None,
-                "resume my focus session",
-                None,
-                &[step(Some("list_workspaces"), "List workspaces", None)],
-                ExecutionStatus::Completed,
-                None,
-            )
-            .await
-            .unwrap();
-        engine
-            .record_execution(
-                Uuid::new_v4(),
-                None,
-                "resume my focus session",
-                None,
-                &[step(
-                    Some("get_recent_events"),
-                    "Gather activity",
-                    Some("denied"),
-                )],
-                ExecutionStatus::Failed,
-                Some("denied".into()),
-            )
-            .await
-            .unwrap();
-
-        let recommendations = engine
-            .recommend("resume my focus session", None, 5)
-            .await
-            .expect("recommend should succeed");
-        assert_eq!(recommendations.len(), 1);
-        assert!(matches!(
-            recommendations[0].record.status,
-            MemoryStatus::Success
-        ));
-        assert!(recommendations[0].score > 0.5);
-    }
-
-    #[tokio::test]
-    async fn planner_report_recording_round_trips() {
-        let (engine, _guard) = engine().await;
-        let report = PlannerReport {
-            plan: ExecutionPlan {
-                id: Uuid::new_v4(),
-                workspace_id: None,
-                goal: "recover after step failure".into(),
-                tasks: vec![],
-                estimated_duration_minutes: 0,
-                required_files: vec![],
-                checkpoints: vec![],
-                confidence: 0.8,
-                reasoning: "r".into(),
-                status: crate::copilot::proactive_models::PlanApprovalStatus::Pending,
-                created_at: Utc::now(),
-            },
-            execution_id: Some(Uuid::new_v4()),
-            completed: vec![Uuid::new_v4()],
-            skipped: vec![],
-            replaced: vec![],
-            replan_count: 0,
-            error: None,
-        };
-        engine
-            .record_planner_report(&report)
-            .await
-            .expect("report capture should succeed");
-
-        let hits = engine
-            .search(&MemorySearchRequest {
-                query: "recover after step failure".into(),
-                kind: Some(MemoryKind::PlannerReport),
-                workspace_id: None,
-                status: None,
-                limit: 10,
-            })
-            .await
-            .unwrap();
-        assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].record.outcome.completed, 1);
-    }
-
-    #[tokio::test]
-    async fn autonomous_session_recording_round_trips() {
-        let (engine, _guard) = engine().await;
-        let progress = AutonomousSessionProgress {
-            session_id: Uuid::new_v4(),
-            workspace_id: None,
-            goal: "resume the most recent workspace".into(),
-            status: AutonomousStatus::Completed,
-            policy: Default::default(),
-            reasoning: vec![crate::copilot::autonomous::models::ReasoningEvent::new(
-                Uuid::new_v4(),
-                crate::copilot::autonomous::models::ReasoningPhase::Terminal,
-                "Goal reached: 3 steps completed",
-                None,
-            )],
-            current_plan: None,
-            execution_id: None,
-            last_execution_id: None,
-            plans_attempted: 1,
-            plans_completed: 1,
-            steps_completed: 3,
-            retries_used: 0,
-            replans_used: 0,
-            steps_left: 0,
-            error: None,
-            pending_approval: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        };
-        engine
-            .record_autonomous_session(&progress)
-            .await
-            .expect("session capture should succeed");
-
-        let hits = engine
-            .search(&MemorySearchRequest {
-                query: "resume the most recent workspace".into(),
-                kind: Some(MemoryKind::AutonomousSession),
-                workspace_id: None,
-                status: None,
-                limit: 10,
-            })
-            .await
-            .unwrap();
-        assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].record.outcome.steps, 3);
-        assert_eq!(hits[0].record.outcome.plans_attempted, 1);
-    }
-
-    #[tokio::test]
-    async fn stats_and_learned_workflows_aggregate() {
-        let (engine, _guard) = engine().await;
-        for _ in 0..2 {
-            engine
-                .record_execution(
-                    Uuid::new_v4(),
-                    None,
-                    "resume my focus session",
-                    None,
-                    &[step(Some("list_workspaces"), "List workspaces", None)],
-                    ExecutionStatus::Completed,
-                    None,
-                )
-                .await
-                .unwrap();
-        }
-        engine
-            .record_execution(
-                Uuid::new_v4(),
-                None,
-                "resume my focus session",
-                None,
-                &[step(
-                    Some("get_recent_events"),
-                    "Gather activity",
-                    Some("denied"),
-                )],
-                ExecutionStatus::Failed,
-                Some("denied".into()),
-            )
-            .await
-            .unwrap();
-
-        let stats = engine.stats().await.unwrap();
-        assert_eq!(stats.total_records, 3);
-        assert_eq!(stats.successful, 2);
-        assert_eq!(stats.failed, 1);
-
-        let workflows = engine.learned_workflows().await.unwrap();
-        assert_eq!(workflows.len(), 1);
-        let focus = &workflows[0];
-        assert_eq!(focus.success_count, 2);
-        assert_eq!(focus.failure_count, 1);
-        assert_eq!(focus.goal_fingerprint, "resume my focus session");
-    }
-
-    #[tokio::test]
-    async fn mark_replayed_increments_replay_count() {
-        let (engine, _guard) = engine().await;
-        engine
-            .record_execution(
-                Uuid::new_v4(),
-                None,
-                "resume my focus session",
-                None,
-                &[step(Some("list_workspaces"), "List workspaces", None)],
-                ExecutionStatus::Completed,
-                None,
-            )
-            .await
-            .unwrap();
-        let hits = engine
-            .search(&MemorySearchRequest::new("resume my focus session"))
-            .await
-            .unwrap();
-        let id = hits[0].record.id;
-        engine.mark_replayed(id).await.unwrap();
-        engine.mark_replayed(id).await.unwrap();
-
-        let stats = engine.stats().await.unwrap();
-        assert_eq!(stats.total_replays, 2);
-    }
-}
+#[path = "engine_tests.rs"]
+mod tests;

@@ -1,9 +1,18 @@
 // MemoryDashboard - what ChronoDesk has learned from previous executions
-// (RC-6 M1): stats, semantic search over remembered runs, workflow
-// recommendations for a goal, and strategies to avoid.
+// (RC-6 M1 + M2): stats, semantic search over remembered runs, workflow
+// recommendations, strategies to avoid, and the vector index status with
+// a manual re-index action.
 
 import { useCallback, useEffect, useState } from "react";
-import { BrainCircuit, History, Search, TrendingUp, ShieldAlert } from "lucide-react";
+import {
+  BrainCircuit,
+  Database,
+  History,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  TrendingUp,
+} from "lucide-react";
 import { memoryRepository } from "@/services/memoryRepository";
 import type {
   AvoidedStrategy,
@@ -13,6 +22,7 @@ import type {
   MemoryKind,
   MemoryRecommendation,
   MemoryStats,
+  VectorIndexStatus,
 } from "@/types/memory";
 
 const KIND_LABELS: Record<MemoryKind, string> = {
@@ -82,6 +92,7 @@ function RecordCard({ hit }: { hit: MemoryHit }) {
 
 export function MemoryDashboard() {
   const [stats, setStats] = useState<MemoryStats | null>(null);
+  const [indexStatus, setIndexStatus] = useState<VectorIndexStatus | null>(null);
   const [workflows, setWorkflows] = useState<LearnedWorkflow[]>([]);
   const [recent, setRecent] = useState<MemoryHit[]>([]);
   const [query, setQuery] = useState("");
@@ -90,15 +101,18 @@ export function MemoryDashboard() {
   const [recommendations, setRecommendations] = useState<MemoryRecommendation[] | null>(null);
   const [avoided, setAvoided] = useState<AvoidedStrategy[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reindexing, setReindexing] = useState(false);
 
   const loadOverview = useCallback(async () => {
     try {
-      const [statsData, workflowsData, recentData] = await Promise.all([
+      const [statsData, indexData, workflowsData, recentData] = await Promise.all([
         memoryRepository.stats(),
+        memoryRepository.indexStatus(),
         memoryRepository.learnedWorkflows(),
         memoryRepository.search("", { limit: 6 }),
       ]);
       setStats(statsData);
+      setIndexStatus(indexData);
       setWorkflows(workflowsData);
       setRecent(recentData);
     } catch (err) {
@@ -136,6 +150,22 @@ export function MemoryDashboard() {
     }
   };
 
+  const runReindex = async () => {
+    if (reindexing) return;
+    setReindexing(true);
+    try {
+      const result = await memoryRepository.reindex();
+      console.info(
+        `Re-indexed ${result.indexed}/${result.requested} memories (${result.failed} failed)`
+      );
+      await loadOverview();
+    } catch (err) {
+      console.error("Memory re-index failed:", err);
+    } finally {
+      setReindexing(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <header>
@@ -162,6 +192,48 @@ export function MemoryDashboard() {
           <StatCard label="Failed" value={stats.failed} />
           <StatCard label="Replays" value={stats.total_replays} />
           <StatCard label="Learned workflows" value={stats.learned_workflows} />
+        </section>
+      )}
+
+      {indexStatus && (
+        <section className="rounded-lg border border-(--color-border) bg-(--color-surface-raised) p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-(--color-accent)" />
+              <h2 className="text-sm font-medium text-(--color-foreground)">Vector index</h2>
+            </div>
+            <button
+              onClick={runReindex}
+              disabled={reindexing}
+              className="flex items-center gap-1.5 rounded-md border border-(--color-border) px-3 py-1.5 text-xs font-medium text-(--color-foreground) transition-opacity hover:opacity-80 disabled:opacity-50"
+            >
+              <RefreshCw className={reindexing ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+              {reindexing ? "Indexing…" : "Index now"}
+            </button>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <StatCard
+              label="Indexed"
+              value={`${indexStatus.indexed}/${indexStatus.total_records}`}
+            />
+            <StatCard label="Pending" value={indexStatus.pending} />
+            <StatCard
+              label="Provider"
+              value={`${indexStatus.provider} · ${indexStatus.dimensions}d`}
+            />
+            <StatCard
+              label="Cache hit rate"
+              value={`${Math.round(indexStatus.cache_hit_rate * 100)}%`}
+            />
+            <StatCard
+              label="Last indexed"
+              value={
+                indexStatus.last_indexed_at
+                  ? new Date(indexStatus.last_indexed_at).toLocaleTimeString()
+                  : "never"
+              }
+            />
+          </div>
         </section>
       )}
 

@@ -26,7 +26,10 @@
 ///     event types (durable pause/resume).
 /// 19 = `plan_execution_reports` table (execution progress streaming;
 ///     durable planner reports).
-pub const CURRENT_SCHEMA_VERSION: i64 = 19;
+/// 20 = `execution_memory` table (RC-6 M1 execution memory store).
+/// 21 = `memory_vector_index` + `memory_embedding_cache` tables
+///     (RC-6 M2 production vector memory system).
+pub const CURRENT_SCHEMA_VERSION: i64 = 21;
 
 /// Table name constants. Repository query strings use literal SQL for
 /// readability (and because `sqlx::query_as` takes a plain `&str`, not a

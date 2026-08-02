@@ -1256,6 +1256,7 @@ mod tests {
     use super::*;
     use crate::copilot::execution_engine::ExecutionEngine;
     use crate::copilot::execution_repository::ExecutionRepository;
+    use crate::copilot::memory::vector::LocalVectorProvider;
     use crate::copilot::memory::{MemoryEngine, MemoryKind, MemoryRepository, MemorySearchRequest};
     use crate::copilot::planner::Planner;
     use crate::copilot::tools::ToolPermissionService;
@@ -1263,7 +1264,6 @@ mod tests {
     use crate::repositories::{
         FileRepository, SettingsRepository, TimelineRepository, WorkspaceRepository,
     };
-    use crate::semantic::embeddings::LocalEmbeddingProvider;
     use crate::services::{TimelineService, WorkspaceService};
     use crate::session::SessionEngine;
     use crate::timeline::recorder::TimelineRecorder;
@@ -1475,7 +1475,7 @@ mod tests {
         seed_workspaces(&pool).await;
         let memory = Arc::new(MemoryEngine::new(
             MemoryRepository::new(pool.clone()),
-            Arc::new(LocalEmbeddingProvider::default()),
+            Arc::new(LocalVectorProvider::default()),
         ));
 
         let (planner, engine, executor) = execution_stack(&pool).await;

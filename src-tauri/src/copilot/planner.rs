@@ -666,12 +666,12 @@ mod tests {
     use crate::copilot::execution::ExecutionStatus;
     use crate::copilot::execution_engine::ExecutionEngine;
     use crate::copilot::execution_repository::ExecutionRepository;
+    use crate::copilot::memory::vector::LocalVectorProvider;
     use crate::copilot::memory::{MemoryEngine, MemoryRepository, MemorySearchRequest};
     use crate::database::test_database;
     use crate::repositories::{
         FileRepository, SettingsRepository, TimelineRepository, WorkspaceRepository,
     };
-    use crate::semantic::embeddings::LocalEmbeddingProvider;
     use crate::services::{TimelineService, WorkspaceService};
     use crate::session::SessionEngine;
     use crate::timeline::recorder::TimelineRecorder;
@@ -1629,7 +1629,7 @@ mod tests {
         seed_workspaces(&pool).await;
         let memory = Arc::new(MemoryEngine::new(
             MemoryRepository::new(pool.clone()),
-            Arc::new(LocalEmbeddingProvider::default()),
+            Arc::new(LocalVectorProvider::default()),
         ));
 
         // A previous successful run of the same goal lives in memory.
@@ -1690,7 +1690,7 @@ mod tests {
         seed_workspaces(&pool).await;
         let memory = Arc::new(MemoryEngine::new(
             MemoryRepository::new(pool.clone()),
-            Arc::new(LocalEmbeddingProvider::default()),
+            Arc::new(LocalVectorProvider::default()),
         ));
 
         // An unrelated goal must not be reused for a different query.
@@ -1726,7 +1726,7 @@ mod tests {
         seed_workspaces(&pool).await;
         let memory = Arc::new(MemoryEngine::new(
             MemoryRepository::new(pool.clone()),
-            Arc::new(LocalEmbeddingProvider::default()),
+            Arc::new(LocalVectorProvider::default()),
         ));
 
         let (planner, engine) = execution_stack_with_memory(&pool, memory.clone()).await;
@@ -1765,7 +1765,7 @@ mod tests {
         seed_workspaces(&pool).await;
         let memory = Arc::new(MemoryEngine::new(
             MemoryRepository::new(pool.clone()),
-            Arc::new(LocalEmbeddingProvider::default()),
+            Arc::new(LocalVectorProvider::default()),
         ));
 
         let (planner, engine) = execution_stack_with_memory(&pool, memory.clone()).await;

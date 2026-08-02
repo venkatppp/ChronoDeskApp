@@ -5,12 +5,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AvoidedStrategy,
+  IndexResult,
   LearnedWorkflow,
   MemoryHit,
   MemoryKind,
   MemoryRecommendation,
   MemoryStats,
   MemoryStatus,
+  VectorIndexStatus,
 } from "@/types/memory";
 
 export const memoryRepository = {
@@ -78,5 +80,19 @@ export const memoryRepository = {
    */
   async stats(): Promise<MemoryStats> {
     return invoke<MemoryStats>("memory_stats");
+  },
+
+  /**
+   * Status of the vector index and embedding cache (RC-6 M2).
+   */
+  async indexStatus(): Promise<VectorIndexStatus> {
+    return invoke<VectorIndexStatus>("memory_index_status");
+  },
+
+  /**
+   * Runs an index pass now, re-indexing everything if needed (RC-6 M2).
+   */
+  async reindex(): Promise<IndexResult> {
+    return invoke<IndexResult>("memory_reindex");
   },
 };

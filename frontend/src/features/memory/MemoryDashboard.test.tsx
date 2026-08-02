@@ -1,10 +1,11 @@
 // MemoryDashboard tests - verify stats load, search calls the right IPC,
-// and recommendations/avoid render.
+// recommendations/avoid render, and the vector index status card with the
+// manual re-index action (RC-6 M2).
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryDashboard } from "./MemoryDashboard";
-import type { MemoryStats } from "@/types/memory";
+import type { MemoryStats, VectorIndexStatus } from "@/types/memory";
 
 const baseStats = (overrides: Partial<MemoryStats> = {}): MemoryStats => ({
   total_records: 3,
@@ -16,6 +17,21 @@ const baseStats = (overrides: Partial<MemoryStats> = {}): MemoryStats => ({
   autonomous_sessions: 1,
   total_replays: 4,
   learned_workflows: 2,
+  ...overrides,
+});
+
+const baseIndexStatus = (overrides: Partial<VectorIndexStatus> = {}): VectorIndexStatus => ({
+  total_records: 3,
+  indexed: 2,
+  pending: 1,
+  provider: "local-ngram",
+  dimensions: 384,
+  last_indexed_at: "2026-08-02T09:58:00Z",
+  cache_size: 4,
+  cache_capacity: 512,
+  cache_hits: 8,
+  cache_misses: 2,
+  cache_hit_rate: 0.8,
   ...overrides,
 });
 
@@ -62,6 +78,12 @@ describe("MemoryDashboard", () => {
         const command = String(_cmd);
         if (command === "memory_stats") {
           return Promise.resolve(baseStats());
+        }
+        if (command === "memory_index_status") {
+          return Promise.resolve(baseIndexStatus());
+        }
+        if (command === "memory_reindex") {
+          return Promise.resolve({ requested: 3, indexed: 3, failed: 0, skipped: 0 });
         }
         if (command === "memory_learned_workflows") {
           return Promise.resolve([learnedWorkflow]);
@@ -172,5 +194,44 @@ describe("MemoryDashboard", () => {
     });
     expect(screen.getByText("Resume My Focus Session")).toBeInTheDocument();
     expect(screen.getByText(/2 ok · 1 failed/)).toBeInTheDocument();
+  });
+
+  it("shows vector index status with provider and coverage", async () => {
+    await setupTest();
+    render(<MemoryDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vector index")).toBeInTheDocument();
+    });
+    const { within } = await import("@testing-library/react");
+    const section = screen.getByText("Vector index").closest("section");
+    expect(section).not.toBeNull();
+    expect(within(section!).getByText("Indexed")).toBeInTheDocument();
+    expect(within(section!).getByText("2/3")).toBeInTheDocument();
+    expect(within(section!).getByText("Pending")).toBeInTheDocument();
+    expect(within(section!).getByText("1")).toBeInTheDocument();
+    expect(within(section!).getByText("local-ngram · 384d")).toBeInTheDocument();
+    expect(within(section!).getByText("80%")).toBeInTheDocument();
+  });
+
+  it("re-indexes on demand and refreshes the overview", async () => {
+    const { invoke } = await setupTest();
+    render(<MemoryDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vector index")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Index now"));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("memory_reindex");
+    });
+    await waitFor(() => {
+      const statsCalls = vi
+        .mocked(invoke)
+        .mock.calls.filter(([cmd]) => String(cmd) === "memory_stats");
+      expect(statsCalls.length).toBeGreaterThanOrEqual(2);
+    });
   });
 });

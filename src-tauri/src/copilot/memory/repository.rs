@@ -7,7 +7,9 @@ use chrono::Utc;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use crate::copilot::memory::models::{ExecutionMemoryRecord, MemoryKind, MemoryStatus};
+use crate::copilot::memory::models::{
+    embedding_to_blob, ExecutionMemoryRecord, MemoryKind, MemoryStatus,
+};
 use crate::errors::DatabaseError;
 
 /// Repository for execution memory persistence.
@@ -22,6 +24,12 @@ impl MemoryRepository {
         Self { pool }
     }
 
+    /// The underlying connection pool (used to build companion
+    /// repositories over the same store).
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
     /// Upserts a memory record, keyed on `(kind, source_id)`.
     pub async fn upsert(&self, record: &ExecutionMemoryRecord) -> Result<(), DatabaseError> {
         let plan = record
@@ -34,10 +42,7 @@ impl MemoryRepository {
         let tools = serde_json::to_string(&record.tools_used)?;
         let failed = serde_json::to_string(&record.failed_steps)?;
         let outcome = serde_json::to_string(&record.outcome)?;
-        let embedding = record
-            .goal_embedding
-            .as_ref()
-            .map(|e| e.iter().flat_map(|f| f.to_le_bytes()).collect::<Vec<u8>>());
+        let embedding = record.goal_embedding.as_ref().map(|e| embedding_to_blob(e));
 
         sqlx::query(
             r#"
@@ -110,6 +115,44 @@ impl MemoryRepository {
             .await?;
         let mut records = self.rows_to_records(rows).await?;
         Ok(records.pop())
+    }
+
+    /// Loads the records with the given ids (used by vector k-NN search:
+    /// only the top candidates leave SQL).
+    pub async fn get_many(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<Vec<ExecutionMemoryRecord>, DatabaseError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let placeholders = vec!["?"; ids.len()].join(", ");
+        let sql = format!("SELECT * FROM execution_memory WHERE id IN ({placeholders})");
+        let mut query = sqlx::query(&sql);
+        for id in ids {
+            query = query.bind(id.to_string());
+        }
+        let rows = query.fetch_all(&self.pool).await?;
+        self.rows_to_records(rows).await
+    }
+
+    /// Back-fills a record's goal embedding (written by the vector
+    /// indexer). Deliberately leaves `updated_at` untouched so an index
+    /// pass never re-pends the record it just indexed.
+    pub async fn update_goal_embedding(
+        &self,
+        id: Uuid,
+        embedding: Option<&[f32]>,
+    ) -> Result<(), DatabaseError> {
+        sqlx::query(
+            "UPDATE execution_memory SET goal_embedding = ?, goal_embedding_dim = ? WHERE id = ?",
+        )
+        .bind(embedding.map(embedding_to_blob))
+        .bind(embedding.map(|e| e.len() as i64))
+        .bind(id.to_string())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     /// Lists records matching the given filters, newest first.
@@ -261,11 +304,9 @@ impl MemoryRepository {
             failed_steps: serde_json::from_str(&row.get::<String, _>("failed_steps"))?,
             error: row.get("error"),
             outcome: serde_json::from_str(&row.get::<String, _>("outcome"))?,
-            goal_embedding: row.get::<Option<Vec<u8>>, _>("goal_embedding").map(|blob| {
-                blob.chunks_exact(4)
-                    .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
-                    .collect()
-            }),
+            goal_embedding: row
+                .get::<Option<Vec<u8>>, _>("goal_embedding")
+                .map(|blob| crate::copilot::memory::models::embedding_from_blob(&blob)),
             replay_count: row.get::<i64, _>("replay_count").max(0) as u64,
             created_at: parse_rfc3339(&row.get::<String, _>("created_at"))?,
             updated_at: parse_rfc3339(&row.get::<String, _>("updated_at"))?,
@@ -510,5 +551,69 @@ mod tests {
         assert!((embedding[0] - 0.1).abs() < 1e-6);
 
         let _ = DatabaseError::IoError("unused".into());
+    }
+
+    #[tokio::test]
+    async fn get_many_loads_only_requested_ids() {
+        let (database, _guard) = test_database().await;
+        let repo = MemoryRepository::new(database.pool().clone());
+        let a = sample_record(
+            MemoryKind::Execution,
+            Uuid::new_v4(),
+            "goal a",
+            MemoryStatus::Success,
+        );
+        let b = sample_record(
+            MemoryKind::Execution,
+            Uuid::new_v4(),
+            "goal b",
+            MemoryStatus::Success,
+        );
+        let _c = sample_record(
+            MemoryKind::Execution,
+            Uuid::new_v4(),
+            "goal c",
+            MemoryStatus::Success,
+        );
+        repo.upsert(&a).await.unwrap();
+        repo.upsert(&b).await.unwrap();
+
+        let loaded = repo.get_many(&[a.id, b.id]).await.unwrap();
+        assert_eq!(loaded.len(), 2);
+        let mut goals: Vec<&str> = loaded.iter().map(|r| r.goal.as_str()).collect();
+        goals.sort();
+        assert_eq!(goals, vec!["goal a", "goal b"]);
+        assert!(repo.get_many(&[]).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn update_goal_embedding_back_fills_without_touching_updated_at() {
+        let (database, _guard) = test_database().await;
+        let repo = MemoryRepository::new(database.pool().clone());
+        let record = sample_record(
+            MemoryKind::Execution,
+            Uuid::new_v4(),
+            "g",
+            MemoryStatus::Success,
+        );
+        let original_updated = record.updated_at;
+        repo.upsert(&record).await.unwrap();
+
+        repo.update_goal_embedding(record.id, Some(&[0.5, 0.25, 0.125]))
+            .await
+            .unwrap();
+        let loaded = repo.get(record.id).await.unwrap().unwrap();
+        assert_eq!(
+            loaded.goal_embedding.expect("embedding back-filled"),
+            vec![0.5, 0.25, 0.125]
+        );
+        assert_eq!(
+            loaded.updated_at, original_updated,
+            "index back-fill must not change the record's updated_at"
+        );
+
+        repo.update_goal_embedding(record.id, None).await.unwrap();
+        let loaded = repo.get(record.id).await.unwrap().unwrap();
+        assert!(loaded.goal_embedding.is_none());
     }
 }

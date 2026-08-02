@@ -5,6 +5,9 @@
 //! RC-6 M1. Pure data types; all retrieval/ranking lives in `retrieval`
 //! and `learning`.
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -222,6 +225,30 @@ pub fn outcome_from_report(report: &PlannerReport) -> MemoryOutcome {
     }
 }
 
+/// Encodes an embedding vector into the little-endian BLOB format stored
+/// in SQLite (shared by every repository that persists embeddings, so the
+/// wire format lives in exactly one place).
+pub fn embedding_to_blob(embedding: &[f32]) -> Vec<u8> {
+    embedding.iter().flat_map(|f| f.to_le_bytes()).collect()
+}
+
+/// Decodes an embedding BLOB written by [`embedding_to_blob`]. Returns an
+/// empty vector for an empty or misaligned BLOB.
+pub fn embedding_from_blob(blob: &[u8]) -> Vec<f32> {
+    blob.chunks_exact(4)
+        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .collect()
+}
+
+/// Stable hash of a text, used as the key for the embedding cache and the
+/// vector index. `DefaultHasher::new()` uses fixed keys, so the value is
+/// deterministic across processes (unlike `HashMap`'s random state).
+pub fn text_hash(text: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    text.hash(&mut hasher);
+    hasher.finish().to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -297,5 +324,33 @@ mod tests {
         assert_eq!(json, "autonomous_session");
         let back: MemoryKind = serde_json::from_value(json).unwrap();
         assert!(matches!(back, MemoryKind::AutonomousSession));
+    }
+
+    #[test]
+    fn embedding_blob_round_trips() {
+        let embedding = vec![0.1, -0.5, 0.0, 1.0];
+        let blob = embedding_to_blob(&embedding);
+        assert_eq!(blob.len(), embedding.len() * 4);
+        let decoded = embedding_from_blob(&blob);
+        assert_eq!(decoded.len(), embedding.len());
+        for (a, b) in decoded.iter().zip(embedding.iter()) {
+            assert!((a - b).abs() < 1e-6);
+        }
+        assert!(embedding_from_blob(&[1, 2, 3]).is_empty(), "misaligned");
+    }
+
+    #[test]
+    fn text_hash_is_stable_and_distinct() {
+        assert_eq!(
+            text_hash("resume my focus session"),
+            text_hash("resume my focus session")
+        );
+        assert_ne!(
+            text_hash("resume my focus session"),
+            text_hash("organize receipts")
+        );
+        // `DefaultHasher::new()` uses fixed keys: the same text hashes to
+        // the same value on every process run (SQL cache key stability).
+        assert_eq!(text_hash("persist me"), text_hash("persist me"));
     }
 }
