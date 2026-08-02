@@ -107,6 +107,10 @@ pub enum ExecutionEventType {
     StepFailed,
     Paused,
     Resumed,
+    /// A checkpoint was written (after a completed step, or on pause).
+    CheckpointSaved,
+    /// A checkpoint was loaded to rebuild this execution.
+    CheckpointLoaded,
     Completed,
     Failed,
     Cancelled,
@@ -121,6 +125,8 @@ impl std::fmt::Display for ExecutionEventType {
             ExecutionEventType::StepFailed => write!(f, "step_failed"),
             ExecutionEventType::Paused => write!(f, "paused"),
             ExecutionEventType::Resumed => write!(f, "resumed"),
+            ExecutionEventType::CheckpointSaved => write!(f, "checkpoint_saved"),
+            ExecutionEventType::CheckpointLoaded => write!(f, "checkpoint_loaded"),
             ExecutionEventType::Completed => write!(f, "completed"),
             ExecutionEventType::Failed => write!(f, "failed"),
             ExecutionEventType::Cancelled => write!(f, "cancelled"),

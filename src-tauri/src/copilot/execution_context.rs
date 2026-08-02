@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
@@ -44,13 +45,18 @@ impl ContextError {
 }
 
 /// One completed step's stored output.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct StepOutput {
     output: Value,
 }
 
 /// Execution-scoped variable binding store.
-#[derive(Debug, Clone, Default)]
+///
+/// Serializable (RC-5 M4) so a running execution's context can be persisted
+/// in a checkpoint and restored after a pause or application restart without
+/// losing any JSON type information (numbers, strings, booleans, arrays,
+/// nested objects).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ExecutionContext {
     /// Shared variables: always carry `goal` and `workspace` (when the
     /// execution has one); caller-scoped variables via [`Self::set_variable`].

@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::copilot::execution::*;
+use crate::copilot::execution_checkpoint::ExecutionCheckpoint;
 use crate::copilot::execution_context::{ExecutionContext, UNRESOLVED_VARIABLE_MARKER};
 use crate::copilot::execution_repository::ExecutionRepository;
 use crate::copilot::proactive_models::{ExecutionPlan, PlanGate, PlanTask};
@@ -19,6 +20,9 @@ struct ActiveExecutionState {
     /// steps by index (steps are created in `plan.tasks` order). Lets the
     /// scheduler pick the next runnable step based on plan and gates.
     tasks: Option<Vec<PlanTask>>,
+    /// The full plan being executed, so active-page checkpoints can persist
+    /// the DAG (dependencies, gates, ordering) for later reconstruction.
+    plan: Option<ExecutionPlan>,
     /// Execution-scoped variable store: step outputs, structured results and
     /// shared context resolved `{{...}}` templates before a tool runs.
     context: ExecutionContext,
@@ -108,6 +112,7 @@ impl ExecutionEngine {
                 } else {
                     Some(plan.tasks.clone())
                 },
+                plan: Some(plan.clone()),
                 context: ExecutionContext::new(plan.workspace_id, plan.goal.clone()),
             },
         );
@@ -124,18 +129,29 @@ impl ExecutionEngine {
         Box::pin(async move { self.execute_next_step_impl(execution_id).await })
     }
 
+    /// Drives an execution to a terminal state (or until it is paused).
+    ///
+    /// Before scheduling each step it re-reads the persisted execution
+    /// status; on `Completed`/`Cancelled`/`Paused`/`Failed` it returns
+    /// `Ok(())` without attempting another step, so a pause mid-run never
+    /// surfaces as a lifecycle error here. `execute_next_step` keeps its own
+    /// guards for direct callers.
     pub async fn execute_until_complete(&self, execution_id: Uuid) -> Result<(), DatabaseError> {
         loop {
-            self.execute_next_step(execution_id).await?;
             let Some(execution) = self.repository.get_execution(execution_id).await? else {
                 return Err(DatabaseError::IoError(format!(
                     "Execution not found: {}",
                     execution_id
                 )));
             };
-            if execution.status != ExecutionStatus::Running {
-                return Ok(());
+            match execution.status {
+                ExecutionStatus::Completed
+                | ExecutionStatus::Cancelled
+                | ExecutionStatus::Paused
+                | ExecutionStatus::Failed => return Ok(()),
+                ExecutionStatus::Pending | ExecutionStatus::Running => {}
             }
+            self.execute_next_step(execution_id).await?;
         }
     }
 
@@ -339,6 +355,7 @@ impl ExecutionEngine {
             self.repository
                 .update_current_step(execution_id, step_index + 1)
                 .await?;
+            self.save_checkpoint(execution_id).await?;
             return Ok(());
         };
 
@@ -385,6 +402,7 @@ impl ExecutionEngine {
                 self.repository
                     .update_current_step(execution_id, step_index + 1)
                     .await?;
+                self.save_checkpoint(execution_id).await?;
             }
             Ok(invocation) if invocation.status == ToolInvocationStatus::Cancelled => {
                 let invocation_json = serde_json::to_value(&invocation)?;
@@ -450,10 +468,16 @@ impl ExecutionEngine {
     }
 
     /// Pauses an execution.
+    ///
+    /// The current (already-started) tool is allowed to finish; the persisted
+    /// status flip to `Paused` is what stops `execute_until_complete` before
+    /// it schedules the *next* tool. A checkpoint is saved so the execution
+    /// can be resumed later (possibly after an application restart).
     pub async fn pause_execution(&self, execution_id: Uuid) -> Result<(), DatabaseError> {
         self.repository
             .update_execution_status(execution_id, ExecutionStatus::Paused, None)
             .await?;
+        self.save_checkpoint(execution_id).await?;
 
         let event = ExecutionEvent {
             id: Uuid::new_v4(),
@@ -479,7 +503,63 @@ impl ExecutionEngine {
     }
 
     /// Resumes a paused execution.
+    ///
+    /// If the in-memory [`ActiveExecutionState`] still exists (same-process
+    /// pause), it is reused as-is. Otherwise — e.g. after an application
+    /// restart — the checkpoint row is loaded and a fresh active state is
+    /// rebuilt from the stored plan + `ExecutionContext`, so execution
+    /// continues from the next runnable step and already-completed steps are
+    /// never re-run.
     pub async fn resume_execution(&self, execution_id: Uuid) -> Result<(), DatabaseError> {
+        let has_active = self
+            .active_executions
+            .read()
+            .await
+            .contains_key(&execution_id);
+        if !has_active {
+            match self.repository.get_checkpoint(execution_id).await? {
+                Some(checkpoint) => {
+                    let plan = checkpoint.plan;
+                    let tasks = if plan.tasks.is_empty() {
+                        None
+                    } else {
+                        Some(plan.tasks.clone())
+                    };
+                    self.active_executions.write().await.insert(
+                        execution_id,
+                        ActiveExecutionState {
+                            cancellation_token: CancellationToken::new(),
+                            workspace_id: plan.workspace_id,
+                            tasks,
+                            plan: Some(plan),
+                            context: checkpoint.context,
+                        },
+                    );
+
+                    let event = ExecutionEvent {
+                        id: Uuid::new_v4(),
+                        execution_id,
+                        event_type: ExecutionEventType::CheckpointLoaded,
+                        step_number: None,
+                        message: "Checkpoint loaded; resuming execution".to_string(),
+                        metadata: Some(serde_json::json!({
+                            "completed": checkpoint.completed_steps,
+                            "skipped": checkpoint.skipped_steps,
+                            "failed": checkpoint.failed_steps,
+                        })),
+                        created_at: chrono::Utc::now(),
+                    };
+                    self.repository.record_event(event).await?;
+                }
+                None => {
+                    return Err(DatabaseError::IoError(format!(
+                        "No checkpoint available for execution: {}",
+                        execution_id
+                    )));
+                }
+            }
+        }
+
         self.repository
             .update_execution_status(execution_id, ExecutionStatus::Running, None)
             .await?;
@@ -537,6 +617,7 @@ impl ExecutionEngine {
             )
             .await?;
 
+        self.repository.delete_checkpoint(execution_id).await?;
         self.active_executions.write().await.remove(&execution_id);
 
         Ok(())
@@ -565,6 +646,76 @@ impl ExecutionEngine {
             })
     }
 
+    /// Persists a checkpoint for the execution and records a
+    /// `CheckpointSaved` event. Called after every step completes/skips and
+    /// on pause, so the stored checkpoint never lags behind the execution
+    /// context by more than one step. No-ops when the execution has no
+    /// active planner plan (backward-compatible sequential mode).
+    async fn save_checkpoint(&self, execution_id: Uuid) -> Result<(), DatabaseError> {
+        let Some((plan, context)) = self
+            .active_executions
+            .read()
+            .await
+            .get(&execution_id)
+            .map(|state| (state.plan.clone(), state.context.clone()))
+        else {
+            return Ok(());
+        };
+        let Some(plan) = plan else {
+            return Ok(());
+        };
+
+        let steps = self.repository.get_execution_steps(execution_id).await?;
+        let mut completed = Vec::new();
+        let mut skipped = Vec::new();
+        let mut failed = Vec::new();
+        for step in &steps {
+            match step.status {
+                StepStatus::Completed => completed.push(step.step_number),
+                StepStatus::Skipped => skipped.push(step.step_number),
+                StepStatus::Failed => failed.push(step.step_number),
+                StepStatus::Pending | StepStatus::Running => {}
+            }
+        }
+        let status = self
+            .repository
+            .get_execution(execution_id)
+            .await?
+            .map(|e| e.status)
+            .unwrap_or(ExecutionStatus::Running);
+
+        let checkpoint = ExecutionCheckpoint::new(
+            execution_id,
+            plan,
+            context,
+            status,
+            completed,
+            skipped,
+            failed,
+        );
+        self.repository.save_checkpoint(&checkpoint).await?;
+
+        let event = ExecutionEvent {
+            id: Uuid::new_v4(),
+            execution_id,
+            event_type: ExecutionEventType::CheckpointSaved,
+            step_number: None,
+            message: format!(
+                "Checkpoint saved with {} completed step(s)",
+                checkpoint.completed_steps.len()
+            ),
+            metadata: Some(serde_json::json!({
+                "completed": checkpoint.completed_steps,
+                "skipped": checkpoint.skipped_steps,
+                "failed": checkpoint.failed_steps,
+            })),
+            created_at: chrono::Utc::now(),
+        };
+        self.repository.record_event(event).await?;
+
+        Ok(())
+    }
+
     /// Gets execution progress.
     pub async fn get_progress(
         &self,
@@ -578,7 +729,7 @@ impl ExecutionEngine {
         let steps = self.repository.get_execution_steps(execution_id).await?;
         let events = self
             .repository
-            .get_execution_events(execution_id, 10)
+            .get_execution_events(execution_id, 50)
             .await?;
 
         let completed_steps = steps
@@ -628,6 +779,7 @@ impl ExecutionEngine {
             )
             .await?;
 
+        self.repository.delete_checkpoint(execution_id).await?;
         self.active_executions.write().await.remove(&execution_id);
 
         Ok(())
@@ -663,6 +815,7 @@ impl ExecutionEngine {
             )
             .await?;
 
+        self.repository.delete_checkpoint(execution_id).await?;
         self.active_executions.write().await.remove(&execution_id);
 
         Ok(())

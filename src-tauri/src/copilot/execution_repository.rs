@@ -5,6 +5,9 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::copilot::execution::*;
+use crate::copilot::execution_checkpoint::ExecutionCheckpoint;
+use crate::copilot::execution_context::ExecutionContext;
+use crate::copilot::proactive_models::ExecutionPlan;
 use crate::errors::DatabaseError;
 
 /// Repository for plan execution persistence.
@@ -468,6 +471,122 @@ impl ExecutionRepository {
         Ok(())
     }
 
+    /// Upserts the checkpoint for an execution. One row per execution — a
+    /// second write overwrites the previous snapshot entirely.
+    pub async fn save_checkpoint(
+        &self,
+        checkpoint: &ExecutionCheckpoint,
+    ) -> Result<(), DatabaseError> {
+        let plan = serde_json::to_string(&checkpoint.plan)?;
+        let context = serde_json::to_string(&checkpoint.context)?;
+        let completed = serde_json::to_string(&checkpoint.completed_steps)?;
+        let skipped = serde_json::to_string(&checkpoint.skipped_steps)?;
+        let failed = serde_json::to_string(&checkpoint.failed_steps)?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO plan_execution_checkpoints (
+                execution_id, plan, context, status,
+                completed_steps, skipped_steps, failed_steps,
+                created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(execution_id) DO UPDATE SET
+                plan = excluded.plan,
+                context = excluded.context,
+                status = excluded.status,
+                completed_steps = excluded.completed_steps,
+                skipped_steps = excluded.skipped_steps,
+                failed_steps = excluded.failed_steps,
+                updated_at = excluded.updated_at
+            "#,
+        )
+        .bind(checkpoint.execution_id.to_string())
+        .bind(plan)
+        .bind(context)
+        .bind(checkpoint.status.to_string())
+        .bind(completed)
+        .bind(skipped)
+        .bind(failed)
+        .bind(checkpoint.updated_at.to_rfc3339())
+        .bind(checkpoint.updated_at.to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Loads the saved checkpoint for an execution, if any.
+    pub async fn get_checkpoint(
+        &self,
+        execution_id: Uuid,
+    ) -> Result<Option<ExecutionCheckpoint>, DatabaseError> {
+        type Row = (
+            String,
+            String,
+            String,
+            String,
+            String,
+            String,
+            String,
+            String,
+            String,
+        );
+
+        let row: Option<Row> = sqlx::query_as(
+            r#"
+            SELECT execution_id, plan, context, status,
+                   completed_steps, skipped_steps, failed_steps,
+                   created_at, updated_at
+            FROM plan_execution_checkpoints
+            WHERE execution_id = ?
+            "#,
+        )
+        .bind(execution_id.to_string())
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let Some((
+            _,
+            plan_json,
+            context_json,
+            status,
+            completed_json,
+            skipped_json,
+            failed_json,
+            created_at,
+            updated_at,
+        )) = row
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(ExecutionCheckpoint {
+            execution_id,
+            plan: serde_json::from_str::<ExecutionPlan>(&plan_json)?,
+            context: serde_json::from_str::<ExecutionContext>(&context_json)?,
+            status: self.parse_execution_status(&status)?,
+            completed_steps: serde_json::from_str(&completed_json)?,
+            skipped_steps: serde_json::from_str(&skipped_json)?,
+            failed_steps: serde_json::from_str(&failed_json)?,
+            created_at: chrono::DateTime::parse_from_rfc3339(&created_at)
+                .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                .with_timezone(&Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&updated_at)
+                .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                .with_timezone(&Utc),
+        }))
+    }
+
+    /// Deletes the checkpoint for an execution (used on terminal states).
+    pub async fn delete_checkpoint(&self, execution_id: Uuid) -> Result<(), DatabaseError> {
+        sqlx::query("DELETE FROM plan_execution_checkpoints WHERE execution_id = ?")
+            .bind(execution_id.to_string())
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     /// Helper: parse execution status.
     fn parse_execution_status(&self, s: &str) -> Result<ExecutionStatus, DatabaseError> {
         match s {
@@ -508,6 +627,8 @@ impl ExecutionRepository {
             "step_failed" => Ok(ExecutionEventType::StepFailed),
             "paused" => Ok(ExecutionEventType::Paused),
             "resumed" => Ok(ExecutionEventType::Resumed),
+            "checkpoint_saved" => Ok(ExecutionEventType::CheckpointSaved),
+            "checkpoint_loaded" => Ok(ExecutionEventType::CheckpointLoaded),
             "completed" => Ok(ExecutionEventType::Completed),
             "failed" => Ok(ExecutionEventType::Failed),
             "cancelled" => Ok(ExecutionEventType::Cancelled),

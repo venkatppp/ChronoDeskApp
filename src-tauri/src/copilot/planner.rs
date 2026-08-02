@@ -548,14 +548,20 @@ mod tests {
     async fn engine_planner() -> (Planner, Arc<ExecutionEngine>, tempfile::TempDir) {
         let (database, guard) = test_database().await;
         let pool = database.pool().clone();
+        seed_workspaces(&pool).await;
+        let (planner, engine) = execution_stack(&pool).await;
+        (planner, engine, guard)
+    }
 
-        // Seed workspaces so the workflow's `resume_workspace` tail step can
-        // actually resolve the workspace ids the tests reference.
+    /// Seeds the workspaces the workflow's `resume_workspace` tail step and
+    /// binding plans reference. Idempotent so multiple engines can be built
+    /// over one pool (used to simulate an application restart).
+    async fn seed_workspaces(pool: &sqlx::SqlitePool) {
         for n in 1..=4u8 {
             let id = workspace_id(n);
             let now = Utc::now();
             sqlx::query(
-                "INSERT INTO workspaces
+                "INSERT OR IGNORE INTO workspaces
                     (id, name, description, status, health_score, root_path, last_active_at, created_at, updated_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             )
@@ -568,11 +574,17 @@ mod tests {
             .bind(now)
             .bind(now)
             .bind(now)
-            .execute(&pool)
+            .execute(pool)
             .await
             .expect("workspace seeding should succeed");
         }
+    }
 
+    /// Builds a fresh planner + engine stack over an existing pool. Used by
+    /// both `engine_planner` and the restart tests: a second call over the
+    /// same pool yields a brand-new `ExecutionEngine` with an empty
+    /// in-memory active map — exactly what a restarted application sees.
+    async fn execution_stack(pool: &sqlx::SqlitePool) -> (Planner, Arc<ExecutionEngine>) {
         let workspace_repo = WorkspaceRepository::new(pool.clone());
         let file_repo = FileRepository::new(pool.clone());
         let timeline_repo = TimelineRepository::new(pool.clone());
@@ -600,13 +612,13 @@ mod tests {
         );
 
         let engine = Arc::new(ExecutionEngine::new(
-            Arc::new(ExecutionRepository::new(pool)),
+            Arc::new(ExecutionRepository::new(pool.clone())),
             executor.clone(),
         ));
         let planner =
             Planner::new(executor, Some(permission_service)).with_execution_engine(engine.clone());
 
-        (planner, engine, guard)
+        (planner, engine)
     }
 
     async fn executor() -> (
@@ -1152,5 +1164,112 @@ mod tests {
             .await
             .expect("progress should be readable");
         assert_eq!(progress.status, ExecutionStatus::Cancelled);
+    }
+
+    #[tokio::test]
+    async fn paused_execution_resumes_on_fresh_engine_without_repeating() {
+        let (database, _guard) = test_database().await;
+        let pool = database.pool().clone();
+        seed_workspaces(&pool).await;
+        let (_, engine_one) = execution_stack(&pool).await;
+
+        let plan = binding_plan();
+        let execution_id = engine_one
+            .start_execution(&plan, None)
+            .await
+            .expect("execution should start");
+
+        // Drive only the first step, then pause — mimicking a user pausing
+        // midway through a run.
+        engine_one
+            .execute_next_step(execution_id)
+            .await
+            .expect("step one should run");
+
+        // Pause writes a checkpoint row, so a later engine can rebuild.
+        engine_one
+            .pause_execution(execution_id)
+            .await
+            .expect("execution should pause");
+
+        let progress = engine_one
+            .get_progress(execution_id)
+            .await
+            .expect("progress should be readable");
+        assert_eq!(progress.status, ExecutionStatus::Paused);
+
+        // Simulate an application restart: a brand-new engine over the same
+        // pool with an empty in-memory active map.
+        let (_, engine_two) = execution_stack(&pool).await;
+        engine_two
+            .resume_execution(execution_id)
+            .await
+            .expect("resume should rebuild state from the checkpoint");
+        engine_two
+            .execute_until_complete(execution_id)
+            .await
+            .expect("execution should complete after resume");
+
+        let resumed = engine_two
+            .get_progress(execution_id)
+            .await
+            .expect("progress should be readable");
+        assert_eq!(
+            resumed.status,
+            ExecutionStatus::Completed,
+            "resumed execution must reach a terminal state"
+        );
+        // Neither step may be repeated: exactly the two planned steps ran.
+        let steps = resumed.steps.len();
+        assert_eq!(steps, 2, "restart must not re-run completed steps");
+        assert!(
+            resumed
+                .steps
+                .iter()
+                .all(|step| step.status == crate::copilot::StepStatus::Completed),
+            "every step must complete across the resume boundary"
+        );
+    }
+
+    #[tokio::test]
+    async fn checkpoint_is_removed_after_terminal_state() {
+        let (database, _guard) = test_database().await;
+        let pool = database.pool().clone();
+        seed_workspaces(&pool).await;
+        let (_, engine) = execution_stack(&pool).await;
+        let repository = ExecutionRepository::new(pool);
+
+        let plan = binding_plan();
+        let execution_id = engine
+            .start_execution(&plan, None)
+            .await
+            .expect("execution should start");
+        engine
+            .execute_next_step(execution_id)
+            .await
+            .expect("first step should run");
+
+        // After completing one step a checkpoint must exist.
+        let stored = repository
+            .get_checkpoint(execution_id)
+            .await
+            .expect("checkpoint lookup should work");
+        assert!(
+            stored.is_some(),
+            "a checkpoint must be persisted after completing a step"
+        );
+
+        engine
+            .execute_until_complete(execution_id)
+            .await
+            .expect("execution should complete");
+        let after = repository
+            .get_checkpoint(execution_id)
+            .await
+            .expect("checkpoint lookup should work");
+        assert!(
+            after.is_none(),
+            "terminal states must delete the durable checkpoint"
+        );
     }
 }
