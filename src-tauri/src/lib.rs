@@ -362,11 +362,16 @@ pub fn run() {
             let llm_service = Arc::new(llm::LLMService::new(llm_repository.clone()));
             tauri::async_runtime::block_on(llm_service.initialize())?;
 
-            let tool_executor = Arc::new(copilot::ToolExecutor::new(
-                Arc::new(workspace_service.clone()),
-                Arc::new(session_engine.clone()),
-                Arc::new(timeline_engine.clone()),
-            ));
+            let tool_executor = Arc::new(
+                copilot::ToolExecutor::new(
+                    Arc::new(workspace_service.clone()),
+                    Arc::new(session_engine.clone()),
+                    Arc::new(timeline_engine.clone()),
+                )
+                .with_event_emitter(
+                    Arc::new(app_handle.clone()) as Arc<dyn app_events::AppEventEmitter>
+                ),
+            );
             let conversation_manager = Arc::new(copilot::ConversationManager::new(
                 Arc::new(copilot_repository.clone()),
                 Arc::new(context_memory_engine.clone()),
