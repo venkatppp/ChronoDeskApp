@@ -68,6 +68,7 @@ pub mod graph;
 pub mod hashing;
 pub mod intelligence;
 pub mod learning;
+pub mod llm;
 pub mod ml;
 pub mod models;
 pub mod predictive;
@@ -96,8 +97,8 @@ use predictive::{
     AdaptiveLearning, AutomationEngine, PredictiveEngine, PredictiveRepository, WorkflowEngine,
 };
 use repositories::{
-    FileRepository, GraphRepository, MLRepository, SearchRepository, SettingsRepository,
-    TimelineRepository, WorkspaceRepository,
+    FileRepository, GraphRepository, LLMRepository, MLRepository, SearchRepository,
+    SettingsRepository, TimelineRepository, WorkspaceRepository,
 };
 use search::SearchEngine;
 use services::{
@@ -146,6 +147,7 @@ pub fn run() {
             let search_repository = SearchRepository::new(pool.clone());
             let graph_repository = GraphRepository::new(pool.clone());
             let ml_repository = MLRepository::new(pool.clone());
+            let llm_repository = Arc::new(LLMRepository::new(pool.clone()));
 
             // --- Services (business logic composing repositories) ---
             let workspace_service =
@@ -354,6 +356,11 @@ pub fn run() {
 
             // --- Copilot Engine (Phase 7A) ---
             let copilot_repository = copilot::CopilotRepository::new(pool.clone());
+
+            // Initialize LLM service
+            let llm_service = Arc::new(llm::LLMService::new(llm_repository.clone()));
+            tauri::async_runtime::block_on(llm_service.initialize())?;
+
             let tool_executor = Arc::new(copilot::ToolExecutor::new(
                 Arc::new(workspace_service.clone()),
                 Arc::new(session_engine.clone()),
@@ -369,6 +376,7 @@ pub fn run() {
                 conversation_manager,
                 tool_executor,
                 Arc::new(copilot_repository),
+                llm_service.clone(),
                 Arc::new(reasoning_engine.clone()),
                 Arc::new(predictive_engine.clone()),
                 learning_engine.clone(),
@@ -447,6 +455,8 @@ pub fn run() {
             app.manage(learning_repository);
             app.manage(learning_engine);
             app.manage(ai_state);
+            app.manage(llm_repository);
+            app.manage(llm_service);
             app.manage(copilot_engine);
             app.manage(proactive_engine);
 
@@ -572,6 +582,10 @@ pub fn run() {
             commands::proactive::copilot_get_enhanced_briefing,
             commands::proactive::copilot_query_timeline,
             commands::proactive::copilot_check_opportunities,
+            commands::llm::llm_get_settings,
+            commands::llm::llm_update_settings,
+            commands::llm::llm_test_connection,
+            commands::llm::llm_is_configured,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ChronoDesk");

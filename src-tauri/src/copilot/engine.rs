@@ -12,6 +12,7 @@ use crate::copilot::tools::ToolExecutor;
 use crate::errors::DatabaseError;
 use crate::intelligence::recommendation::RecommendationEngine;
 use crate::learning::AdaptiveLearningEngine;
+use crate::llm::{LLMMessage, LLMRequest, LLMService};
 use crate::predictive::PredictiveEngine;
 use crate::semantic::ContextReasoningEngine;
 use crate::session::SessionEngine;
@@ -22,6 +23,7 @@ pub struct CopilotEngine {
     conversation_manager: Arc<ConversationManager>,
     tool_executor: Arc<ToolExecutor>,
     repository: Arc<CopilotRepository>,
+    llm_service: Arc<LLMService>,
     #[allow(dead_code)]
     reasoning_engine: Arc<ContextReasoningEngine>,
     #[allow(dead_code)]
@@ -43,6 +45,7 @@ impl CopilotEngine {
         conversation_manager: Arc<ConversationManager>,
         tool_executor: Arc<ToolExecutor>,
         repository: Arc<CopilotRepository>,
+        llm_service: Arc<LLMService>,
         reasoning_engine: Arc<ContextReasoningEngine>,
         predictive_engine: Arc<PredictiveEngine>,
         learning_engine: Arc<AdaptiveLearningEngine>,
@@ -55,6 +58,7 @@ impl CopilotEngine {
             conversation_manager,
             tool_executor,
             repository,
+            llm_service,
             reasoning_engine,
             predictive_engine,
             learning_engine,
@@ -137,56 +141,135 @@ impl CopilotEngine {
         let mut sources = Vec::new();
         let mut reasoning_parts = Vec::new();
 
-        // Determine intent
+        // Check if LLM is configured
+        if !self.llm_service.is_configured() {
+            return Ok(ResponseData {
+                content: "AI provider not configured. Please configure your API settings in the settings page to enable AI-powered responses.".to_string(),
+                reasoning: "LLM provider not configured".to_string(),
+                sources: vec![],
+            });
+        }
+
+        // Determine intent and gather relevant data
         let intent = self.classify_intent(message);
         reasoning_parts.push(format!("Intent classified as: {:?}", intent));
 
-        // Generate response based on intent
-        let content = match intent {
+        // Gather tool data based on intent
+        let tool_data = match intent {
             Intent::ListWorkspaces => {
                 reasoning_parts.push("Fetching workspace list".to_string());
-                self.handle_list_workspaces(&mut sources).await?
+                Some(self.gather_workspace_list(&mut sources).await?)
             }
-            Intent::GetWorkspaceInfo => {
+            Intent::GetWorkspaceInfo if workspace_id.is_some() => {
                 reasoning_parts.push("Retrieving workspace information".to_string());
-                self.handle_get_workspace_info(workspace_id, &mut sources)
-                    .await?
+                Some(
+                    self.gather_workspace_info(workspace_id.unwrap(), &mut sources)
+                        .await?,
+                )
             }
             Intent::SearchHistory => {
                 reasoning_parts.push("Searching timeline history".to_string());
-                self.handle_search_history(message, workspace_id, &mut sources)
-                    .await?
+                Some(
+                    self.gather_timeline_search(message, workspace_id, &mut sources)
+                        .await?,
+                )
             }
             Intent::SummarizeActivity => {
                 reasoning_parts.push("Generating activity summary".to_string());
-                self.handle_summarize_activity(workspace_id, &mut sources)
-                    .await?
+                Some(
+                    self.gather_activity_summary(workspace_id, &mut sources)
+                        .await?,
+                )
             }
-            Intent::ExplainRecommendation => {
-                reasoning_parts.push("Explaining recommendation logic".to_string());
-                self.handle_explain_recommendation(workspace_id, &mut sources)
-                    .await?
+            Intent::ExplainRecommendation if workspace_id.is_some() => {
+                reasoning_parts.push("Fetching recommendations".to_string());
+                Some(
+                    self.gather_recommendations(workspace_id.unwrap(), &mut sources)
+                        .await?,
+                )
             }
-            Intent::ResumeWork => {
-                reasoning_parts.push("Preparing workspace resume".to_string());
-                self.handle_resume_work(workspace_id, &mut sources).await?
+            Intent::ResumeWork if workspace_id.is_some() => {
+                reasoning_parts.push("Fetching session context".to_string());
+                Some(
+                    self.gather_resume_context(workspace_id.unwrap(), &mut sources)
+                        .await?,
+                )
             }
-            Intent::AskQuestion => {
-                reasoning_parts.push("Answering question using semantic search".to_string());
-                self.handle_question(message, workspace_id, context, &mut sources)
-                    .await?
-            }
-            Intent::Unknown => {
-                reasoning_parts.push("Intent unclear, providing general help".to_string());
-                "I can help you with:\n- Listing and managing workspaces\n- Searching your work history\n- Summarizing recent activity\n- Explaining recommendations\n- Resuming previous work\n- Answering questions about your projects\n\nWhat would you like to know?".to_string()
-            }
+            _ => None,
         };
 
+        // Build system prompt
+        let system_prompt = self.build_system_prompt(workspace_id, context);
+
+        // Build user prompt with tool data
+        let user_prompt = if let Some(data) = tool_data {
+            format!("{}\n\nRelevant data:\n{}", message, data)
+        } else {
+            message.to_string()
+        };
+
+        // Build LLM request
+        let llm_request = LLMRequest {
+            messages: vec![
+                LLMMessage {
+                    role: "system".to_string(),
+                    content: system_prompt,
+                },
+                LLMMessage {
+                    role: "user".to_string(),
+                    content: user_prompt,
+                },
+            ],
+            temperature: Some(0.7),
+            max_tokens: Some(1000),
+            top_p: Some(1.0),
+            stream: Some(false),
+        };
+
+        // Get LLM response
+        reasoning_parts.push("Generating LLM response".to_string());
+        let llm_response = self
+            .llm_service
+            .complete(llm_request, None)
+            .await
+            .map_err(DatabaseError::IoError)?;
+
+        sources.push(Source {
+            source_type: SourceType::ContextMemory,
+            title: "AI Assistant".to_string(),
+            reference: llm_response.model.clone(),
+            relevance: 1.0,
+        });
+
         Ok(ResponseData {
-            content,
+            content: llm_response.content,
             reasoning: reasoning_parts.join(" → "),
             sources,
         })
+    }
+
+    /// Builds the system prompt for the LLM
+    fn build_system_prompt(&self, workspace_id: Option<Uuid>, context: &str) -> String {
+        let mut prompt = String::from(
+            "You are ChronoDesk AI Copilot, an intelligent workspace assistant that helps users manage their projects and work.\n\n\
+            You have access to the user's workspace activity, timeline events, files, and work patterns.\n\n\
+            Your role is to:\n\
+            - Answer questions about workspace activity and history\n\
+            - Provide insights and recommendations\n\
+            - Help users navigate their work context\n\
+            - Suggest relevant actions and next steps\n\n\
+            Be concise, helpful, and conversational. Use the provided data to give accurate, context-aware responses.\n"
+        );
+
+        if let Some(ws_id) = workspace_id {
+            prompt.push_str(&format!("\nCurrent workspace: {}\n", ws_id));
+        }
+
+        if !context.is_empty() {
+            prompt.push_str(&format!("\nWorkspace context:\n{}\n", context));
+        }
+
+        prompt
     }
 
     /// Classifies user intent.
@@ -222,8 +305,8 @@ impl CopilotEngine {
         }
     }
 
-    /// Handles list workspaces request.
-    async fn handle_list_workspaces(
+    /// Gathers workspace list data
+    async fn gather_workspace_list(
         &self,
         sources: &mut Vec<Source>,
     ) -> Result<String, DatabaseError> {
@@ -243,40 +326,36 @@ impl CopilotEngine {
         });
 
         if workspaces.is_empty() {
-            Ok("You don't have any workspaces yet. Start working in a project directory and I'll automatically detect it!".to_string())
+            Ok("No workspaces found.".to_string())
         } else {
-            let mut response = format!("You have {} workspace(s):\n\n", workspaces.len());
-            for (i, ws) in workspaces.iter().take(10).enumerate() {
+            let mut response = format!("Workspaces ({}):\n", workspaces.len());
+            for ws in workspaces.iter().take(10) {
                 let name = ws.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown");
                 let status = ws
                     .get("status")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
-                response.push_str(&format!("{}. {} ({})\n", i + 1, name, status));
+                response.push_str(&format!("- {} (status: {})\n", name, status));
+            }
+            if workspaces.len() > 10 {
+                response.push_str(&format!("...and {} more\n", workspaces.len() - 10));
             }
             Ok(response)
         }
     }
 
-    /// Handles get workspace info request.
-    async fn handle_get_workspace_info(
+    /// Gathers workspace info data
+    async fn gather_workspace_info(
         &self,
-        workspace_id: Option<Uuid>,
+        workspace_id: Uuid,
         sources: &mut Vec<Source>,
     ) -> Result<String, DatabaseError> {
-        if workspace_id.is_none() {
-            return Ok(
-                "Please specify a workspace or let me know which workspace you're asking about."
-                    .to_string(),
-            );
-        }
-
         let result = self
             .tool_executor
             .execute_tool(
                 "get_workspace",
                 &serde_json::json!({
-                    "workspace_id": workspace_id.unwrap().to_string()
+                    "workspace_id": workspace_id.to_string()
                 }),
             )
             .await?;
@@ -290,22 +369,26 @@ impl CopilotEngine {
             .get("status")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown");
+        let path = workspace
+            .get("root_path")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown");
 
         sources.push(Source {
             source_type: SourceType::WorkspaceFile,
             title: format!("Workspace: {}", name),
-            reference: workspace_id.unwrap().to_string(),
+            reference: workspace_id.to_string(),
             relevance: 1.0,
         });
 
         Ok(format!(
-            "Workspace '{}' is currently {}. Let me know if you'd like to resume work or see recent activity!",
-            name, status
+            "Workspace: {}\nStatus: {}\nPath: {}",
+            name, status, path
         ))
     }
 
-    /// Handles search history request.
-    async fn handle_search_history(
+    /// Gathers timeline search data
+    async fn gather_timeline_search(
         &self,
         query: &str,
         workspace_id: Option<Uuid>,
@@ -320,7 +403,7 @@ impl CopilotEngine {
         let search_query = search_terms.join(" ");
 
         if search_query.is_empty() {
-            return Ok("What would you like me to search for in your history?".to_string());
+            return Ok("No search terms specified.".to_string());
         }
 
         let result = self
@@ -337,25 +420,18 @@ impl CopilotEngine {
         let events: Vec<serde_json::Value> =
             serde_json::from_value(result).map_err(|e| DatabaseError::IoError(e.to_string()))?;
 
-        if events.is_empty() {
-            Ok(format!(
-                "I couldn't find any events matching '{}'",
-                search_query
-            ))
-        } else {
-            sources.push(Source {
-                source_type: SourceType::TimelineEvent,
-                title: "Timeline Events".to_string(),
-                reference: format!("{} events found", events.len()),
-                relevance: 0.9,
-            });
+        sources.push(Source {
+            source_type: SourceType::TimelineEvent,
+            title: "Timeline Events".to_string(),
+            reference: format!("{} events found", events.len()),
+            relevance: 0.9,
+        });
 
-            let mut response = format!(
-                "Found {} events matching '{}':\n\n",
-                events.len(),
-                search_query
-            );
-            for (i, event) in events.iter().take(5).enumerate() {
+        if events.is_empty() {
+            Ok(format!("No events found matching '{}'", search_query))
+        } else {
+            let mut response = format!("Found {} events for '{}':\n", events.len(), search_query);
+            for event in events.iter().take(10) {
                 let event_type = event
                     .get("event_type")
                     .and_then(|v| v.as_str())
@@ -364,19 +440,17 @@ impl CopilotEngine {
                     .get("file_path")
                     .and_then(|v| v.as_str())
                     .unwrap_or("N/A");
-                response.push_str(&format!("{}. {}: {}\n", i + 1, event_type, file_path));
+                response.push_str(&format!("- {}: {}\n", event_type, file_path));
             }
-
-            if events.len() > 5 {
-                response.push_str(&format!("\n...and {} more.", events.len() - 5));
+            if events.len() > 10 {
+                response.push_str(&format!("...and {} more\n", events.len() - 10));
             }
-
             Ok(response)
         }
     }
 
-    /// Handles summarize activity request.
-    async fn handle_summarize_activity(
+    /// Gathers activity summary data
+    async fn gather_activity_summary(
         &self,
         workspace_id: Option<Uuid>,
         sources: &mut Vec<Source>,
@@ -396,7 +470,7 @@ impl CopilotEngine {
             serde_json::from_value(result).map_err(|e| DatabaseError::IoError(e.to_string()))?;
 
         if events.is_empty() {
-            return Ok("No recent activity to summarize.".to_string());
+            return Ok("No recent activity.".to_string());
         }
 
         sources.push(Source {
@@ -420,81 +494,65 @@ impl CopilotEngine {
             }
         }
 
-        let mut summary = format!(
-            "Recent activity summary (last {} events):\n\n",
-            events.len()
-        );
-        summary.push_str(&format!("• {} unique files modified\n", files.len()));
+        let mut summary = format!("Recent activity ({} events):\n", events.len());
+        summary.push_str(&format!("- {} unique files\n", files.len()));
 
         for (event_type, count) in event_counts.iter() {
-            summary.push_str(&format!("• {} {} events\n", count, event_type));
+            summary.push_str(&format!("- {} {} events\n", count, event_type));
         }
 
         Ok(summary)
     }
 
-    /// Handles explain recommendation request.
-    async fn handle_explain_recommendation(
+    /// Gathers recommendations data
+    async fn gather_recommendations(
         &self,
-        workspace_id: Option<Uuid>,
+        workspace_id: Uuid,
         sources: &mut Vec<Source>,
     ) -> Result<String, DatabaseError> {
-        if let Some(ws_id) = workspace_id {
-            // Get recommendations
-            let recommendations = self
-                .recommendation_engine
-                .generate_recommendations(ws_id)
-                .await?;
+        // Get recommendations
+        let recommendations = self
+            .recommendation_engine
+            .generate_recommendations(workspace_id)
+            .await?;
 
-            if recommendations.is_empty() {
-                return Ok(
-                    "No recommendations available yet. Keep working and I'll learn your patterns!"
-                        .to_string(),
-                );
-            }
-
-            sources.push(Source {
-                source_type: SourceType::ContextMemory,
-                title: "Recommendation Engine".to_string(),
-                reference: format!("{} recommendations", recommendations.len()),
-                relevance: 0.95,
-            });
-
-            let mut response = "Here are my current recommendations:\n\n".to_string();
-            for (i, rec) in recommendations.iter().take(3).enumerate() {
-                response.push_str(&format!(
-                    "{}. {} (confidence: {:.0}%)\n\n",
-                    i + 1,
-                    rec.title,
-                    rec.confidence * 100.0
-                ));
-            }
-
-            Ok(response)
-        } else {
-            Ok("Please specify a workspace to get recommendations for.".to_string())
+        if recommendations.is_empty() {
+            return Ok("No recommendations available yet.".to_string());
         }
+
+        sources.push(Source {
+            source_type: SourceType::ContextMemory,
+            title: "Recommendation Engine".to_string(),
+            reference: format!("{} recommendations", recommendations.len()),
+            relevance: 0.95,
+        });
+
+        let mut response = format!("Recommendations ({}):\n", recommendations.len());
+        for rec in recommendations.iter().take(5) {
+            response.push_str(&format!(
+                "- {} (confidence: {:.0}%)\n  {}\n",
+                rec.title,
+                rec.confidence * 100.0,
+                rec.description
+            ));
+        }
+
+        Ok(response)
     }
 
-    /// Handles resume work request.
-    async fn handle_resume_work(
+    /// Gathers resume context data
+    async fn gather_resume_context(
         &self,
-        workspace_id: Option<Uuid>,
+        workspace_id: Uuid,
         sources: &mut Vec<Source>,
     ) -> Result<String, DatabaseError> {
-        if workspace_id.is_none() {
-            return Ok("Which workspace would you like to resume?".to_string());
-        }
-
-        let ws_id = workspace_id.unwrap();
-
         // Get session summary
         let summary_result = self
             .tool_executor
             .execute_tool(
                 "get_session_summary",
                 &serde_json::json!({
-                    "workspace_id": ws_id.to_string()
+                    "workspace_id": workspace_id.to_string()
                 }),
             )
             .await;
@@ -502,53 +560,18 @@ impl CopilotEngine {
         sources.push(Source {
             source_type: SourceType::SessionHistory,
             title: "Session Summary".to_string(),
-            reference: ws_id.to_string(),
+            reference: workspace_id.to_string(),
             relevance: 0.9,
         });
 
-        if let Ok(_summary) = summary_result {
+        if let Ok(summary) = summary_result {
             Ok(format!(
-                "Ready to resume work in workspace {}! Your previous session context has been loaded.",
-                ws_id
+                "Session context:\n{}",
+                serde_json::to_string_pretty(&summary).unwrap_or_default()
             ))
         } else {
-            Ok(format!(
-                "Starting fresh in workspace {}. Let's get to work!",
-                ws_id
-            ))
+            Ok("No previous session context available.".to_string())
         }
-    }
-
-    /// Handles general questions.
-    async fn handle_question(
-        &self,
-        question: &str,
-        workspace_id: Option<Uuid>,
-        _context: &str,
-        sources: &mut Vec<Source>,
-    ) -> Result<String, DatabaseError> {
-        // Simple question answering - would use reasoning engine with proper API
-        sources.push(Source {
-            source_type: SourceType::ContextMemory,
-            title: "Context Analysis".to_string(),
-            reference: "reasoning_engine".to_string(),
-            relevance: 0.7,
-        });
-
-        let mut response = format!("Regarding your question: \"{}\"\n\n", question);
-
-        if let Some(ws_id) = workspace_id {
-            response.push_str(&format!(
-                "Based on workspace {}, I can help you explore your work history and patterns.",
-                ws_id
-            ));
-        } else {
-            response.push_str(
-                "I can help you explore your work history and patterns across all workspaces.",
-            );
-        }
-
-        Ok(response)
     }
 
     /// Generates suggested actions based on the message.

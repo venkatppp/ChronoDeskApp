@@ -22,7 +22,7 @@ pub struct ProactiveEngine {
     timeline_engine: Arc<TimelineEngine>,
     #[allow(dead_code)]
     session_engine: Arc<SessionEngine>,
-    
+
     // In-memory notification queue
     notifications: Arc<RwLock<Vec<ProactiveNotification>>>,
     permissions: Arc<RwLock<Vec<AutomationPermission>>>,
@@ -432,7 +432,7 @@ impl ProactiveEngine {
     /// Answers timeline intelligence queries.
     pub async fn query_timeline_intelligence(
         &self,
-        workspace_id: Option<Uuid>,
+        _workspace_id: Option<Uuid>,
         query: &str,
     ) -> Result<TimelineIntelligence, DatabaseError> {
         // Mock implementation - production would use semantic reasoning

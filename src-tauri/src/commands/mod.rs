@@ -14,6 +14,7 @@ pub mod duplicates;
 pub mod graph;
 pub mod intelligence;
 pub mod learning;
+pub mod llm;
 pub mod predictive;
 pub mod proactive;
 pub mod runtime;
