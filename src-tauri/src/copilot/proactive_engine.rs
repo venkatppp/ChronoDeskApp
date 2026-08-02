@@ -278,6 +278,7 @@ impl ProactiveEngine {
                 tool_name: None,
                 arguments: None,
                 completed: false,
+                condition: None,
             },
             PlanTask {
                 id: Uuid::new_v4(),
@@ -288,6 +289,7 @@ impl ProactiveEngine {
                 tool_name: None,
                 arguments: None,
                 completed: false,
+                condition: None,
             },
             PlanTask {
                 id: Uuid::new_v4(),
@@ -298,6 +300,7 @@ impl ProactiveEngine {
                 tool_name: None,
                 arguments: None,
                 completed: false,
+                condition: None,
             },
         ];
 

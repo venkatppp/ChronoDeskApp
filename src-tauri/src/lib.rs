@@ -421,6 +421,12 @@ pub fn run() {
                 tool_executor.clone(),
             ));
 
+            // --- Autonomous Planning Engine (RC-5) ---
+            let planner = Arc::new(copilot::Planner::new(
+                tool_executor.clone(),
+                Some(tool_permission_service.clone()),
+            ));
+
             // --- File Watcher, wired to a real AppEventEmitter (the AppHandle) ---
             let file_watcher = FileWatcher::new(workspace_manager, timeline_engine.clone())
                 .with_event_emitter(
@@ -486,6 +492,7 @@ pub fn run() {
             app.manage(copilot_engine);
             app.manage(proactive_engine);
             app.manage(execution_engine);
+            app.manage(planner);
 
             tracing::info!("ChronoDesk backend ready");
 

@@ -120,6 +120,18 @@ pub struct ExecutionPlan {
     pub created_at: DateTime<Utc>,
 }
 
+/// Conditional gate for a plan task. When present, the task only executes
+/// once the referenced predecessor task has reached a specific outcome,
+/// enabling branches that depend on earlier results.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "type", content = "task_id")]
+pub enum PlanGate {
+    /// Run only if the referenced task succeeded.
+    AfterSuccess(Uuid),
+    /// Run only if the referenced task failed (recovery/fallback path).
+    AfterFailure(Uuid),
+}
+
 /// Individual task in an execution plan.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanTask {
@@ -131,6 +143,9 @@ pub struct PlanTask {
     pub tool_name: Option<String>,
     pub arguments: Option<serde_json::Value>,
     pub completed: bool,
+    /// Optional conditional gate tying this task to a predecessor outcome.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub condition: Option<PlanGate>,
 }
 
 /// Approval status for execution plans.
