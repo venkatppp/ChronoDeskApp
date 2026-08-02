@@ -3,6 +3,7 @@
 pub mod conversation;
 pub mod engine;
 pub mod execution;
+pub mod execution_context;
 pub mod execution_engine;
 pub mod execution_repository;
 pub mod models;

@@ -19,6 +19,7 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use crate::copilot::execution::ExecutionStatus;
+use crate::copilot::execution_context::UNRESOLVED_VARIABLE_MARKER;
 use crate::copilot::execution_engine::ExecutionEngine;
 use crate::copilot::proactive_models::{ExecutionPlan, PlanApprovalStatus, PlanGate, PlanTask};
 use crate::copilot::tools::{
@@ -44,6 +45,8 @@ pub enum PlannerError {
     DependencyCycle,
     #[error("execution failed: {0}")]
     Execution(String),
+    #[error("variable resolution failed: {0}")]
+    UnresolvedVariable(String),
     #[error("database error: {0}")]
     Database(#[from] DatabaseError),
 }
@@ -264,9 +267,21 @@ impl Planner {
         cancellation_token: Option<&tokio_util::sync::CancellationToken>,
     ) -> Result<PlannerReport, PlannerError> {
         self.ensure_not_cancelled(cancellation_token)?;
+        let plan = self.plan(workspace_id, cancellation_token, goal).await?;
+        self.execute_plan(&plan, cancellation_token).await
+    }
+
+    /// Executes a pre-built plan through `ExecutionEngine`, reporting which
+    /// tasks completed, were skipped, or were replaced by replanning.
+    pub async fn execute_plan(
+        &self,
+        plan: &ExecutionPlan,
+        cancellation_token: Option<&tokio_util::sync::CancellationToken>,
+    ) -> Result<PlannerReport, PlannerError> {
+        self.ensure_not_cancelled(cancellation_token)?;
 
         let engine = self.engine()?;
-        let mut plan = self.plan(workspace_id, cancellation_token, goal).await?;
+        let mut plan = plan.clone();
         let mut completed: Vec<Uuid> = Vec::new();
         let mut skipped: Vec<Uuid> = Vec::new();
         let mut replaced: Vec<Uuid> = Vec::new();
@@ -313,13 +328,12 @@ impl Planner {
                 }
                 ExecutionStatus::Cancelled => return Err(PlannerError::Cancelled),
                 _ => {
-                    let Some(failed_step) = plan
+                    let failed = plan
                         .tasks
                         .iter()
                         .zip(progress.steps.iter())
-                        .find(|(_, step)| step.status == StepStatus::Failed)
-                        .map(|(task, _)| task.id)
-                    else {
+                        .find(|(_, step)| step.status == StepStatus::Failed);
+                    let Some((failed_task, failed_step)) = failed else {
                         last_error = Some(
                             progress
                                 .steps
@@ -330,6 +344,19 @@ impl Planner {
                         );
                         break;
                     };
+
+                    // Variable-resolution failures are not recoverable by
+                    // replanning (the referenced output will never exist);
+                    // surface them as a structured error instead.
+                    if let Some(error) = &failed_step.error {
+                        if error.starts_with(UNRESOLVED_VARIABLE_MARKER)
+                            || error.starts_with("invalid template")
+                        {
+                            return Err(PlannerError::UnresolvedVariable(error.clone()));
+                        }
+                    }
+
+                    let failed_step = failed_task.id;
                     replaced.push(failed_step);
                     replan_count += 1;
                     plan = self.replan_after_failure(&plan, &completed, failed_step)?;
@@ -432,7 +459,8 @@ fn topological_order(tasks: &[PlanTask]) -> Result<Vec<PlanTask>, PlannerError> 
 
 /// Binds default arguments for a planned step so the engine can invoke the
 /// tool without re-planning. Tools that declare a `workspace_id` parameter
-/// receive the planner's workspace context; other tools run with no arguments.
+/// bind `{{workspace.id}}`, which the execution engine resolves from the
+/// execution context; other tools run with no arguments.
 fn bind_plan_arguments(
     tools: &[ToolDefinition],
     tool_name: &str,
@@ -446,7 +474,7 @@ fn bind_plan_arguments(
     {
         return Some(serde_json::json!({}));
     }
-    workspace_id.map(|id| serde_json::json!({ "workspace_id": id.to_string() }))
+    workspace_id.map(|_| serde_json::json!({ "workspace_id": "{{workspace.id}}" }))
 }
 
 /// A deterministic, dependency-aware list of steps built from the tools
@@ -973,5 +1001,156 @@ mod tests {
 
     fn index_of_id(tasks: &[PlanTask], id: &Uuid) -> Option<usize> {
         tasks.iter().position(|task| task.id == *id)
+    }
+
+    /// Plan whose second step consumes the output of the first:
+    /// `list_workspaces` → `get_workspace(workspace_id = {{steps.list_workspaces[0].id}})`.
+    fn binding_plan() -> ExecutionPlan {
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let tasks = vec![
+            PlanTask {
+                id: a,
+                description: "List active workspaces".into(),
+                dependencies: vec![],
+                estimated_minutes: 1,
+                required_files: vec![],
+                tool_name: Some("list_workspaces".into()),
+                arguments: Some(serde_json::json!({})),
+                completed: false,
+                condition: None,
+            },
+            PlanTask {
+                id: b,
+                description: "Resolve a workspace from the first step".into(),
+                dependencies: vec![a],
+                estimated_minutes: 1,
+                required_files: vec![],
+                tool_name: Some("get_workspace".into()),
+                arguments: Some(
+                    serde_json::json!({ "workspace_id": "{{steps.list_workspaces[0].id}}" }),
+                ),
+                completed: false,
+                condition: Some(PlanGate::AfterSuccess(a)),
+            },
+        ];
+        ExecutionPlan {
+            id: Uuid::new_v4(),
+            workspace_id: None,
+            goal: "bind outputs".into(),
+            tasks,
+            estimated_duration_minutes: 2,
+            required_files: vec![],
+            checkpoints: vec![],
+            confidence: 0.8,
+            reasoning: "test".into(),
+            status: PlanApprovalStatus::Pending,
+            created_at: Utc::now(),
+        }
+    }
+
+    #[tokio::test]
+    async fn execution_context_stores_outputs() {
+        let (planner, engine, _guard) = engine_planner().await;
+        let plan = binding_plan();
+        let execution_id = engine
+            .start_execution(&plan, None)
+            .await
+            .expect("execution should start");
+        engine
+            .execute_until_complete(execution_id)
+            .await
+            .expect("execution should complete");
+
+        let progress = engine
+            .get_progress(execution_id)
+            .await
+            .expect("progress should be readable");
+        assert_eq!(progress.status, ExecutionStatus::Completed);
+        // The downstream step consumed the upstream output, proving the context
+        // stored `list_workspaces` and exposed it to a later step.
+        assert!(
+            progress
+                .steps
+                .iter()
+                .all(|step| step.status == crate::copilot::StepStatus::Completed),
+            "every step must complete when outputs bind correctly"
+        );
+
+        let report = planner
+            .execute_plan(&plan, None)
+            .await
+            .expect("binding plan should execute");
+        assert_eq!(report.completed.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn downstream_task_receives_resolved_arguments() {
+        let (planner, _engine, _guard) = engine_planner().await;
+        let plan = binding_plan();
+        let report = planner
+            .execute_plan(&plan, None)
+            .await
+            .expect("binding plan should execute");
+        assert_eq!(report.completed.len(), 2, "both steps must complete");
+        assert!(report.replaced.is_empty());
+    }
+
+    #[tokio::test]
+    async fn missing_variable_returns_structured_planner_error() {
+        let (planner, _engine, _guard) = engine_planner().await;
+        let mut plan = binding_plan();
+        // Reference a step that will never have an output.
+        plan.tasks[1].arguments = Some(serde_json::json!({
+            "workspace_id": "{{steps.never_ran.output}}"
+        }));
+
+        let result = planner.execute_plan(&plan, None).await;
+        assert!(
+            matches!(result, Err(PlannerError::UnresolvedVariable(_))),
+            "missing variables must surface as a structured PlannerError, got {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn malformed_template_returns_structured_planner_error() {
+        let (planner, _engine, _guard) = engine_planner().await;
+        let mut plan = binding_plan();
+        // Recognized template syntax ({{...}}) with an invalid body that
+        // cannot reference any output — must resolve-fail, not silently pass.
+        plan.tasks[1].arguments = Some(serde_json::json!({
+            "workspace_id": "{{steps}}"
+        }));
+
+        let result = planner.execute_plan(&plan, None).await;
+        assert!(
+            matches!(result, Err(PlannerError::UnresolvedVariable(_))),
+            "malformed template must fail with a structured error, got {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn cancellation_still_propagates_with_context_binding() {
+        let (_planner, engine, _guard) = engine_planner().await;
+        let plan = binding_plan();
+        let execution_id = engine
+            .start_execution(&plan, None)
+            .await
+            .expect("execution should start");
+
+        // Cancel (as a user cancelling) before the engine drives any step, so
+        // a context-bound execution still observes cancellation.
+        engine
+            .cancel_execution(execution_id)
+            .await
+            .expect("cancellation should succeed");
+
+        let progress = engine
+            .get_progress(execution_id)
+            .await
+            .expect("progress should be readable");
+        assert_eq!(progress.status, ExecutionStatus::Cancelled);
     }
 }

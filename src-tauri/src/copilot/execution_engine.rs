@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::copilot::execution::*;
+use crate::copilot::execution_context::{ExecutionContext, UNRESOLVED_VARIABLE_MARKER};
 use crate::copilot::execution_repository::ExecutionRepository;
 use crate::copilot::proactive_models::{ExecutionPlan, PlanGate, PlanTask};
 use crate::copilot::tools::{ToolExecutor, ToolInvocationRequest, ToolInvocationStatus};
@@ -16,8 +17,11 @@ struct ActiveExecutionState {
     workspace_id: Option<Uuid>,
     /// Dependency graph of the plan being executed, aligned to the persisted
     /// steps by index (steps are created in `plan.tasks` order). Lets the
-    /// scheduler pick the next runnable step based on plan dependencies.
+    /// scheduler pick the next runnable step based on plan and gates.
     tasks: Option<Vec<PlanTask>>,
+    /// Execution-scoped variable store: step outputs, structured results and
+    /// shared context resolved `{{...}}` templates before a tool runs.
+    context: ExecutionContext,
 }
 
 /// Engine for executing approved plans.
@@ -104,6 +108,7 @@ impl ExecutionEngine {
                 } else {
                     Some(plan.tasks.clone())
                 },
+                context: ExecutionContext::new(plan.workspace_id, plan.goal.clone()),
             },
         );
 
@@ -266,10 +271,51 @@ impl ExecutionEngine {
         let (cancellation_token, workspace_id) = self.execution_context(execution_id).await;
 
         let result = if let Some(tool_name) = &step.tool_name {
-            let arguments = step
-                .arguments
-                .clone()
-                .unwrap_or_else(|| serde_json::json!({}));
+            let context = self.context_snapshot(execution_id).await;
+
+            let arguments = match &context {
+                Some(context) => match context.resolve(
+                    &step
+                        .arguments
+                        .clone()
+                        .unwrap_or_else(|| serde_json::json!({})),
+                ) {
+                    Ok(resolved) => resolved,
+                    Err(error) => {
+                        let error_msg = if error.to_string().starts_with(UNRESOLVED_VARIABLE_MARKER)
+                        {
+                            error.to_string()
+                        } else {
+                            format!("{}: {}", UNRESOLVED_VARIABLE_MARKER, error)
+                        };
+                        self.repository
+                            .update_step_status(
+                                step.id,
+                                StepStatus::Failed,
+                                None,
+                                Some(error_msg.clone()),
+                            )
+                            .await?;
+                        let event = ExecutionEvent {
+                            id: Uuid::new_v4(),
+                            execution_id,
+                            event_type: ExecutionEventType::StepFailed,
+                            step_number: Some(step.step_number),
+                            message: format!("Failed step {}: {}", step.step_number + 1, error_msg),
+                            metadata: None,
+                            created_at: chrono::Utc::now(),
+                        };
+                        self.repository.record_event(event).await?;
+                        self.fail_execution(execution_id, &error_msg).await?;
+                        return Ok(());
+                    }
+                },
+                None => step
+                    .arguments
+                    .clone()
+                    .unwrap_or_else(|| serde_json::json!({})),
+            };
+
             self.tool_executor
                 .invoke_tool_with_context(ToolInvocationRequest {
                     tool_name: tool_name.clone(),
@@ -307,6 +353,19 @@ impl ExecutionEngine {
                         None,
                     )
                     .await?;
+
+                // Store the structured tool result in the execution context so
+                // downstream steps can bind `{{steps.<name>.<path>}}`.
+                if let Some(context) = invocation.result.as_ref() {
+                    let mut guard = self.active_executions.write().await;
+                    if let Some(state) = guard.get_mut(&execution_id) {
+                        state.context.set_step_output(
+                            step.step_number,
+                            step.tool_name.as_deref(),
+                            context.clone(),
+                        );
+                    }
+                }
 
                 let event = ExecutionEvent {
                     id: Uuid::new_v4(),
@@ -481,6 +540,16 @@ impl ExecutionEngine {
         self.active_executions.write().await.remove(&execution_id);
 
         Ok(())
+    }
+
+    /// Snapshot of the current execution context (cloned), for inspection and
+    /// for variable resolution in `execute_next_step_impl`.
+    async fn context_snapshot(&self, execution_id: Uuid) -> Option<ExecutionContext> {
+        self.active_executions
+            .read()
+            .await
+            .get(&execution_id)
+            .map(|state| state.context.clone())
     }
 
     async fn execution_context(
