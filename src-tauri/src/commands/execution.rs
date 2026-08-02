@@ -28,7 +28,7 @@ pub async fn execution_start(
     // Start async execution
     let engine_clone = engine.inner().clone();
     tokio::spawn(async move {
-        let _ = engine_clone.execute_next_step(execution_id).await;
+        let _ = engine_clone.execute_until_complete(execution_id).await;
     });
 
     Ok(execution_id.to_string())
@@ -55,7 +55,9 @@ pub async fn execution_resume(
     // Resume async execution
     let engine_clone = engine.inner().clone();
     tokio::spawn(async move {
-        let _ = engine_clone.resume_execution(eid).await;
+        if engine_clone.resume_execution(eid).await.is_ok() {
+            let _ = engine_clone.execute_until_complete(eid).await;
+        }
     });
 
     Ok(())

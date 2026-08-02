@@ -39,7 +39,6 @@ impl ExecutionEngine {
         plan: &ExecutionPlan,
         conversation_id: Option<Uuid>,
     ) -> Result<Uuid, DatabaseError> {
-        // Create execution record
         let execution = self
             .repository
             .create_execution(plan.id, conversation_id, plan.tasks.len())
@@ -47,7 +46,6 @@ impl ExecutionEngine {
 
         let execution_id = execution.id;
 
-        // Create steps from plan tasks
         for (idx, task) in plan.tasks.iter().enumerate() {
             let step = ExecutionStep {
                 id: Uuid::new_v4(),
@@ -66,7 +64,6 @@ impl ExecutionEngine {
             self.repository.create_step(step).await?;
         }
 
-        // Record audit
         self.repository
             .record_audit(
                 execution_id,
@@ -76,12 +73,10 @@ impl ExecutionEngine {
             )
             .await?;
 
-        // Update status to running
         self.repository
             .update_execution_status(execution_id, ExecutionStatus::Running, None)
             .await?;
 
-        // Record event
         let event = ExecutionEvent {
             id: Uuid::new_v4(),
             execution_id,
@@ -93,7 +88,6 @@ impl ExecutionEngine {
         };
         self.repository.record_event(event).await?;
 
-        // Track active execution
         let execution = self.repository.get_execution(execution_id).await?.unwrap();
         self.active_executions.write().await.insert(
             execution.id,
@@ -114,6 +108,21 @@ impl ExecutionEngine {
         Box::pin(async move { self.execute_next_step_impl(execution_id).await })
     }
 
+    pub async fn execute_until_complete(&self, execution_id: Uuid) -> Result<(), DatabaseError> {
+        loop {
+            self.execute_next_step(execution_id).await?;
+            let Some(execution) = self.repository.get_execution(execution_id).await? else {
+                return Err(DatabaseError::IoError(format!(
+                    "Execution not found: {}",
+                    execution_id
+                )));
+            };
+            if execution.status != ExecutionStatus::Running {
+                return Ok(());
+            }
+        }
+    }
+
     /// Internal implementation of execute_next_step.
     async fn execute_next_step_impl(&self, execution_id: Uuid) -> Result<(), DatabaseError> {
         let execution = self.repository.get_execution(execution_id).await?;
@@ -130,14 +139,12 @@ impl ExecutionEngine {
 
         let steps = self.repository.get_execution_steps(execution_id).await?;
         if execution.current_step >= steps.len() {
-            // All steps complete
             self.complete_execution(execution_id).await?;
             return Ok(());
         }
 
         let step = &steps[execution.current_step];
 
-        // Record step start
         self.repository
             .update_step_status(step.id, StepStatus::Running, None, None)
             .await?;
@@ -214,7 +221,6 @@ impl ExecutionEngine {
                 };
                 self.repository.record_event(event).await?;
 
-                // Move to next step
                 self.repository
                     .update_current_step(execution_id, execution.current_step + 1)
                     .await?;
@@ -337,9 +343,6 @@ impl ExecutionEngine {
             )
             .await?;
 
-        // Continue execution
-        self.execute_next_step(execution_id).await?;
-
         Ok(())
     }
 
@@ -373,7 +376,6 @@ impl ExecutionEngine {
             )
             .await?;
 
-        // Remove from active executions
         self.active_executions.write().await.remove(&execution_id);
 
         Ok(())
@@ -450,7 +452,6 @@ impl ExecutionEngine {
             )
             .await?;
 
-        // Remove from active executions
         self.active_executions.write().await.remove(&execution_id);
 
         Ok(())
@@ -486,7 +487,6 @@ impl ExecutionEngine {
             )
             .await?;
 
-        // Remove from active executions
         self.active_executions.write().await.remove(&execution_id);
 
         Ok(())
