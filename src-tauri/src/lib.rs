@@ -373,11 +373,15 @@ pub fn run() {
                 Arc::new(session_engine.clone()),
                 Arc::new(timeline_engine.clone()),
             ));
+            let streaming_manager = Arc::new(copilot::StreamingSessionManager::new(Arc::new(
+                app_handle.clone(),
+            )));
             let copilot_engine = Arc::new(copilot::CopilotEngine::new(
                 conversation_manager,
                 tool_executor.clone(),
                 Arc::new(copilot_repository),
                 llm_service.clone(),
+                streaming_manager,
                 Arc::new(reasoning_engine.clone()),
                 Arc::new(predictive_engine.clone()),
                 learning_engine.clone(),
@@ -577,8 +581,12 @@ pub fn run() {
             commands::learning::get_confidence_trends,
             commands::learning::get_learning_stats,
             commands::copilot::copilot_send_message,
+            commands::copilot::copilot_send_message_stream,
+            commands::copilot::copilot_cancel_stream,
+            commands::copilot::copilot_get_streaming_diagnostics,
             commands::copilot::copilot_get_conversation,
             commands::copilot::copilot_get_recent_conversations,
+            commands::copilot::copilot_search_conversations,
             commands::copilot::copilot_get_daily_briefing,
             commands::copilot::copilot_get_tools,
             commands::copilot::copilot_ask_question,
@@ -595,6 +603,7 @@ pub fn run() {
             commands::llm::llm_update_settings,
             commands::llm::llm_test_connection,
             commands::llm::llm_is_configured,
+            commands::llm::llm_get_diagnostics,
             commands::execution::execution_start,
             commands::execution::execution_pause,
             commands::execution::execution_resume,

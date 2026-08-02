@@ -57,6 +57,50 @@ export interface CopilotResponse {
   suggested_actions: SuggestedAction[];
 }
 
+export interface CopilotStreamResponse {
+  conversation_id: string;
+  stream_id: string;
+}
+
+export interface StreamEventPayload {
+  stream_id: string;
+  conversation_id: string;
+  content: string | null;
+  message_id: string | null;
+  status: "started" | "streaming" | "completed" | "cancelled" | "failed";
+  error: string | null;
+}
+
+export interface StreamingDiagnostics {
+  active_streams: number;
+  started_streams: number;
+  finished_streams: number;
+  cancelled_streams: number;
+  stream_errors: number;
+  streamed_tokens: number;
+  average_tokens_per_second: number;
+  average_first_token_latency_ms: number;
+  average_stream_duration_ms: number;
+  provider_streaming_health: number;
+}
+
+export interface ConversationSearchRequest {
+  query: string | null;
+  workspace_id: string | null;
+  provider: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  limit: number | null;
+}
+
+export interface ConversationSearchResult {
+  conversation: Conversation;
+  matched_message_id: string | null;
+  matched_at: string | null;
+  snippet: string | null;
+  provider: string | null;
+}
+
 export interface SendMessageRequest {
   conversation_id: string | null;
   workspace_id: string | null;

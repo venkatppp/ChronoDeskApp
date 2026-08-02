@@ -167,6 +167,148 @@ impl CopilotRepository {
         Ok(conversations)
     }
 
+    /// Searches conversations by title, message content, date, workspace, and provider.
+    pub async fn search_conversations(
+        &self,
+        request: ConversationSearchRequest,
+    ) -> Result<Vec<ConversationSearchResult>, DatabaseError> {
+        let query = request
+            .query
+            .as_ref()
+            .map(|query| query.trim())
+            .filter(|query| !query.is_empty());
+        let escaped_query = query.map(escape_like);
+        let like_query = escaped_query.as_ref().map(|query| format!("%{}%", query));
+        let limit = request.limit.unwrap_or(50).clamp(1, 200) as i64;
+
+        type SearchRow = (
+            String,
+            Option<String>,
+            String,
+            String,
+            String,
+            i32,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        );
+
+        let rows: Vec<SearchRow> = sqlx::query_as(
+            r#"
+            SELECT
+                c.id,
+                c.workspace_id,
+                c.title,
+                c.created_at,
+                c.updated_at,
+                c.message_count,
+                m.id AS matched_message_id,
+                m.content AS snippet,
+                m.created_at AS matched_at,
+                (
+                    SELECT u.model
+                    FROM llm_usage u
+                    WHERE u.conversation_id = c.id
+                    ORDER BY u.created_at DESC
+                    LIMIT 1
+                ) AS provider
+            FROM copilot_conversations c
+            LEFT JOIN copilot_messages m ON m.id = (
+                SELECT m2.id
+                FROM copilot_messages m2
+                WHERE m2.conversation_id = c.id
+                  AND (? IS NULL OR m2.content LIKE ? ESCAPE '\')
+                ORDER BY m2.created_at DESC
+                LIMIT 1
+            )
+            WHERE (? IS NULL OR c.title LIKE ? ESCAPE '\' OR m.id IS NOT NULL)
+              AND (? IS NULL OR c.workspace_id = ?)
+              AND (? IS NULL OR c.created_at >= ?)
+              AND (? IS NULL OR c.created_at <= ?)
+              AND (? IS NULL OR EXISTS (
+                  SELECT 1
+                  FROM llm_usage u
+                  WHERE u.conversation_id = c.id
+                    AND u.model LIKE ? ESCAPE '\'
+              ))
+            ORDER BY c.updated_at DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(like_query.as_deref())
+        .bind(like_query.as_deref())
+        .bind(like_query.as_deref())
+        .bind(like_query.as_deref())
+        .bind(request.workspace_id.map(|id| id.to_string()))
+        .bind(request.workspace_id.map(|id| id.to_string()))
+        .bind(request.start_date.map(|date| date.to_rfc3339()))
+        .bind(request.start_date.map(|date| date.to_rfc3339()))
+        .bind(request.end_date.map(|date| date.to_rfc3339()))
+        .bind(request.end_date.map(|date| date.to_rfc3339()))
+        .bind(
+            request
+                .provider
+                .as_ref()
+                .map(|provider| format!("%{}%", escape_like(provider))),
+        )
+        .bind(
+            request
+                .provider
+                .as_ref()
+                .map(|provider| format!("%{}%", escape_like(provider))),
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut results = Vec::new();
+        for (
+            id,
+            workspace_id,
+            title,
+            created_at,
+            updated_at,
+            message_count,
+            matched_message_id,
+            snippet,
+            matched_at,
+            provider,
+        ) in rows
+        {
+            results.push(ConversationSearchResult {
+                conversation: Conversation {
+                    id: Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                    workspace_id: workspace_id
+                        .map(|id| Uuid::parse_str(&id))
+                        .transpose()
+                        .map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                    title,
+                    created_at: chrono::DateTime::parse_from_rfc3339(&created_at)
+                        .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                        .with_timezone(&Utc),
+                    updated_at: chrono::DateTime::parse_from_rfc3339(&updated_at)
+                        .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                        .with_timezone(&Utc),
+                    message_count,
+                },
+                matched_message_id: matched_message_id
+                    .map(|id| Uuid::parse_str(&id))
+                    .transpose()
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                matched_at: matched_at
+                    .map(|date| chrono::DateTime::parse_from_rfc3339(&date))
+                    .transpose()
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                    .map(|date| date.with_timezone(&Utc)),
+                snippet: snippet.map(|content| make_snippet(&content, query)),
+                provider,
+            });
+        }
+
+        Ok(results)
+    }
+
     /// Adds a message to a conversation.
     pub async fn add_message(&self, message: &Message) -> Result<(), DatabaseError> {
         sqlx::query(
@@ -518,5 +660,31 @@ impl CopilotRepository {
         conversation_id: Uuid,
     ) -> Result<Vec<Message>, DatabaseError> {
         self.get_messages(conversation_id, None).await
+    }
+}
+
+fn escape_like(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
+fn make_snippet(content: &str, query: Option<&str>) -> String {
+    const MAX_CHARS: usize = 180;
+    let normalized = content.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.chars().count() <= MAX_CHARS {
+        return normalized;
+    }
+
+    let start = query
+        .and_then(|query| normalized.to_lowercase().find(&query.to_lowercase()))
+        .map(|index| index.saturating_sub(60))
+        .unwrap_or(0);
+    let snippet: String = normalized.chars().skip(start).take(MAX_CHARS).collect();
+    if start == 0 {
+        format!("{}...", snippet)
+    } else {
+        format!("...{}...", snippet)
     }
 }

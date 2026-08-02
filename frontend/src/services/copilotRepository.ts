@@ -5,7 +5,11 @@ import type {
   Conversation,
   Message,
   CopilotResponse,
+  CopilotStreamResponse,
   SendMessageRequest,
+  StreamingDiagnostics,
+  ConversationSearchRequest,
+  ConversationSearchResult,
   DailyBriefing,
   DailyBriefingRequest,
   WorkspaceAnswer,
@@ -22,6 +26,27 @@ export const copilotRepository = {
   },
 
   /**
+   * Start a streaming message response.
+   */
+  async sendMessageStream(request: SendMessageRequest): Promise<CopilotStreamResponse> {
+    return invoke<CopilotStreamResponse>("copilot_send_message_stream", { request });
+  },
+
+  /**
+   * Cancel an active streaming response.
+   */
+  async cancelStream(streamId: string): Promise<void> {
+    return invoke<void>("copilot_cancel_stream", { streamId });
+  },
+
+  /**
+   * Get current streaming diagnostics.
+   */
+  async getStreamingDiagnostics(): Promise<StreamingDiagnostics> {
+    return invoke<StreamingDiagnostics>("copilot_get_streaming_diagnostics");
+  },
+
+  /**
    * Get conversation history by ID.
    */
   async getConversation(conversationId: string): Promise<Message[]> {
@@ -33,6 +58,27 @@ export const copilotRepository = {
    */
   async getRecentConversations(limit: number): Promise<Conversation[]> {
     return invoke<Conversation[]>("copilot_get_recent_conversations", { limit });
+  },
+
+  /**
+   * Search conversations with backend filters.
+   */
+  async searchConversations(request: ConversationSearchRequest): Promise<ConversationSearchResult[]> {
+    return invoke<ConversationSearchResult[]>("copilot_search_conversations", { request });
+  },
+
+  /**
+   * Export a conversation as Markdown.
+   */
+  async exportConversationMarkdown(conversationId: string): Promise<string> {
+    return invoke<string>("copilot_export_conversation_markdown", { conversationId });
+  },
+
+  /**
+   * Export a conversation as JSON.
+   */
+  async exportConversationJson(conversationId: string): Promise<string> {
+    return invoke<string>("copilot_export_conversation_json", { conversationId });
   },
 
   /**

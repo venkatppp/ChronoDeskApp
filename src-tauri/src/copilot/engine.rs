@@ -1,6 +1,7 @@
 //! Copilot Engine - AI-powered workspace assistant with multi-step planning.
 
 use chrono::Utc;
+use futures::StreamExt;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -8,11 +9,12 @@ use crate::context_memory::ContextMemoryEngine;
 use crate::copilot::conversation::ConversationManager;
 use crate::copilot::models::*;
 use crate::copilot::repository::CopilotRepository;
+use crate::copilot::streaming::{StreamingDiagnostics, StreamingSessionManager};
 use crate::copilot::tools::ToolExecutor;
 use crate::errors::DatabaseError;
 use crate::intelligence::recommendation::RecommendationEngine;
 use crate::learning::AdaptiveLearningEngine;
-use crate::llm::{LLMMessage, LLMRequest, LLMService};
+use crate::llm::{LLMMessage, LLMRequest, LLMService, StreamEvent};
 use crate::predictive::PredictiveEngine;
 use crate::semantic::ContextReasoningEngine;
 use crate::session::SessionEngine;
@@ -24,6 +26,7 @@ pub struct CopilotEngine {
     tool_executor: Arc<ToolExecutor>,
     repository: Arc<CopilotRepository>,
     llm_service: Arc<LLMService>,
+    streaming_manager: Arc<StreamingSessionManager>,
     #[allow(dead_code)]
     reasoning_engine: Arc<ContextReasoningEngine>,
     #[allow(dead_code)]
@@ -46,6 +49,7 @@ impl CopilotEngine {
         tool_executor: Arc<ToolExecutor>,
         repository: Arc<CopilotRepository>,
         llm_service: Arc<LLMService>,
+        streaming_manager: Arc<StreamingSessionManager>,
         reasoning_engine: Arc<ContextReasoningEngine>,
         predictive_engine: Arc<PredictiveEngine>,
         learning_engine: Arc<AdaptiveLearningEngine>,
@@ -59,6 +63,7 @@ impl CopilotEngine {
             tool_executor,
             repository,
             llm_service,
+            streaming_manager,
             reasoning_engine,
             predictive_engine,
             learning_engine,
@@ -131,6 +136,71 @@ impl CopilotEngine {
         })
     }
 
+    /// Starts streaming a user message response through frontend events.
+    pub async fn send_message_stream(
+        self: Arc<Self>,
+        request: SendMessageRequest,
+    ) -> Result<CopilotStreamResponse, DatabaseError> {
+        let conversation = self
+            .conversation_manager
+            .get_or_create_conversation(request.conversation_id, request.workspace_id)
+            .await?;
+
+        self.conversation_manager
+            .add_user_message(conversation.id, &request.message)
+            .await?;
+
+        if request.include_context {
+            self.conversation_manager
+                .capture_context(conversation.id, request.workspace_id)
+                .await?;
+        }
+
+        let context = if request.include_context {
+            self.conversation_manager
+                .build_context_string(request.workspace_id)
+                .await?
+        } else {
+            String::new()
+        };
+        let (llm_request, reasoning, sources) = self
+            .build_llm_request(&request.message, &context, request.workspace_id)
+            .await?;
+        let (stream_id, cancel_token) = self.streaming_manager.start_stream(conversation.id).await;
+        let engine = self.clone();
+
+        self.streaming_manager
+            .register_task(stream_id, async move {
+                engine
+                    .run_stream(
+                        stream_id,
+                        cancel_token,
+                        conversation.id,
+                        llm_request,
+                        reasoning,
+                        sources,
+                    )
+                    .await;
+            })
+            .await;
+
+        Ok(CopilotStreamResponse {
+            conversation_id: conversation.id,
+            stream_id,
+        })
+    }
+
+    /// Cancels an active streaming response. Duplicate cancels are ignored.
+    pub async fn cancel_stream(&self, stream_id: Uuid) -> Result<(), DatabaseError> {
+        self.streaming_manager.cancel_stream(stream_id).await;
+        Ok(())
+    }
+
+    /// Returns current streaming lifecycle and throughput diagnostics.
+    pub async fn streaming_diagnostics(&self) -> StreamingDiagnostics {
+        self.streaming_manager.diagnostics().await
+    }
+
     /// Generates a response using all available intelligence engines.
     async fn generate_response(
         &self,
@@ -138,23 +208,138 @@ impl CopilotEngine {
         context: &str,
         workspace_id: Option<Uuid>,
     ) -> Result<ResponseData, DatabaseError> {
+        let (llm_request, reasoning, mut sources) = self
+            .build_llm_request(message, context, workspace_id)
+            .await?;
+
+        let llm_response = self
+            .llm_service
+            .complete(llm_request, None)
+            .await
+            .map_err(DatabaseError::IoError)?;
+
+        sources.push(Source {
+            source_type: SourceType::ContextMemory,
+            title: "AI Assistant".to_string(),
+            reference: llm_response.model.clone(),
+            relevance: 1.0,
+        });
+
+        Ok(ResponseData {
+            content: llm_response.content,
+            reasoning,
+            sources,
+        })
+    }
+
+    async fn run_stream(
+        &self,
+        stream_id: Uuid,
+        cancel_token: tokio_util::sync::CancellationToken,
+        conversation_id: Uuid,
+        llm_request: LLMRequest,
+        reasoning: String,
+        sources: Vec<Source>,
+    ) {
+        let mut content = String::new();
+        let mut first_token_recorded = false;
+        let stream_result = self.llm_service.complete_stream(llm_request).await;
+        let mut stream = match stream_result {
+            Ok(stream) => stream,
+            Err(error) => {
+                self.streaming_manager.error_stream(stream_id, error).await;
+                return;
+            }
+        };
+
+        loop {
+            tokio::select! {
+                _ = cancel_token.cancelled() => {
+                    self.streaming_manager.cancel_finished_stream(stream_id).await;
+                    return;
+                }
+                next = stream.next() => {
+                    match next {
+                        Some(StreamEvent::Chunk(chunk)) => {
+                            if !first_token_recorded {
+                                self.streaming_manager.record_first_token(stream_id).await;
+                                first_token_recorded = true;
+                            }
+                            content.push_str(&chunk.content);
+                            self.streaming_manager.emit_chunk(stream_id, conversation_id, chunk.content);
+                        }
+                        Some(StreamEvent::Done(response)) => {
+                            if content.is_empty() {
+                                content = response.content;
+                            }
+                            self.persist_completed_stream_message(conversation_id, &content, reasoning, sources, stream_id).await;
+                            return;
+                        }
+                        Some(StreamEvent::Error(error)) => {
+                            self.streaming_manager.error_stream(stream_id, error).await;
+                            return;
+                        }
+                        None => {
+                            self.persist_completed_stream_message(conversation_id, &content, reasoning, sources, stream_id).await;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    async fn persist_completed_stream_message(
+        &self,
+        conversation_id: Uuid,
+        content: &str,
+        reasoning: String,
+        sources: Vec<Source>,
+        stream_id: Uuid,
+    ) {
+        let result = self
+            .conversation_manager
+            .add_assistant_message(
+                conversation_id,
+                content,
+                Some(reasoning),
+                Some(sources),
+                None,
+            )
+            .await;
+
+        match result {
+            Ok(message) => {
+                self.streaming_manager
+                    .finish_stream(stream_id, message.id)
+                    .await;
+            }
+            Err(error) => {
+                self.streaming_manager
+                    .error_stream(stream_id, error.to_string())
+                    .await
+            }
+        }
+    }
+
+    async fn build_llm_request(
+        &self,
+        message: &str,
+        context: &str,
+        workspace_id: Option<Uuid>,
+    ) -> Result<(LLMRequest, String, Vec<Source>), DatabaseError> {
         let mut sources = Vec::new();
         let mut reasoning_parts = Vec::new();
 
-        // Check if LLM is configured
         if !self.llm_service.is_configured() {
-            return Ok(ResponseData {
-                content: "AI provider not configured. Please configure your API settings in the settings page to enable AI-powered responses.".to_string(),
-                reasoning: "LLM provider not configured".to_string(),
-                sources: vec![],
-            });
+            return Err(DatabaseError::IoError(
+                "AI provider not configured. Please configure your API settings in the settings page to enable AI-powered responses.".to_string(),
+            ));
         }
 
-        // Determine intent and gather relevant data
         let intent = self.classify_intent(message);
         reasoning_parts.push(format!("Intent classified as: {:?}", intent));
 
-        // Gather tool data based on intent
         let tool_data = match intent {
             Intent::ListWorkspaces => {
                 reasoning_parts.push("Fetching workspace list".to_string());
@@ -198,54 +383,33 @@ impl CopilotEngine {
             _ => None,
         };
 
-        // Build system prompt
         let system_prompt = self.build_system_prompt(workspace_id, context);
-
-        // Build user prompt with tool data
         let user_prompt = if let Some(data) = tool_data {
             format!("{}\n\nRelevant data:\n{}", message, data)
         } else {
             message.to_string()
         };
 
-        // Build LLM request
-        let llm_request = LLMRequest {
-            messages: vec![
-                LLMMessage {
-                    role: "system".to_string(),
-                    content: system_prompt,
-                },
-                LLMMessage {
-                    role: "user".to_string(),
-                    content: user_prompt,
-                },
-            ],
-            temperature: Some(0.7),
-            max_tokens: Some(1000),
-            top_p: Some(1.0),
-            stream: Some(false),
-        };
-
-        // Get LLM response
-        reasoning_parts.push("Generating LLM response".to_string());
-        let llm_response = self
-            .llm_service
-            .complete(llm_request, None)
-            .await
-            .map_err(DatabaseError::IoError)?;
-
-        sources.push(Source {
-            source_type: SourceType::ContextMemory,
-            title: "AI Assistant".to_string(),
-            reference: llm_response.model.clone(),
-            relevance: 1.0,
-        });
-
-        Ok(ResponseData {
-            content: llm_response.content,
-            reasoning: reasoning_parts.join(" → "),
+        Ok((
+            LLMRequest {
+                messages: vec![
+                    LLMMessage {
+                        role: "system".to_string(),
+                        content: system_prompt,
+                    },
+                    LLMMessage {
+                        role: "user".to_string(),
+                        content: user_prompt,
+                    },
+                ],
+                temperature: Some(0.7),
+                max_tokens: Some(1000),
+                top_p: Some(1.0),
+                stream: Some(true),
+            },
+            reasoning_parts.join(" → "),
             sources,
-        })
+        ))
     }
 
     /// Builds the system prompt for the LLM
@@ -687,6 +851,14 @@ impl CopilotEngine {
         limit: usize,
     ) -> Result<Vec<Conversation>, DatabaseError> {
         self.repository.get_recent_conversations(limit).await
+    }
+
+    /// Searches conversations using repository-backed filters.
+    pub async fn search_conversations(
+        &self,
+        request: ConversationSearchRequest,
+    ) -> Result<Vec<ConversationSearchResult>, DatabaseError> {
+        self.repository.search_conversations(request).await
     }
 }
 

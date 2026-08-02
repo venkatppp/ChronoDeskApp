@@ -155,6 +155,34 @@ pub struct CopilotResponse {
     pub suggested_actions: Vec<SuggestedAction>,
 }
 
+/// Response returned after a streaming copilot request has started.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CopilotStreamResponse {
+    pub conversation_id: Uuid,
+    pub stream_id: Uuid,
+}
+
+/// Request to search persisted copilot conversations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConversationSearchRequest {
+    pub query: Option<String>,
+    pub workspace_id: Option<Uuid>,
+    pub provider: Option<String>,
+    pub start_date: Option<DateTime<Utc>>,
+    pub end_date: Option<DateTime<Utc>>,
+    pub limit: Option<usize>,
+}
+
+/// Conversation search result with a short backend-generated match preview.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConversationSearchResult {
+    pub conversation: Conversation,
+    pub matched_message_id: Option<Uuid>,
+    pub matched_at: Option<DateTime<Utc>>,
+    pub snippet: Option<String>,
+    pub provider: Option<String>,
+}
+
 /// An action suggested by the copilot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SuggestedAction {

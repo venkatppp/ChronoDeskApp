@@ -6,9 +6,10 @@ use tokio::sync::RwLock;
 use crate::errors::DatabaseError;
 use crate::llm::{
     HardenedLLMProvider, LLMHardeningConfig, LLMProvider, LLMProviderDiagnostics, LLMRequest,
-    LLMResponse, LLMSettings, OpenAIProvider, TokenCounter,
+    LLMResponse, LLMSettings, OpenAIProvider, StreamEvent, TokenCounter,
 };
 use crate::repositories::LLMRepository;
+use futures::stream::BoxStream;
 
 /// LLM service that manages provider configuration and requests
 pub struct LLMService {
@@ -114,6 +115,38 @@ impl LLMService {
             .await;
 
         Ok(response)
+    }
+
+    /// Sends a streaming completion request.
+    pub async fn complete_stream(
+        &self,
+        request: LLMRequest,
+    ) -> Result<BoxStream<'static, StreamEvent>, String> {
+        let provider = self.provider.read().await;
+
+        let provider = provider.as_ref().ok_or_else(|| {
+            "LLM provider not configured. Please configure API settings.".to_string()
+        })?;
+
+        let settings = self
+            .repository
+            .get_settings()
+            .await
+            .map_err(|e| e.to_string())?;
+        let truncated_messages = TokenCounter::truncate_to_context(
+            &request.messages,
+            settings.context_window,
+            settings.max_tokens,
+        );
+
+        let mut truncated_request = request;
+        truncated_request.messages = truncated_messages;
+        truncated_request.stream = Some(true);
+
+        provider
+            .complete_stream(truncated_request)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     /// Checks if provider is configured

@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::copilot::engine::CopilotEngine;
 use crate::copilot::models::*;
+use crate::copilot::streaming::StreamingDiagnostics;
 use crate::copilot::tools::ToolExecutor;
 
 /// Sends a message to the copilot.
@@ -18,6 +19,38 @@ pub async fn copilot_send_message(
         .send_message(request)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Starts a streaming copilot message response.
+#[tauri::command]
+pub async fn copilot_send_message_stream(
+    engine: State<'_, Arc<CopilotEngine>>,
+    request: SendMessageRequest,
+) -> Result<CopilotStreamResponse, String> {
+    engine
+        .inner()
+        .clone()
+        .send_message_stream(request)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Cancels an active streaming copilot response.
+#[tauri::command]
+pub async fn copilot_cancel_stream(
+    engine: State<'_, Arc<CopilotEngine>>,
+    stream_id: String,
+) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&stream_id).map_err(|e| e.to_string())?;
+    engine.cancel_stream(uuid).await.map_err(|e| e.to_string())
+}
+
+/// Gets current copilot streaming diagnostics.
+#[tauri::command]
+pub async fn copilot_get_streaming_diagnostics(
+    engine: State<'_, Arc<CopilotEngine>>,
+) -> Result<StreamingDiagnostics, String> {
+    Ok(engine.streaming_diagnostics().await)
 }
 
 /// Gets conversation history.
@@ -41,6 +74,18 @@ pub async fn copilot_get_recent_conversations(
 ) -> Result<Vec<Conversation>, String> {
     engine
         .get_recent_conversations(limit)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Searches persisted conversations using backend filters.
+#[tauri::command]
+pub async fn copilot_search_conversations(
+    engine: State<'_, Arc<CopilotEngine>>,
+    request: ConversationSearchRequest,
+) -> Result<Vec<ConversationSearchResult>, String> {
+    engine
+        .search_conversations(request)
         .await
         .map_err(|e| e.to_string())
 }

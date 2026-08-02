@@ -1,11 +1,20 @@
 // CopilotView - Main AI assistant interface with chat, sidebar, and proactive features
 
-import { useState, useEffect, useRef } from "react";
-import { Sparkles, Bell } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Activity, Bell, Sparkles } from "lucide-react";
 import { copilotRepository } from "@/services/copilotRepository";
+import { llmRepository } from "@/services/llmRepository";
 import { proactiveRepository } from "@/services/proactiveRepository";
 import { getWorkspaceRepository } from "@/services/workspaceRepository";
-import type { Message, Conversation, SuggestedAction, DailyBriefing } from "@/types/copilot";
+import type {
+  Message,
+  Conversation,
+  ConversationSearchRequest,
+  ConversationSearchResult,
+  SuggestedAction,
+  DailyBriefing,
+} from "@/types/copilot";
+import type { LLMProviderDiagnostics } from "@/types/llm";
 import type { ProactiveNotification, ResumeContext, ExecutionPlan, PermissionLevel } from "@/types/proactive";
 import { ChatMessage } from "./components/ChatMessage";
 import { ChatInput } from "./components/ChatInput";
@@ -16,6 +25,7 @@ import { DailyBriefingWidget } from "./components/DailyBriefingWidget";
 import { ProactiveNotificationCard } from "./components/ProactiveNotificationCard";
 import { ExecutionPlanCard } from "./components/ExecutionPlanCard";
 import { ResumeWorkspaceBanner } from "./components/ResumeWorkspaceBanner";
+import { useCopilotStreaming } from "./useCopilotStreaming";
 
 export function CopilotView() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -28,6 +38,12 @@ export function CopilotView() {
   const [dailyBriefing, setDailyBriefing] = useState<DailyBriefing | null>(null);
   const [showBriefing, setShowBriefing] = useState(false);
   const [loadingBriefing, setLoadingBriefing] = useState(false);
+  const [searchResults, setSearchResults] = useState<ConversationSearchResult[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [llmDiagnostics, setLlmDiagnostics] = useState<LLMProviderDiagnostics | null>(null);
+  const [isLlmConfigured, setIsLlmConfigured] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   // Proactive features state
   const [notifications, setNotifications] = useState<ProactiveNotification[]>([]);
@@ -36,7 +52,28 @@ export function CopilotView() {
   const [showNotifications, setShowNotifications] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const streaming = useCopilotStreaming({
+    onChunk: (messageId, content) => {
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === messageId ? { ...message, content: message.content + content } : message
+        )
+      );
+    },
+    onFinished: (conversationId) => {
+      void loadConversation(conversationId);
+    },
+    onCancelled: (messageId) => {
+      setMessages((prev) => prev.filter((message) => message.id !== messageId));
+    },
+    onError: (messageId) => {
+      setMessages((prev) => prev.filter((message) => message.id !== messageId));
+    },
+    onTerminal: () => {
+      setIsGenerating(false);
+      void loadConversations();
+    },
+  });
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -52,11 +89,13 @@ export function CopilotView() {
     loadConversations();
     loadCurrentWorkspace();
     loadProactiveNotifications();
+    streaming.loadDiagnostics();
+    loadLlmDiagnostics();
   }, []);
 
   // Load conversation messages when selected
   useEffect(() => {
-    if (currentConversationId) {
+    if (currentConversationId && !streaming.activeStreamRef.current) {
       loadConversation(currentConversationId);
     }
   }, [currentConversationId]);
@@ -68,14 +107,14 @@ export function CopilotView() {
     }
   }, [currentWorkspaceId]);
 
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     try {
       const convs = await copilotRepository.getRecentConversations(50);
       setConversations(convs);
     } catch (error) {
       console.error("Failed to load conversations:", error);
     }
-  };
+  }, []);
 
   const loadConversation = async (conversationId: string) => {
     try {
@@ -136,11 +175,52 @@ export function CopilotView() {
     }
   };
 
+  const loadLlmDiagnostics = async () => {
+    try {
+      const [configured, diagnostics] = await Promise.all([
+        llmRepository.isConfigured(),
+        llmRepository.getDiagnostics(),
+      ]);
+      setIsLlmConfigured(configured);
+      setLlmDiagnostics(diagnostics);
+    } catch (error) {
+      console.error("Failed to load LLM diagnostics:", error);
+    }
+  };
+
+  const handleSearchConversations = useCallback(async (request: ConversationSearchRequest) => {
+    setIsSearching(true);
+    try {
+      const results = await copilotRepository.searchConversations(request);
+      setSearchResults(results);
+    } catch (error) {
+      console.error("Failed to search conversations:", error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  const handleExportConversation = async (conversationId: string, format: "markdown" | "json") => {
+    try {
+      const exported =
+        format === "markdown"
+          ? await copilotRepository.exportConversationMarkdown(conversationId)
+          : await copilotRepository.exportConversationJson(conversationId);
+      await navigator.clipboard.writeText(exported);
+      setExportStatus(`${format === "markdown" ? "Markdown" : "JSON"} export copied to clipboard`);
+      window.setTimeout(() => setExportStatus(null), 3000);
+    } catch (error) {
+      console.error("Failed to export conversation:", error);
+      setExportStatus("Export failed");
+    }
+  };
+
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isGenerating) return;
 
     setIsGenerating(true);
-    abortControllerRef.current = new AbortController();
+    streaming.setStreamError(null);
 
     // Optimistically add user message
     const userMessage: Message = {
@@ -158,40 +238,49 @@ export function CopilotView() {
     setSuggestedActions([]);
 
     try {
-      const response = await copilotRepository.sendMessage({
+      const response = await copilotRepository.sendMessageStream({
         conversation_id: currentConversationId,
         workspace_id: null,
         message: content,
         include_context: true,
       });
 
-      // Update conversation ID if new
+      const assistantMessage: Message = {
+        id: `stream-${response.stream_id}`,
+        conversation_id: response.conversation_id,
+        role: "assistant",
+        content: "",
+        tool_calls: null,
+        reasoning: null,
+        sources: null,
+        created_at: new Date().toISOString(),
+      };
+
+      streaming.startStream(response.stream_id, assistantMessage.id);
+
+      // Update conversation ID if new after registering the active stream so the
+      // selection effect does not replace the in-flight placeholder message.
       if (!currentConversationId) {
         setCurrentConversationId(response.conversation_id);
       }
 
-      // Add assistant message
-      setMessages((prev) => [...prev, response.message]);
-      setSuggestedActions(response.suggested_actions);
-
-      // Refresh conversations list
-      await loadConversations();
+      setMessages((prev) => [...prev, assistantMessage]);
+      await streaming.loadDiagnostics();
     } catch (error) {
       console.error("Failed to send message:", error);
       // Remove optimistic user message on error
       setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
-    } finally {
       setIsGenerating(false);
-      abortControllerRef.current = null;
+      streaming.clearActiveStream();
     }
   };
 
-  const handleStopGeneration = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+  const handleStopGeneration = async () => {
+    if (!streaming.activeStreamRef.current) {
+      setIsGenerating(false);
+      return;
     }
-    setIsGenerating(false);
+    await streaming.stopStream();
   };
 
   const handleNewConversation = () => {
@@ -199,6 +288,7 @@ export function CopilotView() {
     setMessages([]);
     setSuggestedActions([]);
     setShowBriefing(false);
+    streaming.setStreamError(null);
   };
 
   const handleSelectConversation = (conversationId: string) => {
@@ -268,6 +358,11 @@ export function CopilotView() {
         onSelect={handleSelectConversation}
         onNew={handleNewConversation}
         onDelete={handleDeleteConversation}
+        onSearch={handleSearchConversations}
+        onExport={handleExportConversation}
+        searchResults={searchResults}
+        isSearching={isSearching}
+        workspaceId={currentWorkspaceId}
       />
 
       {/* Main Chat Area */}
@@ -276,11 +371,24 @@ export function CopilotView() {
         <WorkspaceContext workspaceName={currentWorkspace} />
 
         {/* Notification Bell */}
-        <div className="flex items-center justify-end border-b border-(--color-border-subtle) px-4 py-2">
+        <div className="flex items-center justify-end gap-2 border-b border-(--color-border-subtle) px-4 py-2">
+          <button
+            onClick={() => {
+              setShowDiagnostics(!showDiagnostics);
+              void loadLlmDiagnostics();
+              void streaming.loadDiagnostics();
+            }}
+            className="rounded-lg p-2 text-(--color-muted-foreground) hover:bg-(--color-surface-hover) hover:text-(--color-foreground)"
+            title="AI health diagnostics"
+            aria-label="Toggle AI health diagnostics"
+          >
+            <Activity className="h-5 w-5" />
+          </button>
           <button
             onClick={() => setShowNotifications(!showNotifications)}
             className="relative rounded-lg p-2 text-(--color-muted-foreground) hover:bg-(--color-surface-hover) hover:text-(--color-foreground)"
             title="Proactive notifications"
+            aria-label="Toggle proactive notifications"
           >
             <Bell className="h-5 w-5" />
             {notifications.length > 0 && (
@@ -290,6 +398,26 @@ export function CopilotView() {
             )}
           </button>
         </div>
+
+        {showDiagnostics && (
+          <div className="border-b border-(--color-border-subtle) bg-(--color-surface-raised) px-4 py-3">
+            <div className="grid gap-3 text-xs text-(--color-muted-foreground) md:grid-cols-4">
+              <DiagnosticItem label="Connection" value={isLlmConfigured ? "Configured" : "Not configured"} />
+              <DiagnosticItem label="Provider" value={llmDiagnostics?.provider || "Unavailable"} />
+              <DiagnosticItem label="Circuit" value={llmDiagnostics?.circuit_breaker_state || "Unknown"} />
+              <DiagnosticItem label="Avg latency" value={`${(llmDiagnostics?.average_latency_ms || 0).toFixed(0)} ms`} />
+              <DiagnosticItem label="Retries" value={String(llmDiagnostics?.retries || 0)} />
+              <DiagnosticItem label="Rate limited" value={String(llmDiagnostics?.rate_limited_requests || 0)} />
+              <DiagnosticItem label="Requests" value={String(llmDiagnostics?.total_requests || 0)} />
+              <DiagnosticItem
+                label="Streaming"
+                value={`${streaming.diagnostics?.active_streams || 0} active / ${(
+                  (streaming.diagnostics?.provider_streaming_health || 1) * 100
+                ).toFixed(0)}% health`}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto">
@@ -413,7 +541,7 @@ export function CopilotView() {
                 <ChatMessage
                   key={message.id}
                   message={message}
-                  isStreaming={isGenerating && message === messages[messages.length - 1]}
+                  isStreaming={streaming.isStreamingMessage(message.id)}
                 />
               ))}
               <div ref={messagesEndRef} />
@@ -430,6 +558,26 @@ export function CopilotView() {
           />
         )}
 
+        {(streaming.streamError || streaming.diagnostics) && (
+          <div className="border-t border-(--color-border-subtle) px-4 py-2 text-xs text-(--color-muted-foreground)">
+            {streaming.streamError ? (
+              <span className="text-(--color-danger)">{streaming.streamError}</span>
+            ) : streaming.diagnostics ? (
+              <span>
+                Streaming health {(streaming.diagnostics.provider_streaming_health * 100).toFixed(0)}% ·
+                {" "}{streaming.diagnostics.active_streams} active ·
+                {" "}{streaming.diagnostics.average_tokens_per_second.toFixed(1)} tokens/s
+              </span>
+            ) : null}
+          </div>
+        )}
+
+        {exportStatus && (
+          <div className="border-t border-(--color-border-subtle) px-4 py-2 text-xs text-(--color-muted-foreground)" role="status">
+            {exportStatus}
+          </div>
+        )}
+
         {/* Input */}
         <ChatInput
           onSend={handleSendMessage}
@@ -438,6 +586,15 @@ export function CopilotView() {
           isGenerating={isGenerating}
         />
       </div>
+    </div>
+  );
+}
+
+function DiagnosticItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-(--color-border-subtle) bg-(--color-surface) p-2">
+      <div className="text-[11px] uppercase tracking-wide text-(--color-faint-foreground)">{label}</div>
+      <div className="mt-1 truncate font-medium text-(--color-foreground)">{value}</div>
     </div>
   );
 }

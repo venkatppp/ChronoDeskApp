@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { LLMSettings } from "@/types/llm";
+import type { LLMProviderDiagnostics, LLMSettings } from "@/types/llm";
 
 export const llmRepository = {
   async getSettings(): Promise<LLMSettings> {
@@ -16,5 +16,9 @@ export const llmRepository = {
 
   async isConfigured(): Promise<boolean> {
     return invoke<boolean>("llm_is_configured");
+  },
+
+  async getDiagnostics(): Promise<LLMProviderDiagnostics | null> {
+    return invoke<LLMProviderDiagnostics | null>("llm_get_diagnostics");
   },
 };

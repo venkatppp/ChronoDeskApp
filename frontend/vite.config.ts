@@ -47,5 +47,14 @@ export default defineConfig(() => ({
     // Produce sourcemaps for debug builds.
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
     outDir: "dist",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom", "react-router-dom"],
+          markdown: ["react-markdown", "remark-gfm"],
+          icons: ["lucide-react"],
+        },
+      },
+    },
   },
 }));

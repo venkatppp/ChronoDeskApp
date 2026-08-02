@@ -1,9 +1,6 @@
 // ChatMessage - Individual message with markdown rendering and tool visualization
 
-import { useMemo } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeHighlight from "rehype-highlight";
+import { memo, Suspense, lazy, useMemo } from "react";
 import { User, Sparkles, Copy, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/utils/cn";
 import type { Message } from "@/types/copilot";
@@ -11,12 +8,16 @@ import { ToolExecutionCard } from "./ToolExecutionCard";
 import { SourcesList } from "./SourcesList";
 import { useState } from "react";
 
+const MarkdownRenderer = lazy(() =>
+  import("./MarkdownRenderer").then((module) => ({ default: module.MarkdownRenderer }))
+);
+
 interface ChatMessageProps {
   message: Message;
   isStreaming?: boolean;
 }
 
-export function ChatMessage({ message, isStreaming }: ChatMessageProps) {
+function ChatMessageComponent({ message, isStreaming }: ChatMessageProps) {
   const [showReasoning, setShowReasoning] = useState(false);
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
@@ -69,46 +70,9 @@ export function ChatMessage({ message, isStreaming }: ChatMessageProps) {
             isStreaming && "animate-pulse"
           )}
         >
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeHighlight]}
-            components={{
-              code: ({ inline, className, children, ...props }: any) => {
-                const match = /language-(\w+)/.exec(className || "");
-                return !inline ? (
-                  <div className="relative my-2 overflow-hidden rounded-lg border border-(--color-border) bg-(--color-background)">
-                    {match && (
-                      <div className="flex items-center justify-between border-b border-(--color-border) bg-(--color-surface-raised) px-3 py-1.5">
-                        <span className="text-xs font-mono text-(--color-muted-foreground)">
-                          {match[1]}
-                        </span>
-                        <button
-                          onClick={() => navigator.clipboard.writeText(String(children))}
-                          className="text-xs text-(--color-muted-foreground) hover:text-(--color-foreground)"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    )}
-                    <pre className="m-0 overflow-x-auto p-3">
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    </pre>
-                  </div>
-                ) : (
-                  <code
-                    className="rounded bg-(--color-surface-raised) px-1.5 py-0.5 font-mono text-xs text-(--color-accent)"
-                    {...props}
-                  >
-                    {children}
-                  </code>
-                );
-              },
-            }}
-          >
-            {message.content}
-          </ReactMarkdown>
+          <Suspense fallback={<span>{message.content}</span>}>
+            <MarkdownRenderer content={message.content} />
+          </Suspense>
         </div>
 
         {/* Tool Executions */}
@@ -163,3 +127,5 @@ export function ChatMessage({ message, isStreaming }: ChatMessageProps) {
     </div>
   );
 }
+
+export const ChatMessage = memo(ChatMessageComponent);

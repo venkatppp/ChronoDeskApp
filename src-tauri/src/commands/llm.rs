@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use tauri::State;
 
-use crate::llm::{LLMService, LLMSettings};
+use crate::llm::{LLMProviderDiagnostics, LLMService, LLMSettings};
 
 /// Gets current LLM settings
 #[tauri::command]
@@ -33,4 +33,12 @@ pub async fn llm_test_connection(service: State<'_, Arc<LLMService>>) -> Result<
 #[tauri::command]
 pub async fn llm_is_configured(service: State<'_, Arc<LLMService>>) -> Result<bool, String> {
     Ok(service.is_configured())
+}
+
+/// Gets current LLM hardening diagnostics.
+#[tauri::command]
+pub async fn llm_get_diagnostics(
+    service: State<'_, Arc<LLMService>>,
+) -> Result<Option<LLMProviderDiagnostics>, String> {
+    Ok(service.diagnostics().await)
 }
