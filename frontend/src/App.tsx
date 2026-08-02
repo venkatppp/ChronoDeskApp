@@ -9,6 +9,7 @@ import { SearchPage } from "@/pages/SearchPage";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import LearningPage from "@/pages/LearningPage";
+import { AutonomousPage } from "@/pages/AutonomousPage";
 import { CopilotPage } from "@/pages/CopilotPage";
 import { ExecutionPage } from "@/pages/ExecutionPage";
 
@@ -33,6 +34,7 @@ export function App() {
             <Route path="learning" element={<LearningPage />} />
             <Route path="copilot" element={<CopilotPage />} />
             <Route path="executions" element={<ExecutionPage />} />
+            <Route path="autonomous" element={<AutonomousPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>

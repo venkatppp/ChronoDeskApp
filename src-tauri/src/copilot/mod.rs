@@ -1,5 +1,6 @@
 //! Copilot - AI-powered workspace assistant.
 
+pub mod autonomous;
 pub mod conversation;
 pub mod engine;
 pub mod execution;

@@ -71,6 +71,22 @@ pub struct PlannerReport {
     pub error: Option<String>,
 }
 
+/// Feedback from the autonomous runtime about a failed plan run, used by
+/// `replan_with_feedback` to decide between re-attempting the same task
+/// (retry available) and a structural replan (failed step dropped).
+#[derive(Debug, Clone)]
+pub struct ReplanFeedback {
+    /// Step that failed, in the plan that ran.
+    pub failed: Option<Uuid>,
+    /// The tool that failed, when known from the execution step.
+    pub tool_name: Option<String>,
+    /// Error surfaced by the failed run.
+    pub error: Option<String>,
+    /// `false` = a retry of the same step is desired; `true` = the retry
+    /// budget is exhausted and the failed step must be dropped by replanning.
+    pub retry_exhausted: bool,
+}
+
 /// The autonomous planner. Cheap to clone; all state lives behind `Arc`s.
 #[derive(Clone)]
 pub struct Planner {
@@ -254,6 +270,40 @@ impl Planner {
             failed
         );
         Ok(replanned)
+    }
+
+    /// Revises a plan after a failed run using runtime feedback.
+    ///
+    /// A retry (`retry_exhausted == false`) keeps the failed task in place so
+    /// the engine re-attempts it; a replan (`retry_exhausted == true`) drops
+    /// the failed step and re-links surviving work via
+    /// [`Self::replan_after_failure`].
+    pub fn replan_with_feedback(
+        &self,
+        plan: &ExecutionPlan,
+        completed: &[Uuid],
+        feedback: &ReplanFeedback,
+    ) -> Result<ExecutionPlan, PlannerError> {
+        if !feedback.retry_exhausted {
+            let mut retried = plan.clone();
+            retried.status = PlanApprovalStatus::Pending;
+            let cause = feedback
+                .error
+                .as_deref()
+                .unwrap_or("the previous run failed");
+            retried.reasoning = format!("Retrying after failure: {cause}");
+            return Ok(retried);
+        }
+        let failed = feedback.failed.ok_or(PlannerError::Execution(
+            "replan requested without a failed step".into(),
+        ))?;
+        self.replan_after_failure(plan, completed, failed)
+    }
+
+    /// Returns true when the plan contains no executable work (all tasks
+    /// completed, skipped, or dropped by a replan).
+    pub fn is_exhausted(plan: &ExecutionPlan) -> bool {
+        plan.tasks.is_empty()
     }
 
     /// Executes a goal: builds the dependency-aware plan, hands it to
@@ -847,6 +897,53 @@ mod tests {
             "replanned steps should no longer gate on the failed predecessor"
         );
         assert!(replanned.confidence < original.confidence);
+    }
+
+    #[tokio::test]
+    async fn reassemble_plan_after_duplicate_success() {
+        let (planner, _guard) = planner().await;
+        let original = seed_plan();
+        let failed = original.tasks[1].id;
+
+        let replanned = planner
+            .replan_with_feedback(
+                &original,
+                &[],
+                &ReplanFeedback {
+                    failed: Some(failed),
+                    tool_name: None,
+                    error: None,
+                    retry_exhausted: true,
+                },
+            )
+            .expect("replan should succeed");
+        assert!(
+            replanned.tasks.iter().all(|t| t.id != failed),
+            "exhausted retries drop the failed task"
+        );
+        assert!(!replanned.tasks.is_empty(), "surviving work must remain");
+    }
+
+    #[tokio::test]
+    async fn retry_keeps_failed_step_when_budget_remains() {
+        let (planner, _guard) = planner().await;
+        let original = seed_plan();
+        let failed = original.tasks[1].id;
+
+        let retried = planner
+            .replan_with_feedback(
+                &original,
+                &[],
+                &ReplanFeedback {
+                    failed: Some(failed),
+                    tool_name: None,
+                    error: Some("boom".into()),
+                    retry_exhausted: false,
+                },
+            )
+            .expect("retry should succeed");
+        assert_eq!(retried.tasks.len(), original.tasks.len());
+        assert!(retried.reasoning.contains("Retrying"));
     }
 
     #[tokio::test]

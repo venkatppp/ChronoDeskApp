@@ -8,6 +8,7 @@
 pub mod actions;
 pub mod ai;
 pub mod analytics;
+pub mod autonomous;
 pub mod context_memory;
 pub mod conversation;
 pub mod copilot;

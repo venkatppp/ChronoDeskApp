@@ -429,6 +429,18 @@ pub fn run() {
                     .with_execution_engine(execution_engine.clone()),
             );
 
+            // --- Autonomous Agent Runtime (RC-5 M6) ---
+            let autonomous_runtime = Arc::new(
+                copilot::autonomous::AutonomousRuntime::new(
+                    planner.clone(),
+                    execution_engine.clone(),
+                    tool_executor.clone(),
+                )
+                .with_event_emitter(
+                    Arc::new(app_handle.clone()) as Arc<dyn app_events::AppEventEmitter>
+                ),
+            );
+
             // --- File Watcher, wired to a real AppEventEmitter (the AppHandle) ---
             let file_watcher = FileWatcher::new(workspace_manager, timeline_engine.clone())
                 .with_event_emitter(
@@ -495,6 +507,7 @@ pub fn run() {
             app.manage(proactive_engine);
             app.manage(execution_engine);
             app.manage(planner);
+            app.manage(autonomous_runtime);
 
             tracing::info!("ChronoDesk backend ready");
 
@@ -639,6 +652,14 @@ pub fn run() {
             commands::execution::execution_cancel,
             commands::execution::execution_get_progress,
             commands::execution::execution_list_recent,
+            commands::autonomous::autonomous_start,
+            commands::autonomous::autonomous_get_progress,
+            commands::autonomous::autonomous_list_recent,
+            commands::autonomous::autonomous_pause,
+            commands::autonomous::autonomous_resume,
+            commands::autonomous::autonomous_cancel,
+            commands::autonomous::autonomous_approve,
+            commands::autonomous::autonomous_reject,
             commands::conversation::copilot_rename_conversation,
             commands::conversation::copilot_delete_conversation,
             commands::conversation::copilot_pin_conversation,
