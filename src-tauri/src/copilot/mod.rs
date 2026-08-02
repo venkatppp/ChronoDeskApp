@@ -25,3 +25,4 @@ pub use proactive_models::*;
 pub use repository::CopilotRepository;
 pub use streaming::StreamingSessionManager;
 pub use tools::ToolExecutor;
+pub use tools::ToolPermissionService;

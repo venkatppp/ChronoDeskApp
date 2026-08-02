@@ -178,6 +178,32 @@ pub enum ToolRiskLevel {
     High,
 }
 
+/// Decision attached to a persisted tool permission policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolPermissionDecision {
+    /// Allow exactly one future invocation of the tool.
+    AllowOnce,
+    /// Always allow the tool without asking.
+    AlwaysAllow,
+    /// Never allow the tool.
+    Deny,
+}
+
+/// A persisted tool permission policy.
+///
+/// Policies are scoped either to a specific workspace
+/// (`workspace_id = Some(..)`) or globally (`workspace_id = None`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolPermissionPolicy {
+    pub id: Uuid,
+    pub tool_name: String,
+    pub workspace_id: Option<Uuid>,
+    pub decision: ToolPermissionDecision,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 /// Retry policy applied by the invocation pipeline.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct ToolRetryPolicy {

@@ -16,6 +16,8 @@ import type {
   WorkspaceQuestionRequest,
   ToolDefinition,
   ToolDiagnostics,
+  ToolPermissionDecision,
+  ToolPermissionPolicy,
 } from "@/types/copilot";
 
 export const copilotRepository = {
@@ -115,5 +117,47 @@ export const copilotRepository = {
    */
   async getToolDiagnostics(): Promise<ToolDiagnostics> {
     return invoke<ToolDiagnostics>("copilot_get_tool_diagnostics");
+  },
+
+  /**
+   * List every persisted tool permission policy.
+   */
+  async listToolPermissions(): Promise<ToolPermissionPolicy[]> {
+    return invoke<ToolPermissionPolicy[]>("copilot_list_tool_permissions");
+  },
+
+  /**
+   * Set (or update) a tool permission policy. `workspaceId` null means global.
+   */
+  async setToolPermission(
+    toolName: string,
+    workspaceId: string | null,
+    decision: ToolPermissionDecision,
+  ): Promise<void> {
+    return invoke<void>("copilot_set_tool_permission", {
+      toolName,
+      workspaceId,
+      decision,
+    });
+  },
+
+  /**
+   * Remove a persisted tool permission policy.
+   */
+  async clearToolPermission(toolName: string, workspaceId: string | null): Promise<void> {
+    return invoke<void>("copilot_clear_tool_permission", { toolName, workspaceId });
+  },
+
+  /**
+   * Resolve the effective decision for a tool in a scope.
+   */
+  async checkToolPermission(
+    toolName: string,
+    workspaceId: string | null,
+  ): Promise<ToolPermissionDecision | null> {
+    return invoke<ToolPermissionDecision | null>("copilot_check_tool_permission", {
+      toolName,
+      workspaceId,
+    });
   },
 };

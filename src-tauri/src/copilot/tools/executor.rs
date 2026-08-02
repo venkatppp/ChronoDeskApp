@@ -2,15 +2,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use super::metrics::{ToolDiagnostics, ToolMetricsCollector};
 use super::models::{
     ToolDefinition, ToolInvocationRequest, ToolInvocationResult, ToolParameter, ToolParameterType,
-    ToolPermissionLevel, ToolProgressEvent, EVENT_TOOL_PROGRESS,
+    ToolPermissionDecision, ToolPermissionLevel, ToolProgressEvent, EVENT_TOOL_PROGRESS,
 };
+use super::permissions::ToolPermissionService;
 use super::registry::{build_registry, ToolHandler};
 use crate::app_events::{emit, AppEventEmitter};
 use crate::errors::DatabaseError;
@@ -29,6 +30,7 @@ pub struct ToolExecutor {
     progress_tx: broadcast::Sender<ToolProgressEvent>,
     event_emitter: Option<Arc<dyn AppEventEmitter>>,
     metrics: Arc<ToolMetricsCollector>,
+    permission_service: Option<Arc<ToolPermissionService>>,
 }
 
 impl ToolExecutor {
@@ -48,12 +50,20 @@ impl ToolExecutor {
             progress_tx,
             event_emitter: None,
             metrics: Arc::new(ToolMetricsCollector::default()),
+            permission_service: None,
         }
     }
 
     /// Attaches a frontend event emitter for streamed tool progress.
     pub fn with_event_emitter(mut self, emitter: Arc<dyn AppEventEmitter>) -> Self {
         self.event_emitter = Some(emitter);
+        self
+    }
+
+    /// Attaches the persistent permission policy service used to gate
+    /// tool invocations.
+    pub fn with_permission_service(mut self, service: Arc<ToolPermissionService>) -> Self {
+        self.permission_service = Some(service);
         self
     }
 
@@ -95,6 +105,18 @@ impl ToolExecutor {
 
         self.validate_arguments(&handler.definition, &request.arguments)?;
         self.ensure_permission(&handler.definition)?;
+        if let Some(result) = self
+            .apply_runtime_policy(
+                &handler.definition,
+                &request,
+                invocation_id,
+                started_at,
+                started_instant,
+            )
+            .await
+        {
+            return Ok(result);
+        }
         self.metrics.record_invocation();
         self.emit_progress(ToolProgressEvent::started(
             invocation_id,
@@ -283,6 +305,63 @@ impl ToolExecutor {
             )));
         }
         Ok(())
+    }
+
+    /// Applies the persisted runtime policy for a tool, if one is
+    /// attached. Returns a structured result when the invocation must
+    /// stop (denied), and `None` to continue. Respects the static
+    /// registry permission metadata at all times.
+    async fn apply_runtime_policy(
+        &self,
+        definition: &ToolDefinition,
+        request: &ToolInvocationRequest,
+        invocation_id: Uuid,
+        started_at: DateTime<Utc>,
+        started_instant: Instant,
+    ) -> Option<ToolInvocationResult> {
+        let permission_service = self.permission_service.as_ref()?;
+        let policy = permission_service
+            .resolve_policy(&request.tool_name, request.workspace_id)
+            .await?;
+
+        match policy.decision {
+            ToolPermissionDecision::AlwaysAllow => None,
+            ToolPermissionDecision::AllowOnce => {
+                if let Err(error) = permission_service.consume_policy(&policy).await {
+                    let result = ToolInvocationResult::failed(
+                        invocation_id,
+                        definition.name.clone(),
+                        request.arguments.clone(),
+                        format!("failed to consume allow-once policy: {error}"),
+                        started_at,
+                        started_instant.elapsed(),
+                        0,
+                    );
+                    self.metrics.record_failure(started_instant.elapsed());
+                    self.emit_progress(ToolProgressEvent::from_result(&result));
+                    Some(result)
+                } else {
+                    None
+                }
+            }
+            ToolPermissionDecision::Deny => {
+                let result = ToolInvocationResult::failed(
+                    invocation_id,
+                    definition.name.clone(),
+                    request.arguments.clone(),
+                    format!(
+                        "tool '{}' is denied by a permission policy",
+                        definition.name
+                    ),
+                    started_at,
+                    started_instant.elapsed(),
+                    0,
+                );
+                self.metrics.record_failure(started_instant.elapsed());
+                self.emit_progress(ToolProgressEvent::from_result(&result));
+                Some(result)
+            }
+        }
     }
 
     fn emit_progress(&self, event: ToolProgressEvent) {

@@ -7,7 +7,10 @@ use uuid::Uuid;
 use crate::copilot::engine::CopilotEngine;
 use crate::copilot::models::*;
 use crate::copilot::streaming::StreamingDiagnostics;
-use crate::copilot::tools::{ToolDefinition, ToolDiagnostics, ToolExecutor};
+use crate::copilot::tools::{
+    ToolDefinition, ToolDiagnostics, ToolExecutor, ToolPermissionDecision, ToolPermissionPolicy,
+    ToolPermissionService,
+};
 
 /// Sends a message to the copilot.
 #[tauri::command]
@@ -167,4 +170,67 @@ pub async fn copilot_ask_question(
         sources: response.message.sources.unwrap_or_default(),
         confidence: 0.8,
     })
+}
+
+/// Lists every persisted tool permission policy.
+#[tauri::command]
+pub async fn copilot_list_tool_permissions(
+    permissions: State<'_, Arc<ToolPermissionService>>,
+) -> Result<Vec<ToolPermissionPolicy>, String> {
+    Ok(permissions.policies().await)
+}
+
+/// Sets (upserts) a persisted permission policy for a tool.
+#[tauri::command]
+pub async fn copilot_set_tool_permission(
+    permissions: State<'_, Arc<ToolPermissionService>>,
+    tool_name: String,
+    workspace_id: Option<String>,
+    decision: ToolPermissionDecision,
+) -> Result<(), String> {
+    if tool_name.trim().is_empty() {
+        return Err("tool_name must not be empty".to_string());
+    }
+    let wid = workspace_id
+        .map(|s| Uuid::parse_str(&s))
+        .transpose()
+        .map_err(|e| e.to_string())?;
+
+    permissions
+        .set_policy(&tool_name, wid, decision)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Removes a persisted permission policy for a tool + scope.
+#[tauri::command]
+pub async fn copilot_clear_tool_permission(
+    permissions: State<'_, Arc<ToolPermissionService>>,
+    tool_name: String,
+    workspace_id: Option<String>,
+) -> Result<(), String> {
+    let wid = workspace_id
+        .map(|s| Uuid::parse_str(&s))
+        .transpose()
+        .map_err(|e| e.to_string())?;
+
+    permissions
+        .clear_policy(&tool_name, wid)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Resolves the effective (workspace-or-global) decision for a tool.
+#[tauri::command]
+pub async fn copilot_check_tool_permission(
+    permissions: State<'_, Arc<ToolPermissionService>>,
+    tool_name: String,
+    workspace_id: Option<String>,
+) -> Result<Option<ToolPermissionDecision>, String> {
+    let wid = workspace_id
+        .map(|s| Uuid::parse_str(&s))
+        .transpose()
+        .map_err(|e| e.to_string())?;
+
+    Ok(permissions.resolve(&tool_name, wid).await)
 }

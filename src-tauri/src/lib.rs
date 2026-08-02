@@ -362,12 +362,19 @@ pub fn run() {
             let llm_service = Arc::new(llm::LLMService::new(llm_repository.clone()));
             tauri::async_runtime::block_on(llm_service.initialize())?;
 
+            // Persistent tool permission policies (stored in the settings
+            // table) gate tool execution and plan pipelines.
+            let tool_permission_service = Arc::new(tauri::async_runtime::block_on(
+                copilot::ToolPermissionService::new(settings_repository.clone()),
+            )?);
+
             let tool_executor = Arc::new(
                 copilot::ToolExecutor::new(
                     Arc::new(workspace_service.clone()),
                     Arc::new(session_engine.clone()),
                     Arc::new(timeline_engine.clone()),
                 )
+                .with_permission_service(tool_permission_service.clone())
                 .with_event_emitter(
                     Arc::new(app_handle.clone()) as Arc<dyn app_events::AppEventEmitter>
                 ),
@@ -475,6 +482,7 @@ pub fn run() {
             app.manage(llm_repository);
             app.manage(llm_service);
             app.manage(tool_executor);
+            app.manage(tool_permission_service);
             app.manage(copilot_engine);
             app.manage(proactive_engine);
             app.manage(execution_engine);
@@ -598,6 +606,10 @@ pub fn run() {
             commands::copilot::copilot_discover_tools,
             commands::copilot::copilot_get_tool_diagnostics,
             commands::copilot::copilot_ask_question,
+            commands::copilot::copilot_list_tool_permissions,
+            commands::copilot::copilot_set_tool_permission,
+            commands::copilot::copilot_clear_tool_permission,
+            commands::copilot::copilot_check_tool_permission,
             commands::proactive::copilot_get_notifications,
             commands::proactive::copilot_dismiss_notification,
             commands::proactive::copilot_get_resume_context,

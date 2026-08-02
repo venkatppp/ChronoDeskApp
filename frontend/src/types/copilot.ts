@@ -182,3 +182,14 @@ export interface ToolRetryPolicy {
   backoff_ms: number;
   retryable: boolean;
 }
+
+export type ToolPermissionDecision = "allow_once" | "always_allow" | "deny";
+
+export interface ToolPermissionPolicy {
+  id: string;
+  tool_name: string;
+  workspace_id: string | null;
+  decision: ToolPermissionDecision;
+  created_at: string;
+  updated_at: string;
+}
