@@ -8,6 +8,7 @@
 //! - Retry/backoff logic
 //! - Provider configuration
 
+pub mod hardening;
 pub mod models;
 pub mod openai_provider;
 pub mod provider;
@@ -16,6 +17,7 @@ pub mod service;
 pub mod settings;
 pub mod token_counter;
 
+pub use hardening::{HardenedLLMProvider, LLMHardeningConfig, LLMProviderDiagnostics};
 pub use models::*;
 pub use openai_provider::OpenAIProvider;
 pub use provider::{LLMProvider, StreamEvent};

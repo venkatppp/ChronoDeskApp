@@ -4,13 +4,17 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::errors::DatabaseError;
-use crate::llm::{LLMProvider, LLMRequest, LLMResponse, LLMSettings, OpenAIProvider, TokenCounter};
+use crate::llm::{
+    HardenedLLMProvider, LLMHardeningConfig, LLMProvider, LLMProviderDiagnostics, LLMRequest,
+    LLMResponse, LLMSettings, OpenAIProvider, TokenCounter,
+};
 use crate::repositories::LLMRepository;
 
 /// LLM service that manages provider configuration and requests
 pub struct LLMService {
     repository: Arc<LLMRepository>,
     provider: Arc<RwLock<Option<Arc<dyn LLMProvider>>>>,
+    diagnostics_provider: Arc<RwLock<Option<Arc<HardenedLLMProvider>>>>,
 }
 
 impl LLMService {
@@ -19,6 +23,7 @@ impl LLMService {
         Self {
             repository,
             provider: Arc::new(RwLock::new(None)),
+            diagnostics_provider: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -120,9 +125,18 @@ impl LLMService {
         }
     }
 
+    /// Gets current provider hardening diagnostics.
+    pub async fn diagnostics(&self) -> Option<LLMProviderDiagnostics> {
+        let provider = self.diagnostics_provider.read().await.clone();
+        match provider {
+            Some(provider) => Some(provider.diagnostics().await),
+            None => None,
+        }
+    }
+
     /// Updates the provider instance
     async fn update_provider(&self, settings: &LLMSettings) -> Result<(), DatabaseError> {
-        let provider: Arc<dyn LLMProvider> = match settings.provider {
+        let raw_provider: Arc<dyn LLMProvider> = match settings.provider {
             crate::llm::LLMProviderType::OpenAI => Arc::new(
                 OpenAIProvider::openai(settings.api_key.clone(), settings.model.clone())
                     .map_err(|e| DatabaseError::InvalidInput(e.to_string()))?,
@@ -141,7 +155,15 @@ impl LLMService {
             ),
         };
 
+        let hardened = Arc::new(HardenedLLMProvider::new(
+            raw_provider,
+            settings.provider.to_string(),
+            LLMHardeningConfig::default(),
+        ));
+        let provider: Arc<dyn LLMProvider> = hardened.clone();
+
         *self.provider.write().await = Some(provider);
+        *self.diagnostics_provider.write().await = Some(hardened);
         Ok(())
     }
 }

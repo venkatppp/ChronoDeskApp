@@ -16,10 +16,12 @@ pub struct OpenAIProvider {
     #[allow(dead_code)]
     api_key: String,
     model: String,
-    max_retries: u32,
     #[allow(dead_code)]
     timeout: Duration,
 }
+
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
 impl OpenAIProvider {
     /// Creates a new OpenAI provider
@@ -38,7 +40,8 @@ impl OpenAIProvider {
 
         let client = reqwest::Client::builder()
             .default_headers(headers)
-            .timeout(Duration::from_secs(120))
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(REQUEST_TIMEOUT)
             .build()
             .map_err(|e| LLMError::NetworkError(e.to_string()))?;
 
@@ -47,8 +50,7 @@ impl OpenAIProvider {
             base_url,
             api_key,
             model,
-            max_retries: 3,
-            timeout: Duration::from_secs(120),
+            timeout: REQUEST_TIMEOUT,
         })
     }
 
@@ -62,35 +64,16 @@ impl OpenAIProvider {
         Self::new(base_url, "ollama".to_string(), model)
     }
 
-    /// Retry logic with exponential backoff
-    async fn retry_with_backoff<F, Fut, T>(&self, mut f: F) -> Result<T, LLMError>
-    where
-        F: FnMut() -> Fut,
-        Fut: std::future::Future<Output = Result<T, LLMError>>,
-    {
-        let mut attempt = 0;
-        loop {
-            match f().await {
-                Ok(result) => return Ok(result),
-                Err(e) => {
-                    attempt += 1;
-                    if attempt >= self.max_retries {
-                        return Err(e);
-                    }
-
-                    // Don't retry on certain errors
-                    match &e {
-                        LLMError::InvalidApiKey
-                        | LLMError::InvalidRequest(_)
-                        | LLMError::NotConfigured => return Err(e),
-                        _ => {}
-                    }
-
-                    // Exponential backoff: 1s, 2s, 4s
-                    let delay = Duration::from_secs(2u64.pow(attempt - 1));
-                    tokio::time::sleep(delay).await;
-                }
+    fn error_for_status(status: reqwest::StatusCode, error_text: String) -> LLMError {
+        match status.as_u16() {
+            401 | 403 => LLMError::InvalidApiKey,
+            429 => LLMError::RateLimitExceeded,
+            400 if error_text.contains("context_length_exceeded") => {
+                LLMError::ContextLengthExceeded
             }
+            400 | 404 => LLMError::InvalidRequest(format!("HTTP {}", status)),
+            code if code >= 500 => LLMError::ApiError(format!("HTTP {}: provider error", status)),
+            _ => LLMError::ApiError(format!("HTTP {}: provider error", status)),
         }
     }
 }
@@ -98,62 +81,52 @@ impl OpenAIProvider {
 #[async_trait]
 impl LLMProvider for OpenAIProvider {
     async fn complete(&self, request: LLMRequest) -> Result<LLMResponse, LLMError> {
-        self.retry_with_backoff(|| async {
-            let api_request = OpenAICompletionRequest {
-                model: self.model.clone(),
-                messages: request.messages.clone(),
-                temperature: request.temperature,
-                max_tokens: request.max_tokens,
-                top_p: request.top_p,
-                stream: Some(false),
-            };
+        let api_request = OpenAICompletionRequest {
+            model: self.model.clone(),
+            messages: request.messages.clone(),
+            temperature: request.temperature,
+            max_tokens: request.max_tokens,
+            top_p: request.top_p,
+            stream: Some(false),
+        };
 
-            let response = self
-                .client
-                .post(format!("{}/chat/completions", self.base_url))
-                .json(&api_request)
-                .send()
-                .await?;
+        let response = self
+            .client
+            .post(format!("{}/chat/completions", self.base_url))
+            .json(&api_request)
+            .send()
+            .await?;
 
-            if !response.status().is_success() {
-                let status = response.status();
-                let error_text = response.text().await.unwrap_or_default();
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
 
-                return Err(match status.as_u16() {
-                    401 => LLMError::InvalidApiKey,
-                    429 => LLMError::RateLimitExceeded,
-                    400 if error_text.contains("context_length_exceeded") => {
-                        LLMError::ContextLengthExceeded
-                    }
-                    _ => LLMError::ApiError(format!("{}: {}", status, error_text)),
-                });
-            }
+            return Err(Self::error_for_status(status, error_text));
+        }
 
-            let api_response: OpenAICompletionResponse = response.json().await?;
+        let api_response: OpenAICompletionResponse = response.json().await?;
 
-            let content = api_response
-                .choices
-                .first()
-                .map(|c| c.message.content.clone())
-                .unwrap_or_default();
+        let content = api_response
+            .choices
+            .first()
+            .map(|c| c.message.content.clone())
+            .unwrap_or_default();
 
-            let finish_reason = api_response
-                .choices
-                .first()
-                .and_then(|c| c.finish_reason.clone());
+        let finish_reason = api_response
+            .choices
+            .first()
+            .and_then(|c| c.finish_reason.clone());
 
-            Ok(LLMResponse {
-                content,
-                usage: TokenUsage {
-                    prompt_tokens: api_response.usage.prompt_tokens,
-                    completion_tokens: api_response.usage.completion_tokens,
-                    total_tokens: api_response.usage.total_tokens,
-                },
-                model: api_response.model,
-                finish_reason,
-            })
+        Ok(LLMResponse {
+            content,
+            usage: TokenUsage {
+                prompt_tokens: api_response.usage.prompt_tokens,
+                completion_tokens: api_response.usage.completion_tokens,
+                total_tokens: api_response.usage.total_tokens,
+            },
+            model: api_response.model,
+            finish_reason,
         })
-        .await
     }
 
     async fn complete_stream(
@@ -180,14 +153,7 @@ impl LLMProvider for OpenAIProvider {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
 
-            return Err(match status.as_u16() {
-                401 => LLMError::InvalidApiKey,
-                429 => LLMError::RateLimitExceeded,
-                400 if error_text.contains("context_length_exceeded") => {
-                    LLMError::ContextLengthExceeded
-                }
-                _ => LLMError::ApiError(format!("{}: {}", status, error_text)),
-            });
+            return Err(Self::error_for_status(status, error_text));
         }
 
         let stream = response.bytes_stream();
@@ -254,7 +220,9 @@ impl LLMProvider for OpenAIProvider {
             .await?;
 
         if !response.status().is_success() {
-            return Err(LLMError::ApiError("Failed to list models".to_string()));
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(Self::error_for_status(status, error_text));
         }
 
         let models_response: OpenAIModelsResponse = response.json().await?;
