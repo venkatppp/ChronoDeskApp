@@ -84,6 +84,17 @@ export interface StreamingDiagnostics {
   provider_streaming_health: number;
 }
 
+export interface ToolDiagnostics {
+  registered_tools: number;
+  total_invocations: number;
+  successful_invocations: number;
+  failed_invocations: number;
+  cancelled_invocations: number;
+  retried_invocations: number;
+  average_duration_ms: number;
+  success_rate: number;
+}
+
 export interface ConversationSearchRequest {
   query: string | null;
   workspace_id: string | null;
@@ -145,11 +156,29 @@ export interface ToolDefinition {
   description: string;
   parameters: ToolParameter[];
   requires_confirmation: boolean;
+  category?: string;
+  permission?: ToolPermission;
+  timeout_ms?: number;
+  retry_policy?: ToolRetryPolicy;
+  supports_parallel?: boolean;
 }
 
 export interface ToolParameter {
   name: string;
   param_type: string;
+  parameter_type?: string;
   description: string;
   required: boolean;
+}
+
+export interface ToolPermission {
+  required_level: string;
+  requires_confirmation: boolean;
+  risk_level: string;
+}
+
+export interface ToolRetryPolicy {
+  max_attempts: number;
+  backoff_ms: number;
+  retryable: boolean;
 }

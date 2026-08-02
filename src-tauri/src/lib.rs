@@ -469,6 +469,7 @@ pub fn run() {
             app.manage(ai_state);
             app.manage(llm_repository);
             app.manage(llm_service);
+            app.manage(tool_executor);
             app.manage(copilot_engine);
             app.manage(proactive_engine);
             app.manage(execution_engine);
@@ -589,6 +590,8 @@ pub fn run() {
             commands::copilot::copilot_search_conversations,
             commands::copilot::copilot_get_daily_briefing,
             commands::copilot::copilot_get_tools,
+            commands::copilot::copilot_discover_tools,
+            commands::copilot::copilot_get_tool_diagnostics,
             commands::copilot::copilot_ask_question,
             commands::proactive::copilot_get_notifications,
             commands::proactive::copilot_dismiss_notification,

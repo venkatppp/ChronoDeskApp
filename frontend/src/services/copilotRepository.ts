@@ -15,6 +15,7 @@ import type {
   WorkspaceAnswer,
   WorkspaceQuestionRequest,
   ToolDefinition,
+  ToolDiagnostics,
 } from "@/types/copilot";
 
 export const copilotRepository = {
@@ -100,5 +101,19 @@ export const copilotRepository = {
    */
   async getTools(): Promise<ToolDefinition[]> {
     return invoke<ToolDefinition[]>("copilot_get_tools");
+  },
+
+  /**
+   * Discover runtime tool metadata from the backend registry.
+   */
+  async discoverTools(): Promise<ToolDefinition[]> {
+    return invoke<ToolDefinition[]>("copilot_discover_tools");
+  },
+
+  /**
+   * Get current tool framework diagnostics.
+   */
+  async getToolDiagnostics(): Promise<ToolDiagnostics> {
+    return invoke<ToolDiagnostics>("copilot_get_tool_diagnostics");
   },
 };

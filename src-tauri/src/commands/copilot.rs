@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::copilot::engine::CopilotEngine;
 use crate::copilot::models::*;
 use crate::copilot::streaming::StreamingDiagnostics;
-use crate::copilot::tools::ToolExecutor;
+use crate::copilot::tools::{ToolDefinition, ToolDiagnostics, ToolExecutor};
 
 /// Sends a message to the copilot.
 #[tauri::command]
@@ -124,6 +124,22 @@ pub async fn copilot_get_tools() -> Result<Vec<serde_json::Value>, String> {
             })
         })
         .collect())
+}
+
+/// Discovers available copilot tools from the runtime registry.
+#[tauri::command]
+pub async fn copilot_discover_tools(
+    tool_executor: State<'_, Arc<ToolExecutor>>,
+) -> Result<Vec<ToolDefinition>, String> {
+    Ok(tool_executor.available_tools())
+}
+
+/// Gets current tool invocation diagnostics.
+#[tauri::command]
+pub async fn copilot_get_tool_diagnostics(
+    tool_executor: State<'_, Arc<ToolExecutor>>,
+) -> Result<ToolDiagnostics, String> {
+    Ok(tool_executor.diagnostics())
 }
 
 /// Asks a question about workspace history.
