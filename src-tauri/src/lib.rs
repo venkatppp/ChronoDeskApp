@@ -422,10 +422,10 @@ pub fn run() {
             ));
 
             // --- Autonomous Planning Engine (RC-5) ---
-            let planner = Arc::new(copilot::Planner::new(
-                tool_executor.clone(),
-                Some(tool_permission_service.clone()),
-            ));
+            let planner = Arc::new(
+                copilot::Planner::new(tool_executor.clone(), Some(tool_permission_service.clone()))
+                    .with_execution_engine(execution_engine.clone()),
+            );
 
             // --- File Watcher, wired to a real AppEventEmitter (the AppHandle) ---
             let file_watcher = FileWatcher::new(workspace_manager, timeline_engine.clone())

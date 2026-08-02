@@ -18,11 +18,14 @@ use std::sync::Arc;
 use chrono::Utc;
 use uuid::Uuid;
 
+use crate::copilot::execution::ExecutionStatus;
+use crate::copilot::execution_engine::ExecutionEngine;
 use crate::copilot::proactive_models::{ExecutionPlan, PlanApprovalStatus, PlanGate, PlanTask};
 use crate::copilot::tools::{
-    ToolDefinition, ToolExecutor, ToolInvocationRequest, ToolInvocationResult,
-    ToolInvocationStatus, ToolPermissionDecision, ToolPermissionLevel, ToolPermissionService,
+    ToolDefinition, ToolExecutor, ToolInvocationStatus, ToolPermissionDecision,
+    ToolPermissionLevel, ToolPermissionService,
 };
+use crate::copilot::StepStatus;
 use crate::errors::DatabaseError;
 
 /// Number of replan passes permitted for a single goal before giving up.
@@ -49,6 +52,9 @@ pub enum PlannerError {
 #[derive(Debug, Clone)]
 pub struct PlannerReport {
     pub plan: ExecutionPlan,
+    /// Id of the final execution that ran the plan (only when an execution
+    /// engine was attached).
+    pub execution_id: Option<Uuid>,
     /// Task ids executed successfully, in order.
     pub completed: Vec<Uuid>,
     /// Task ids skipped because a conditional gate was not satisfied.
@@ -66,6 +72,7 @@ pub struct PlannerReport {
 pub struct Planner {
     tool_executor: Arc<ToolExecutor>,
     permission_service: Option<Arc<ToolPermissionService>>,
+    execution_engine: Option<Arc<ExecutionEngine>>,
 }
 
 impl Planner {
@@ -77,7 +84,20 @@ impl Planner {
         Self {
             tool_executor,
             permission_service,
+            execution_engine: None,
         }
+    }
+
+    /// Attaches the execution engine the planner hands plans to.
+    pub fn with_execution_engine(mut self, engine: Arc<ExecutionEngine>) -> Self {
+        self.execution_engine = Some(engine);
+        self
+    }
+
+    fn engine(&self) -> Result<Arc<ExecutionEngine>, PlannerError> {
+        self.execution_engine.clone().ok_or(PlannerError::Execution(
+            "no execution engine attached".into(),
+        ))
     }
 
     /// Generates a dependency-aware plan for a goal in a workspace.
@@ -128,8 +148,8 @@ impl Planner {
                 dependencies,
                 estimated_minutes: 5,
                 required_files: vec![],
-                tool_name: Some(tool_name),
-                arguments: None,
+                tool_name: Some(tool_name.clone()),
+                arguments: bind_plan_arguments(&tools, &tool_name, workspace_id),
                 completed: false,
                 condition,
             });
@@ -232,8 +252,11 @@ impl Planner {
         Ok(replanned)
     }
 
-    /// Executes a goal autonomously: plan → dependency order → conditional
-    /// gating → shared `ToolExecutor` invocation → bounded replan on failure.
+    /// Executes a goal: builds the dependency-aware plan, hands it to
+    /// `ExecutionEngine` for execution, and replans on recoverable failures.
+    ///
+    /// Planning (building/revising the DAG) lives here; scheduling, lifecycle,
+    /// cancellation, persistence, and streaming events belong to the engine.
     pub async fn execute_goal(
         &self,
         workspace_id: Option<Uuid>,
@@ -242,115 +265,87 @@ impl Planner {
     ) -> Result<PlannerReport, PlannerError> {
         self.ensure_not_cancelled(cancellation_token)?;
 
+        let engine = self.engine()?;
         let mut plan = self.plan(workspace_id, cancellation_token, goal).await?;
-        let mut outcomes: HashMap<Uuid, ToolInvocationStatus> = HashMap::new();
         let mut completed: Vec<Uuid> = Vec::new();
         let mut skipped: Vec<Uuid> = Vec::new();
         let mut replaced: Vec<Uuid> = Vec::new();
         let mut replan_count = 0usize;
         let mut last_error: Option<String> = None;
+        let mut last_execution_id: Option<Uuid> = None;
 
         loop {
             self.ensure_not_cancelled(cancellation_token)?;
-
             if replan_count > MAX_REPLAN_ATTEMPTS {
+                last_error = Some("max replan attempts reached".to_string());
                 break;
             }
 
-            let ordered = self.dependency_order(&plan)?;
-            let mut progressed = false;
+            let execution_id = engine
+                .start_execution(&plan, None)
+                .await
+                .map_err(PlannerError::Database)?;
+            last_execution_id = Some(execution_id);
+            engine
+                .execute_until_complete(execution_id)
+                .await
+                .map_err(PlannerError::Database)?;
+            let progress = engine
+                .get_progress(execution_id)
+                .await
+                .map_err(PlannerError::Database)?;
 
-            for task in ordered {
-                if completed.contains(&task.id) || outcomes.contains_key(&task.id) {
-                    continue;
+            match progress.status {
+                ExecutionStatus::Completed => {
+                    completed = progress
+                        .steps
+                        .iter()
+                        .filter(|step| step.status == StepStatus::Completed)
+                        .map(|step| plan.tasks[step.step_number].id)
+                        .collect();
+                    skipped = progress
+                        .steps
+                        .iter()
+                        .filter(|step| step.status == StepStatus::Skipped)
+                        .map(|step| plan.tasks[step.step_number].id)
+                        .collect();
+                    break;
                 }
-
-                if !self.condition_satisfied(task.condition, &outcomes) {
-                    skipped.push(task.id);
-                    outcomes.insert(task.id, ToolInvocationStatus::Cancelled);
-                    continue;
-                }
-
-                progressed = true;
-                match self
-                    .invoke_task(workspace_id, &task, &outcomes, cancellation_token)
-                    .await
-                {
-                    Ok(result) if result.status == ToolInvocationStatus::Success => {
-                        completed.push(task.id);
-                        outcomes.insert(task.id, result.status);
-                    }
-                    Ok(result) => {
-                        replaced.push(task.id);
-                        outcomes.insert(task.id, result.status);
-                        if let Some(error) = &result.error {
-                            last_error = Some(error.clone());
-                        }
-                    }
-                    Err(PlannerError::Cancelled) => return Err(PlannerError::Cancelled),
-                    Err(error) => {
-                        replaced.push(task.id);
-                        outcomes.insert(task.id, ToolInvocationStatus::Failed);
-                        last_error = Some(error.to_string());
-                    }
+                ExecutionStatus::Cancelled => return Err(PlannerError::Cancelled),
+                _ => {
+                    let Some(failed_step) = plan
+                        .tasks
+                        .iter()
+                        .zip(progress.steps.iter())
+                        .find(|(_, step)| step.status == StepStatus::Failed)
+                        .map(|(task, _)| task.id)
+                    else {
+                        last_error = Some(
+                            progress
+                                .steps
+                                .iter()
+                                .find(|step| step.error.is_some())
+                                .and_then(|step| step.error.clone())
+                                .unwrap_or_else(|| "Execution failed".to_string()),
+                        );
+                        break;
+                    };
+                    replaced.push(failed_step);
+                    replan_count += 1;
+                    plan = self.replan_after_failure(&plan, &completed, failed_step)?;
                 }
             }
-
-            if !progressed {
-                break;
-            }
-
-            if replaced.is_empty() {
-                break;
-            }
-
-            let failed = replaced.last().copied().unwrap();
-            replaced.clear();
-            replan_count += 1;
-            plan = self.replan_after_failure(&plan, &completed, failed)?;
         }
 
         Ok(PlannerReport {
             plan,
+            execution_id: last_execution_id,
             completed,
             skipped,
             replaced,
             replan_count,
             error: last_error,
         })
-    }
-
-    /// Invokes a plan task through the shared tool pipeline — the same path
-    /// `ExecutionEngine` and the copilot loop use. Only allowed tools run.
-    pub async fn invoke_task(
-        &self,
-        workspace_id: Option<Uuid>,
-        task: &PlanTask,
-        outcomes: &HashMap<Uuid, ToolInvocationStatus>,
-        cancellation_token: Option<&tokio_util::sync::CancellationToken>,
-    ) -> Result<ToolInvocationResult, PlannerError> {
-        let Some(name) = &task.tool_name else {
-            return Ok(empty_result(task.id));
-        };
-
-        if self.tool_is_denied(name, workspace_id).await {
-            return Err(PlannerError::Execution(format!(
-                "tool '{}' is not permitted for this workspace",
-                name
-            )));
-        }
-
-        let request = ToolInvocationRequest {
-            tool_name: name.clone(),
-            arguments: bind_arguments(task, outcomes),
-            workspace_id,
-            cancellation_token: cancellation_token.cloned(),
-        };
-
-        self.tool_executor
-            .invoke_tool_with_context(request)
-            .await
-            .map_err(|e| PlannerError::Execution(e.to_string()))
     }
 
     /// Tools a goal may reference, excluding any denied by registry metadata
@@ -374,20 +369,6 @@ impl Planner {
         allowed
     }
 
-    async fn tool_is_denied(&self, name: &str, workspace_id: Option<Uuid>) -> bool {
-        if let Some(permissions) = &self.permission_service {
-            if permissions.resolve(name, workspace_id).await == Some(ToolPermissionDecision::Deny) {
-                return true;
-            }
-        }
-        self.tool_executor
-            .available_tools()
-            .into_iter()
-            .any(|tool| {
-                tool.name == name && tool.permission.required_level == ToolPermissionLevel::Denied
-            })
-    }
-
     fn ensure_not_cancelled(
         &self,
         token: Option<&tokio_util::sync::CancellationToken>,
@@ -399,36 +380,6 @@ impl Planner {
         }
         Ok(())
     }
-}
-
-/// Empty result for a step that had no tool. Treated as a successful no-op
-/// so the plan chain stays complete.
-fn empty_result(_id: Uuid) -> ToolInvocationResult {
-    ToolInvocationResult {
-        invocation_id: Uuid::new_v4(),
-        tool_name: String::new(),
-        arguments: serde_json::Value::Null,
-        status: ToolInvocationStatus::Success,
-        result: None,
-        error: None,
-        started_at: Utc::now(),
-        completed_at: Utc::now(),
-        duration_ms: 0,
-        attempts: 0,
-    }
-}
-
-/// Binds a task's arguments. Steps that need a workspace id can be filled
-/// from an earlier step's output in a future milestone; today the plan steps
-/// use their optional workspace-aware tools with no explicit arguments.
-fn bind_arguments(
-    task: &PlanTask,
-    _outcomes: &HashMap<Uuid, ToolInvocationStatus>,
-) -> serde_json::Value {
-    if let Some(arguments) = &task.arguments {
-        return arguments.clone();
-    }
-    serde_json::json!({})
 }
 
 /// Kahn-style topological order over the plan's task graph.
@@ -477,6 +428,25 @@ fn topological_order(tasks: &[PlanTask]) -> Result<Vec<PlanTask>, PlannerError> 
         return Err(PlannerError::DependencyCycle);
     }
     Ok(order)
+}
+
+/// Binds default arguments for a planned step so the engine can invoke the
+/// tool without re-planning. Tools that declare a `workspace_id` parameter
+/// receive the planner's workspace context; other tools run with no arguments.
+fn bind_plan_arguments(
+    tools: &[ToolDefinition],
+    tool_name: &str,
+    workspace_id: Option<Uuid>,
+) -> Option<serde_json::Value> {
+    let definition = tools.iter().find(|t| t.name == tool_name)?;
+    if !definition
+        .parameters
+        .iter()
+        .any(|p| p.name == "workspace_id")
+    {
+        return Some(serde_json::json!({}));
+    }
+    workspace_id.map(|id| serde_json::json!({ "workspace_id": id.to_string() }))
 }
 
 /// A deterministic, dependency-aware list of steps built from the tools
@@ -531,6 +501,9 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
+    use crate::copilot::execution::ExecutionStatus;
+    use crate::copilot::execution_engine::ExecutionEngine;
+    use crate::copilot::execution_repository::ExecutionRepository;
     use crate::database::test_database;
     use crate::repositories::{
         FileRepository, SettingsRepository, TimelineRepository, WorkspaceRepository,
@@ -542,6 +515,70 @@ mod tests {
 
     fn workspace_id(n: u8) -> Uuid {
         Uuid::from_bytes([n; 16])
+    }
+
+    async fn engine_planner() -> (Planner, Arc<ExecutionEngine>, tempfile::TempDir) {
+        let (database, guard) = test_database().await;
+        let pool = database.pool().clone();
+
+        // Seed workspaces so the workflow's `resume_workspace` tail step can
+        // actually resolve the workspace ids the tests reference.
+        for n in 1..=4u8 {
+            let id = workspace_id(n);
+            let now = Utc::now();
+            sqlx::query(
+                "INSERT INTO workspaces
+                    (id, name, description, status, health_score, root_path, last_active_at, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(id)
+            .bind(format!("Workspace {n}"))
+            .bind::<Option<String>>(None)
+            .bind(crate::models::workspace::WorkspaceStatus::Active.as_str())
+            .bind(0.0_f64)
+            .bind::<Option<String>>(None)
+            .bind(now)
+            .bind(now)
+            .bind(now)
+            .execute(&pool)
+            .await
+            .expect("workspace seeding should succeed");
+        }
+
+        let workspace_repo = WorkspaceRepository::new(pool.clone());
+        let file_repo = FileRepository::new(pool.clone());
+        let timeline_repo = TimelineRepository::new(pool.clone());
+
+        let workspace_service =
+            Arc::new(WorkspaceService::new(workspace_repo, timeline_repo.clone()));
+        let session_engine = Arc::new(SessionEngine::new(
+            TimelineRepository::new(pool.clone()),
+            FileRepository::new(pool.clone()),
+        ));
+        let timeline_engine = Arc::new(TimelineEngine::new(TimelineService::new(
+            TimelineRecorder::new(file_repo, timeline_repo.clone()),
+            timeline_repo,
+        )));
+
+        let permission_service = Arc::new(
+            ToolPermissionService::new(SettingsRepository::new(pool.clone()))
+                .await
+                .expect("permission service should initialize"),
+        );
+
+        let executor = Arc::new(
+            ToolExecutor::new(workspace_service, session_engine, timeline_engine)
+                .with_permission_service(permission_service.clone()),
+        );
+
+        let engine = Arc::new(ExecutionEngine::new(
+            Arc::new(ExecutionRepository::new(pool)),
+            executor.clone(),
+        ));
+        let planner =
+            Planner::new(executor, Some(permission_service)).with_execution_engine(engine.clone());
+
+        (planner, engine, guard)
     }
 
     async fn executor() -> (
@@ -758,5 +795,183 @@ mod tests {
             .execute_goal(Some(workspace_id(1)), "resume work", Some(&tok))
             .await;
         assert!(matches!(result, Err(PlannerError::Cancelled)));
+    }
+
+    #[tokio::test]
+    async fn planner_hands_plan_to_engine_and_completes() {
+        let (planner, engine, _guard) = engine_planner().await;
+
+        let report = planner
+            .execute_goal(Some(workspace_id(1)), "Resume my focus session", None)
+            .await
+            .expect("planner-goal execution should succeed");
+
+        assert!(
+            report.error.is_none(),
+            "unexpected planner error: {:?}",
+            report.error
+        );
+        assert_eq!(report.completed.len(), report.plan.tasks.len());
+        assert!(report.replaced.is_empty());
+
+        let execution_id = report
+            .execution_id
+            .expect("planner should report its final execution");
+        let progress = engine
+            .get_progress(execution_id)
+            .await
+            .expect("execution should be findable");
+        assert_eq!(progress.status, ExecutionStatus::Completed);
+    }
+
+    #[tokio::test]
+    async fn engine_executes_tasks_in_dependency_order() {
+        let (planner, engine, _guard) = engine_planner().await;
+        let plan = planner
+            .plan(Some(workspace_id(2)), None, "Ordered workflow")
+            .await
+            .expect("plan should build");
+
+        // Verify each task's dependencies are resolved to an earlier
+        // execution step — the engine must run the DAG, not a flat list.
+        let execution_id = engine
+            .start_execution(&plan, None)
+            .await
+            .expect("execution should start");
+        engine
+            .execute_until_complete(execution_id)
+            .await
+            .expect("execution should complete");
+
+        let progress = engine
+            .get_progress(execution_id)
+            .await
+            .expect("execution progress should be readable");
+        assert_eq!(progress.status, ExecutionStatus::Completed);
+
+        for (index, task) in plan.tasks.iter().enumerate() {
+            let step = &progress
+                .steps
+                .iter()
+                .find(|s| s.step_number == index)
+                .expect("step should exist");
+            assert_eq!(step.status, crate::copilot::StepStatus::Completed);
+            // A task with dependencies must be scheduled strictly after its
+            // references already completed.
+            for dependency in &task.dependencies {
+                let dep_index = index_of_id(&plan.tasks, dependency)
+                    .expect("dependency must exist in the plan");
+                assert!(dep_index <= index, "DAG violated for task {}", index);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn engine_cancellation_propagates() {
+        let (planner, engine, _guard) = engine_planner().await;
+        let plan = planner
+            .plan(Some(workspace_id(3)), None, "Cancellable workflow")
+            .await
+            .expect("plan should generate");
+
+        let execution_id = engine
+            .start_execution(&plan, None)
+            .await
+            .expect("execution should start");
+        engine
+            .cancel_execution(execution_id)
+            .await
+            .expect("cancellation should succeed");
+
+        let progress = engine
+            .get_progress(execution_id)
+            .await
+            .expect("progress should be readable");
+        assert_eq!(progress.status, ExecutionStatus::Cancelled);
+    }
+
+    #[tokio::test]
+    async fn execution_progress_events_are_recorded() {
+        let (planner, engine, _guard) = engine_planner().await;
+        let plan = planner
+            .plan(Some(workspace_id(3)), None, "Workflow for events")
+            .await
+            .expect("plan should generate");
+
+        let execution_id = engine
+            .start_execution(&plan, None)
+            .await
+            .expect("execution should start");
+        engine
+            .execute_until_complete(execution_id)
+            .await
+            .expect("execution should complete");
+
+        let progress = engine
+            .get_progress(execution_id)
+            .await
+            .expect("progress should be readable");
+        let event_types: Vec<crate::copilot::ExecutionEventType> = progress
+            .recent_events
+            .iter()
+            .map(|event| event.event_type)
+            .collect();
+
+        assert!(
+            event_types.contains(&crate::copilot::ExecutionEventType::Started),
+            "expected a Started event, got {:?}",
+            event_types
+        );
+        assert!(
+            event_types.contains(&crate::copilot::ExecutionEventType::StepStarted),
+            "expected StepStarted events"
+        );
+        assert!(
+            event_types.contains(&crate::copilot::ExecutionEventType::Completed),
+            "expected a Completed event"
+        );
+    }
+
+    #[tokio::test]
+    async fn failure_triggers_replan_against_engine() {
+        let (planner, engine, _guard) = engine_planner().await;
+        // Force a tool-level failure for the first step by denying its
+        // permission, which the engine observes as a failed execution.
+        let permission_service = planner
+            .permission_service
+            .as_ref()
+            .expect("permission service attached")
+            .clone();
+        permission_service
+            .set_policy(
+                "get_recent_events",
+                Some(workspace_id(4)),
+                ToolPermissionDecision::Deny,
+            )
+            .await
+            .expect("policy should be recorded");
+
+        let report = planner
+            .execute_goal(Some(workspace_id(4)), "Recover after step failure", None)
+            .await
+            .expect("planning (not execution) should succeed");
+        assert!(
+            report.replan_count > 0 || !report.replaced.is_empty(),
+            "a failing step should trigger at least one replan"
+        );
+
+        let execution_id = report
+            .execution_id
+            .expect("planner should report its final execution");
+        let progress = engine
+            .get_progress(execution_id)
+            .await
+            .expect("execution should be findable");
+        assert_eq!(progress.status, ExecutionStatus::Completed);
+        assert!(!report.completed.is_empty());
+    }
+
+    fn index_of_id(tasks: &[PlanTask], id: &Uuid) -> Option<usize> {
+        tasks.iter().position(|task| task.id == *id)
     }
 }

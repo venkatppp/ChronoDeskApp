@@ -7,13 +7,17 @@ use uuid::Uuid;
 
 use crate::copilot::execution::*;
 use crate::copilot::execution_repository::ExecutionRepository;
-use crate::copilot::proactive_models::ExecutionPlan;
+use crate::copilot::proactive_models::{ExecutionPlan, PlanGate, PlanTask};
 use crate::copilot::tools::{ToolExecutor, ToolInvocationRequest, ToolInvocationStatus};
 use crate::errors::DatabaseError;
 
 struct ActiveExecutionState {
     cancellation_token: CancellationToken,
     workspace_id: Option<Uuid>,
+    /// Dependency graph of the plan being executed, aligned to the persisted
+    /// steps by index (steps are created in `plan.tasks` order). Lets the
+    /// scheduler pick the next runnable step based on plan dependencies.
+    tasks: Option<Vec<PlanTask>>,
 }
 
 /// Engine for executing approved plans.
@@ -95,6 +99,11 @@ impl ExecutionEngine {
             ActiveExecutionState {
                 cancellation_token: CancellationToken::new(),
                 workspace_id: plan.workspace_id,
+                tasks: if plan.tasks.is_empty() {
+                    None
+                } else {
+                    Some(plan.tasks.clone())
+                },
             },
         );
 
@@ -125,6 +134,82 @@ impl ExecutionEngine {
         }
     }
 
+    /// Picks the next step to run: the first non-terminal step whose
+    /// dependencies (from the plan DAG) are all completed and whose
+    /// conditional gate, if any, is satisfied. Without an attached plan,
+    /// steps simply run in the persisted order.
+    async fn next_runnable_step_index(
+        &self,
+        execution_id: Uuid,
+        execution: &PlanExecution,
+        steps: &[ExecutionStep],
+    ) -> Result<Option<usize>, DatabaseError> {
+        let plan_tasks = {
+            let guard = self.active_executions.read().await;
+            guard
+                .get(&execution_id)
+                .and_then(|state| state.tasks.clone())
+        };
+
+        let Some(tasks) = plan_tasks else {
+            let next = steps
+                .get(execution.current_step)
+                .map(|_| execution.current_step);
+            return Ok(next);
+        };
+
+        let outcomes: std::collections::HashMap<Uuid, ToolInvocationStatus> = tasks
+            .iter()
+            .zip(steps.iter())
+            .map(|(task, step)| {
+                let status = match step.status {
+                    StepStatus::Completed => ToolInvocationStatus::Success,
+                    StepStatus::Skipped => ToolInvocationStatus::Cancelled,
+                    StepStatus::Failed => ToolInvocationStatus::Failed,
+                    StepStatus::Pending | StepStatus::Running => ToolInvocationStatus::Pending,
+                };
+                (task.id, status)
+            })
+            .collect();
+
+        for (index, step) in steps.iter().enumerate() {
+            if step.status != StepStatus::Pending {
+                continue;
+            }
+            let Some(task) = tasks.get(index) else {
+                continue;
+            };
+            let dependencies_satisfied = task.dependencies.iter().all(|dependency| {
+                tasks.iter().enumerate().any(|(i, candidate)| {
+                    candidate.id == *dependency
+                        && steps.get(i).is_some_and(|dep_step| {
+                            dep_step.status == StepStatus::Completed
+                                || dep_step.status == StepStatus::Skipped
+                        })
+                })
+            });
+            if !dependencies_satisfied {
+                continue;
+            }
+            let gate_satisfied = match task.condition {
+                None => true,
+                Some(PlanGate::AfterSuccess(predecessor)) => outcomes
+                    .get(&predecessor)
+                    .map(|s| matches!(s, ToolInvocationStatus::Success))
+                    .unwrap_or(false),
+                Some(PlanGate::AfterFailure(predecessor)) => outcomes
+                    .get(&predecessor)
+                    .map(|s| matches!(s, ToolInvocationStatus::Failed))
+                    .unwrap_or(false),
+            };
+            if gate_satisfied {
+                return Ok(Some(index));
+            }
+        }
+
+        Ok(None)
+    }
+
     /// Internal implementation of execute_next_step.
     async fn execute_next_step_impl(&self, execution_id: Uuid) -> Result<(), DatabaseError> {
         let execution = self.repository.get_execution(execution_id).await?;
@@ -140,12 +225,24 @@ impl ExecutionEngine {
         }
 
         let steps = self.repository.get_execution_steps(execution_id).await?;
-        if execution.current_step >= steps.len() {
-            self.complete_execution(execution_id).await?;
-            return Ok(());
-        }
 
-        let step = &steps[execution.current_step];
+        let Some(step_index) = self
+            .next_runnable_step_index(execution_id, &execution, &steps)
+            .await?
+        else {
+            if steps.iter().any(|s| s.status == StepStatus::Pending) {
+                self.fail_execution(
+                    execution_id,
+                    "no runnable step: unsatisfied dependencies or conditional gates",
+                )
+                .await?;
+            } else {
+                self.complete_execution(execution_id).await?;
+            }
+            return Ok(());
+        };
+
+        let step = &steps[step_index];
 
         self.repository
             .update_step_status(step.id, StepStatus::Running, None, None)
@@ -168,12 +265,15 @@ impl ExecutionEngine {
 
         let (cancellation_token, workspace_id) = self.execution_context(execution_id).await;
 
-        let result = if let (Some(tool_name), Some(arguments)) = (&step.tool_name, &step.arguments)
-        {
+        let result = if let Some(tool_name) = &step.tool_name {
+            let arguments = step
+                .arguments
+                .clone()
+                .unwrap_or_else(|| serde_json::json!({}));
             self.tool_executor
                 .invoke_tool_with_context(ToolInvocationRequest {
                     tool_name: tool_name.clone(),
-                    arguments: arguments.clone(),
+                    arguments,
                     workspace_id,
                     cancellation_token: cancellation_token.clone(),
                 })
@@ -191,7 +291,7 @@ impl ExecutionEngine {
                 )
                 .await?;
             self.repository
-                .update_current_step(execution_id, execution.current_step + 1)
+                .update_current_step(execution_id, step_index + 1)
                 .await?;
             return Ok(());
         };
@@ -224,7 +324,7 @@ impl ExecutionEngine {
                 self.repository.record_event(event).await?;
 
                 self.repository
-                    .update_current_step(execution_id, execution.current_step + 1)
+                    .update_current_step(execution_id, step_index + 1)
                     .await?;
             }
             Ok(invocation) if invocation.status == ToolInvocationStatus::Cancelled => {
