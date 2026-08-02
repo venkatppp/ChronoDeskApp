@@ -374,7 +374,7 @@ pub fn run() {
             ));
             let copilot_engine = Arc::new(copilot::CopilotEngine::new(
                 conversation_manager,
-                tool_executor,
+                tool_executor.clone(),
                 Arc::new(copilot_repository),
                 llm_service.clone(),
                 Arc::new(reasoning_engine.clone()),
@@ -395,6 +395,13 @@ pub fn run() {
                 Arc::new(recommendation_engine.clone()),
                 Arc::new(context_memory_engine.clone()),
                 Arc::new(reasoning_engine.clone()),
+            ));
+
+            // --- Execution Engine (RC-2) ---
+            let execution_repository = Arc::new(copilot::ExecutionRepository::new(pool.clone()));
+            let execution_engine = Arc::new(copilot::ExecutionEngine::new(
+                execution_repository,
+                tool_executor.clone(),
             ));
 
             // --- File Watcher, wired to a real AppEventEmitter (the AppHandle) ---
@@ -459,6 +466,7 @@ pub fn run() {
             app.manage(llm_service);
             app.manage(copilot_engine);
             app.manage(proactive_engine);
+            app.manage(execution_engine);
 
             tracing::info!("ChronoDesk backend ready");
 
@@ -586,6 +594,16 @@ pub fn run() {
             commands::llm::llm_update_settings,
             commands::llm::llm_test_connection,
             commands::llm::llm_is_configured,
+            commands::execution::execution_start,
+            commands::execution::execution_pause,
+            commands::execution::execution_resume,
+            commands::execution::execution_cancel,
+            commands::execution::execution_get_progress,
+            commands::conversation::copilot_rename_conversation,
+            commands::conversation::copilot_delete_conversation,
+            commands::conversation::copilot_pin_conversation,
+            commands::conversation::copilot_export_conversation_json,
+            commands::conversation::copilot_export_conversation_markdown,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ChronoDesk");

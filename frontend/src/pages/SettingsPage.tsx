@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useTheme } from "@/hooks/useTheme";
 import type { ThemePreference } from "@/contexts/ThemeContext";
 import { Folder, Plus, Trash2, Moon, Sun, Monitor, Info, Shield, GitBranch } from "lucide-react";
+import { AISettingsPanel } from "@/components/settings/AISettingsPanel";
 
 export function SettingsPage() {
   const { preference: theme, setPreference: setTheme } = useTheme();
@@ -73,6 +74,9 @@ export function SettingsPage() {
       )}
 
       <div className="space-y-8">
+        {/* AI Settings */}
+        <AISettingsPanel />
+
         {/* Watched Folders */}
         <section className="bg-surface-hover border border-border rounded-3xl overflow-hidden">
           <div className="p-8 border-b border-border bg-background-tertiary/30">

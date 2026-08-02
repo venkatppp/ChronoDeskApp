@@ -1,6 +1,6 @@
 //! LLM Settings Repository
 
-use sqlx::{SqlitePool, Row};
+use sqlx::{Row, SqlitePool};
 use uuid::Uuid;
 
 use crate::errors::DatabaseError;
@@ -24,7 +24,7 @@ impl LLMRepository {
             SELECT provider, base_url, api_key, model, temperature, max_tokens, context_window
             FROM llm_settings
             WHERE id = 1
-            "#
+            "#,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -156,5 +156,3 @@ impl LLMRepository {
         })
     }
 }
-
-

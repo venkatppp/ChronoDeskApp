@@ -1,0 +1,85 @@
+//! Execution IPC Commands - Plan execution control and monitoring
+
+use std::sync::Arc;
+use tauri::State;
+use uuid::Uuid;
+
+use crate::copilot::execution_engine::ExecutionEngine;
+use crate::copilot::proactive_models::ExecutionPlan;
+use crate::copilot::ExecutionProgress;
+
+/// Starts execution of an approved plan.
+#[tauri::command]
+pub async fn execution_start(
+    engine: State<'_, Arc<ExecutionEngine>>,
+    plan: ExecutionPlan,
+    conversation_id: Option<String>,
+) -> Result<String, String> {
+    let cid = conversation_id
+        .map(|s| Uuid::parse_str(&s))
+        .transpose()
+        .map_err(|e| e.to_string())?;
+
+    let execution_id = engine
+        .start_execution(&plan, cid)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Start async execution
+    let engine_clone = engine.inner().clone();
+    tokio::spawn(async move {
+        let _ = engine_clone.execute_next_step(execution_id).await;
+    });
+
+    Ok(execution_id.to_string())
+}
+
+/// Pauses a running execution.
+#[tauri::command]
+pub async fn execution_pause(
+    engine: State<'_, Arc<ExecutionEngine>>,
+    execution_id: String,
+) -> Result<(), String> {
+    let eid = Uuid::parse_str(&execution_id).map_err(|e| e.to_string())?;
+    engine.pause_execution(eid).await.map_err(|e| e.to_string())
+}
+
+/// Resumes a paused execution.
+#[tauri::command]
+pub async fn execution_resume(
+    engine: State<'_, Arc<ExecutionEngine>>,
+    execution_id: String,
+) -> Result<(), String> {
+    let eid = Uuid::parse_str(&execution_id).map_err(|e| e.to_string())?;
+
+    // Resume async execution
+    let engine_clone = engine.inner().clone();
+    tokio::spawn(async move {
+        let _ = engine_clone.resume_execution(eid).await;
+    });
+
+    Ok(())
+}
+
+/// Cancels a running execution.
+#[tauri::command]
+pub async fn execution_cancel(
+    engine: State<'_, Arc<ExecutionEngine>>,
+    execution_id: String,
+) -> Result<(), String> {
+    let eid = Uuid::parse_str(&execution_id).map_err(|e| e.to_string())?;
+    engine
+        .cancel_execution(eid)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Gets execution progress.
+#[tauri::command]
+pub async fn execution_get_progress(
+    engine: State<'_, Arc<ExecutionEngine>>,
+    execution_id: String,
+) -> Result<ExecutionProgress, String> {
+    let eid = Uuid::parse_str(&execution_id).map_err(|e| e.to_string())?;
+    engine.get_progress(eid).await.map_err(|e| e.to_string())
+}

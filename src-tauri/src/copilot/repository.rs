@@ -452,4 +452,71 @@ impl CopilotRepository {
             Ok(None)
         }
     }
+
+    /// Renames a conversation.
+    pub async fn rename_conversation(
+        &self,
+        conversation_id: Uuid,
+        new_title: &str,
+    ) -> Result<(), DatabaseError> {
+        sqlx::query(
+            r#"
+            UPDATE copilot_conversations
+            SET title = ?, updated_at = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(new_title)
+        .bind(Utc::now().to_rfc3339())
+        .bind(conversation_id.to_string())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Deletes a conversation and all its messages.
+    pub async fn delete_conversation(&self, conversation_id: Uuid) -> Result<(), DatabaseError> {
+        sqlx::query(
+            r#"
+            DELETE FROM copilot_conversations
+            WHERE id = ?
+            "#,
+        )
+        .bind(conversation_id.to_string())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Pins or unpins a conversation.
+    pub async fn pin_conversation(
+        &self,
+        conversation_id: Uuid,
+        pinned: bool,
+    ) -> Result<(), DatabaseError> {
+        sqlx::query(
+            r#"
+            UPDATE copilot_conversations
+            SET pinned = ?, updated_at = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(pinned)
+        .bind(Utc::now().to_rfc3339())
+        .bind(conversation_id.to_string())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Gets conversation messages (alias for compatibility).
+    pub async fn get_conversation_messages(
+        &self,
+        conversation_id: Uuid,
+    ) -> Result<Vec<Message>, DatabaseError> {
+        self.get_messages(conversation_id, None).await
+    }
 }

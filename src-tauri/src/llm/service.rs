@@ -42,9 +42,7 @@ impl LLMService {
 
     /// Updates settings and reinitializes provider
     pub async fn update_settings(&self, settings: &LLMSettings) -> Result<(), DatabaseError> {
-        settings
-            .validate()
-            .map_err(DatabaseError::InvalidInput)?;
+        settings.validate().map_err(DatabaseError::InvalidInput)?;
 
         self.repository.update_settings(settings).await?;
         self.update_provider(settings).await?;
