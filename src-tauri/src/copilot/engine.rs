@@ -1,5 +1,6 @@
 //! Copilot Engine - AI-powered workspace assistant with multi-step planning.
 
+use async_trait::async_trait;
 use chrono::Utc;
 use futures::StreamExt;
 use std::sync::Arc;
@@ -10,11 +11,14 @@ use crate::copilot::conversation::ConversationManager;
 use crate::copilot::models::*;
 use crate::copilot::repository::CopilotRepository;
 use crate::copilot::streaming::{StreamingDiagnostics, StreamingSessionManager};
+use crate::copilot::tool_calling::{
+    build_tool_schemas, ToolCallLoop, ToolCallLoopError, ToolCallResponder,
+};
 use crate::copilot::tools::ToolExecutor;
 use crate::errors::DatabaseError;
 use crate::intelligence::recommendation::RecommendationEngine;
 use crate::learning::AdaptiveLearningEngine;
-use crate::llm::{LLMMessage, LLMRequest, LLMService, StreamEvent};
+use crate::llm::{LLMMessage, LLMRequest, LLMResponse, LLMService, StreamEvent};
 use crate::predictive::PredictiveEngine;
 use crate::semantic::ContextReasoningEngine;
 use crate::session::SessionEngine;
@@ -179,6 +183,7 @@ impl CopilotEngine {
                         llm_request,
                         reasoning,
                         sources,
+                        request.workspace_id,
                     )
                     .await;
             })
@@ -212,26 +217,34 @@ impl CopilotEngine {
             .build_llm_request(message, context, workspace_id)
             .await?;
 
-        let llm_response = self
-            .llm_service
-            .complete(llm_request, None)
+        let tools = llm_request.tools.clone().unwrap_or_default();
+        let messages = llm_request.messages.clone();
+
+        let responder = NonStreamingResponder {
+            llm_service: self.llm_service.clone(),
+        };
+        let response = ToolCallLoop::new(self.tool_executor.clone(), workspace_id, None)
+            .run(&responder, messages, tools)
             .await
-            .map_err(DatabaseError::IoError)?;
+            .map_err(|error| DatabaseError::IoError(error.to_string()))?;
+
+        let rounds = response.iterations.to_string();
 
         sources.push(Source {
             source_type: SourceType::ContextMemory,
             title: "AI Assistant".to_string(),
-            reference: llm_response.model.clone(),
+            reference: format!("tool-calling loop ({rounds} rounds)"),
             relevance: 1.0,
         });
 
         Ok(ResponseData {
-            content: llm_response.content,
+            content: response.content,
             reasoning,
             sources,
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn run_stream(
         &self,
         stream_id: Uuid,
@@ -240,51 +253,44 @@ impl CopilotEngine {
         llm_request: LLMRequest,
         reasoning: String,
         sources: Vec<Source>,
+        workspace_id: Option<Uuid>,
     ) {
-        let mut content = String::new();
-        let mut first_token_recorded = false;
-        let stream_result = self.llm_service.complete_stream(llm_request).await;
-        let mut stream = match stream_result {
-            Ok(stream) => stream,
-            Err(error) => {
-                self.streaming_manager.error_stream(stream_id, error).await;
-                return;
-            }
+        let tools = llm_request.tools.clone().unwrap_or_default();
+        let messages = llm_request.messages.clone();
+
+        let responder = StreamingResponder {
+            llm_service: self.llm_service.clone(),
+            streaming_manager: self.streaming_manager.clone(),
+            stream_id,
+            conversation_id,
+            cancel_token: cancel_token.clone(),
         };
 
-        loop {
-            tokio::select! {
-                _ = cancel_token.cancelled() => {
-                    self.streaming_manager.cancel_finished_stream(stream_id).await;
-                    return;
-                }
-                next = stream.next() => {
-                    match next {
-                        Some(StreamEvent::Chunk(chunk)) => {
-                            if !first_token_recorded {
-                                self.streaming_manager.record_first_token(stream_id).await;
-                                first_token_recorded = true;
-                            }
-                            content.push_str(&chunk.content);
-                            self.streaming_manager.emit_chunk(stream_id, conversation_id, chunk.content);
-                        }
-                        Some(StreamEvent::Done(response)) => {
-                            if content.is_empty() {
-                                content = response.content;
-                            }
-                            self.persist_completed_stream_message(conversation_id, &content, reasoning, sources, stream_id).await;
-                            return;
-                        }
-                        Some(StreamEvent::Error(error)) => {
-                            self.streaming_manager.error_stream(stream_id, error).await;
-                            return;
-                        }
-                        None => {
-                            self.persist_completed_stream_message(conversation_id, &content, reasoning, sources, stream_id).await;
-                            return;
-                        }
-                    }
-                }
+        let result =
+            ToolCallLoop::new(self.tool_executor.clone(), workspace_id, Some(cancel_token))
+                .run(&responder, messages, tools)
+                .await;
+
+        match result {
+            Ok(outcome) => {
+                self.persist_completed_stream_message(
+                    conversation_id,
+                    &outcome.content,
+                    reasoning,
+                    sources,
+                    stream_id,
+                )
+                .await;
+            }
+            Err(ToolCallLoopError::Cancelled) => {
+                self.streaming_manager
+                    .cancel_finished_stream(stream_id)
+                    .await;
+            }
+            Err(error) => {
+                self.streaming_manager
+                    .error_stream(stream_id, error.to_string())
+                    .await;
             }
         }
     }
@@ -390,22 +396,23 @@ impl CopilotEngine {
             message.to_string()
         };
 
+        let tool_definitions = build_tool_schemas(self.tool_executor.available_tools());
+
         Ok((
             LLMRequest {
                 messages: vec![
-                    LLMMessage {
-                        role: "system".to_string(),
-                        content: system_prompt,
-                    },
-                    LLMMessage {
-                        role: "user".to_string(),
-                        content: user_prompt,
-                    },
+                    LLMMessage::new("system", system_prompt),
+                    LLMMessage::new("user", user_prompt),
                 ],
                 temperature: Some(0.7),
                 max_tokens: Some(1000),
                 top_p: Some(1.0),
                 stream: Some(true),
+                tools: if tool_definitions.is_empty() {
+                    None
+                } else {
+                    Some(tool_definitions)
+                },
             },
             reasoning_parts.join(" → "),
             sources,
@@ -859,6 +866,81 @@ impl CopilotEngine {
         request: ConversationSearchRequest,
     ) -> Result<Vec<ConversationSearchResult>, DatabaseError> {
         self.repository.search_conversations(request).await
+    }
+}
+
+/// Streaming responder that re-emits text chunks to the frontend while
+/// returning the aggregated, complete response to the tool loop.
+struct StreamingResponder {
+    llm_service: Arc<LLMService>,
+    streaming_manager: Arc<StreamingSessionManager>,
+    stream_id: Uuid,
+    conversation_id: Uuid,
+    cancel_token: tokio_util::sync::CancellationToken,
+}
+
+#[async_trait]
+impl ToolCallResponder for StreamingResponder {
+    async fn respond(&self, request: LLMRequest) -> Result<LLMResponse, ToolCallLoopError> {
+        let mut stream = self
+            .llm_service
+            .complete_stream(request)
+            .await
+            .map_err(ToolCallLoopError::Responder)?;
+
+        let mut content = String::new();
+        let mut first_token_recorded = false;
+
+        loop {
+            tokio::select! {
+                _ = self.cancel_token.cancelled() => {
+                    return Err(ToolCallLoopError::Cancelled);
+                }
+                next = stream.next() => {
+                    match next {
+                        Some(StreamEvent::Chunk(chunk)) => {
+                            if !first_token_recorded {
+                                self.streaming_manager.record_first_token(self.stream_id).await;
+                                first_token_recorded = true;
+                            }
+                            content.push_str(&chunk.content);
+                            self.streaming_manager
+                                .emit_chunk(self.stream_id, self.conversation_id, chunk.content);
+                        }
+                        Some(StreamEvent::Done(response)) => {
+                            return Ok(response);
+                        }
+                        Some(StreamEvent::Error(error)) => {
+                            return Err(ToolCallLoopError::Responder(error));
+                        }
+                        None => {
+                            return Ok(LLMResponse {
+                                content,
+                                usage: Default::default(),
+                                model: String::new(),
+                                finish_reason: None,
+                                tool_calls: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Non-streaming responder used by the buffered (non-streamed) response.
+struct NonStreamingResponder {
+    llm_service: Arc<LLMService>,
+}
+
+#[async_trait]
+impl ToolCallResponder for NonStreamingResponder {
+    async fn respond(&self, request: LLMRequest) -> Result<LLMResponse, ToolCallLoopError> {
+        self.llm_service
+            .complete(request, None)
+            .await
+            .map_err(ToolCallLoopError::Responder)
     }
 }
 

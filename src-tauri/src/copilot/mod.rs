@@ -11,6 +11,7 @@ pub mod proactive_engine;
 pub mod proactive_models;
 pub mod repository;
 pub mod streaming;
+pub mod tool_calling;
 pub mod tools;
 
 pub use conversation::ConversationManager;

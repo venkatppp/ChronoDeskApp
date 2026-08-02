@@ -91,14 +91,8 @@ mod tests {
     #[test]
     fn test_estimate_messages_tokens() {
         let messages = vec![
-            LLMMessage {
-                role: "user".to_string(),
-                content: "Hello".to_string(),
-            },
-            LLMMessage {
-                role: "assistant".to_string(),
-                content: "Hi there!".to_string(),
-            },
+            LLMMessage::new("user", "Hello"),
+            LLMMessage::new("assistant", "Hi there!"),
         ];
 
         let tokens = TokenCounter::estimate_messages_tokens(&messages);
@@ -108,22 +102,10 @@ mod tests {
     #[test]
     fn test_truncate_to_context() {
         let messages = vec![
-            LLMMessage {
-                role: "system".to_string(),
-                content: "You are a helpful assistant.".to_string(),
-            },
-            LLMMessage {
-                role: "user".to_string(),
-                content: "Hello".to_string(),
-            },
-            LLMMessage {
-                role: "assistant".to_string(),
-                content: "Hi!".to_string(),
-            },
-            LLMMessage {
-                role: "user".to_string(),
-                content: "How are you?".to_string(),
-            },
+            LLMMessage::new("system", "You are a helpful assistant."),
+            LLMMessage::new("user", "Hello"),
+            LLMMessage::new("assistant", "Hi!"),
+            LLMMessage::new("user", "How are you?"),
         ];
 
         let truncated = TokenCounter::truncate_to_context(&messages, 100, 50);

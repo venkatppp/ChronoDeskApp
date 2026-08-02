@@ -57,6 +57,7 @@ impl LLMProvider for MockProvider {
                 usage: TokenUsage::default(),
                 model: "mock".to_string(),
                 finish_reason: Some("stop".to_string()),
+                tool_calls: None,
             }),
             Some(MockOutcome::Failure(error)) => Err(error),
         }
@@ -84,10 +85,7 @@ impl LLMProvider for MockProvider {
 
 fn request() -> LLMRequest {
     LLMRequest {
-        messages: vec![LLMMessage {
-            role: "user".to_string(),
-            content: "hello".to_string(),
-        }],
+        messages: vec![LLMMessage::new("user", "hello")],
         ..LLMRequest::default()
     }
 }
