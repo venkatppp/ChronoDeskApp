@@ -147,7 +147,8 @@ pub fn run() {
             let search_repository = SearchRepository::new(pool.clone());
             let graph_repository = GraphRepository::new(pool.clone());
             let ml_repository = MLRepository::new(pool.clone());
-            let llm_repository = Arc::new(LLMRepository::new(pool.clone()));
+            let secret_store = Arc::new(llm::KeyringSecretStore::new());
+            let llm_repository = Arc::new(LLMRepository::new(pool.clone(), secret_store));
 
             // --- Services (business logic composing repositories) ---
             let workspace_service =

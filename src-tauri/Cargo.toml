@@ -87,6 +87,7 @@ parking_lot = "0.12"
 ndarray = "0.16"
 # num_cpus for system info
 num_cpus = "1"
+keyring = { version = "3.6.3", default-features = false, features = ["apple-native", "windows-native", "sync-secret-service"] }
 
 [dev-dependencies]
 # Used only by repository/migration tests to create disposable on-disk

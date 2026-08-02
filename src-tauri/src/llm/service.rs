@@ -24,7 +24,16 @@ impl LLMService {
 
     /// Initializes the provider from stored settings
     pub async fn initialize(&self) -> Result<(), DatabaseError> {
-        let settings = self.repository.get_settings().await?;
+        let settings = match self.repository.get_settings().await {
+            Ok(settings) => settings,
+            Err(DatabaseError::InvalidInput(message))
+                if message.contains("LLM API key unavailable") =>
+            {
+                tracing::warn!(error = %message, "LLM provider unavailable during startup");
+                return Ok(());
+            }
+            Err(error) => return Err(error),
+        };
 
         if !settings.is_configured() {
             // No provider configured yet
