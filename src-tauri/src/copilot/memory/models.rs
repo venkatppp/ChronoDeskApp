@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::copilot::planner::PlannerReport;
 use crate::copilot::proactive_models::ExecutionPlan;
+use crate::learning::models::ExplanationReason;
 
 /// What kind of execution produced a memory record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -72,6 +73,9 @@ pub struct MemoryOutcome {
     pub retries_used: u64,
     /// Plans handed to the engine by an autonomous session.
     pub plans_attempted: u64,
+    /// Wall-clock completion time of the run, seconds (0 = unknown;
+    /// RC-6 M3, used by the duration factor of the learned blend).
+    pub duration_seconds: u64,
 }
 
 /// One durable memory row. Everything needed to learn from a run and to
@@ -159,10 +163,36 @@ pub struct MemoryHit {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryRecommendation {
     pub record: ExecutionMemoryRecord,
-    /// Blended score (similarity + outcome history + recency), 0..1.
+    /// Blended score (similarity + outcome history + recency + replay +
+    /// acceptance + duration), 0..1, archival-scaled.
     pub score: f64,
     /// How many times this workflow was replayed.
     pub replay_count: u64,
+    /// Confidence Engine score (RC-6 M3): similarity + success history +
+    /// replay history + freshness + usage count, archival-scaled.
+    pub confidence_score: f64,
+    /// Why the confidence is what it is, per factor (RC-6 M3).
+    pub explanation: Vec<ExplanationReason>,
+}
+
+/// User acceptance ledger for a remembered run (RC-6 M3): how often the
+/// user accepted/rejected the recommendation to reuse this memory.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct MemoryAcceptance {
+    pub accepted: u64,
+    pub rejected: u64,
+}
+
+impl MemoryAcceptance {
+    /// Acceptance rate (0..1); 0.5 when there is no feedback yet.
+    pub fn rate(&self) -> f64 {
+        let total = self.accepted + self.rejected;
+        if total == 0 {
+            0.5
+        } else {
+            self.accepted as f64 / total as f64
+        }
+    }
 }
 
 /// A strategy to avoid: a remembered run that failed (or was cancelled)
@@ -222,6 +252,7 @@ pub fn outcome_from_report(report: &PlannerReport) -> MemoryOutcome {
         replan_count: report.replan_count,
         retries_used: 0,
         plans_attempted: 1,
+        duration_seconds: 0, // planner reports carry no wall-clock duration
     }
 }
 

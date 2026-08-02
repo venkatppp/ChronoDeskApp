@@ -46,6 +46,7 @@ async fn record_execution_and_search_find_it() {
             ],
             ExecutionStatus::Completed,
             None,
+            None,
         )
         .await
         .expect("capture should succeed");
@@ -80,6 +81,7 @@ async fn failed_executions_are_retrievable_as_avoid_strategies() {
             )],
             ExecutionStatus::Failed,
             Some("permission denied".into()),
+            None,
         )
         .await
         .expect("capture should succeed");
@@ -104,6 +106,7 @@ async fn recommend_prefers_successful_workflows() {
             &[step(Some("list_workspaces"), "List workspaces", None)],
             ExecutionStatus::Completed,
             None,
+            None,
         )
         .await
         .unwrap();
@@ -120,6 +123,7 @@ async fn recommend_prefers_successful_workflows() {
             )],
             ExecutionStatus::Failed,
             Some("denied".into()),
+            None,
         )
         .await
         .unwrap();
@@ -241,6 +245,7 @@ async fn stats_and_learned_workflows_aggregate() {
                 &[step(Some("list_workspaces"), "List workspaces", None)],
                 ExecutionStatus::Completed,
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -258,6 +263,7 @@ async fn stats_and_learned_workflows_aggregate() {
             )],
             ExecutionStatus::Failed,
             Some("denied".into()),
+            None,
         )
         .await
         .unwrap();
@@ -286,6 +292,7 @@ async fn mark_replayed_increments_replay_count() {
             None,
             &[step(Some("list_workspaces"), "List workspaces", None)],
             ExecutionStatus::Completed,
+            None,
             None,
         )
         .await
@@ -317,6 +324,7 @@ async fn index_pending_embeds_captures_and_search_uses_the_index() {
             None,
             &[step(Some("list_workspaces"), "List workspaces", None)],
             ExecutionStatus::Completed,
+            None,
             None,
         )
         .await
@@ -370,6 +378,7 @@ async fn vector_ranking_prefers_similar_over_unrelated_goals() {
                 &[step(Some("list_workspaces"), "List workspaces", None)],
                 ExecutionStatus::Completed,
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -402,6 +411,7 @@ async fn recommend_finds_similar_goals_via_knn_after_indexing() {
             &[step(Some("list_workspaces"), "List workspaces", None)],
             ExecutionStatus::Completed,
             None,
+            None,
         )
         .await
         .unwrap();
@@ -428,6 +438,7 @@ async fn reindex_rebuilds_after_records_change() {
             &[step(Some("list_workspaces"), "List workspaces", None)],
             ExecutionStatus::Completed,
             None,
+            None,
         )
         .await
         .unwrap();
@@ -444,6 +455,7 @@ async fn reindex_rebuilds_after_records_change() {
             None,
             &[step(Some("list_workspaces"), "List workspaces", None)],
             ExecutionStatus::Completed,
+            None,
             None,
         )
         .await
@@ -472,6 +484,7 @@ async fn embedding_cache_serves_repeated_queries() {
             &[step(Some("list_workspaces"), "List workspaces", None)],
             ExecutionStatus::Completed,
             None,
+            None,
         )
         .await
         .unwrap();
@@ -491,4 +504,219 @@ async fn embedding_cache_serves_repeated_queries() {
         "repeated queries must hit the embedding cache"
     );
     assert!(status.cache_size >= 1);
+}
+
+// ----------------------------------------------------------------------
+// RC-6 M3: adaptive learning facade
+// ----------------------------------------------------------------------
+
+#[tokio::test]
+async fn acceptance_ledger_adapts_recommendations() {
+    let (engine, _guard) = engine().await;
+    let execution_id = Uuid::new_v4();
+    engine
+        .record_execution(
+            execution_id,
+            None,
+            "resume my focus session",
+            None,
+            &[step(Some("list_workspaces"), "List workspaces", None)],
+            ExecutionStatus::Completed,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+    let recs = engine
+        .recommend("resume my focus session", None, 5)
+        .await
+        .unwrap();
+    assert_eq!(recs.len(), 1);
+    let memory_id = recs[0].record.id;
+    let neutral = recs[0].score;
+
+    engine.record_acceptance(memory_id, true).await.unwrap();
+    engine.record_acceptance(memory_id, true).await.unwrap();
+    engine.record_acceptance(memory_id, true).await.unwrap();
+    engine.record_acceptance(memory_id, true).await.unwrap();
+    engine.record_acceptance(memory_id, true).await.unwrap();
+    engine.record_acceptance(memory_id, false).await.unwrap();
+
+    let updated = engine
+        .recommend("resume my focus session", None, 5)
+        .await
+        .unwrap();
+    let preferred = updated
+        .iter()
+        .find(|r| r.record.id == memory_id)
+        .expect("record still recommended");
+    assert!(
+        preferred.score > neutral,
+        "accepted memory must score higher after feedback: {} vs {}",
+        preferred.score,
+        neutral
+    );
+    assert!(
+        preferred.confidence_score > 0.0 && preferred.confidence_score <= 1.0,
+        "recommendations expose a confidence score"
+    );
+    assert!(
+        !preferred.explanation.is_empty(),
+        "recommendations explain their confidence"
+    );
+}
+
+#[tokio::test]
+async fn recommendations_carry_confidence_explanations() {
+    let (engine, _guard) = engine().await;
+    engine
+        .record_execution(
+            Uuid::new_v4(),
+            None,
+            "resume my focus session",
+            None,
+            &[step(Some("list_workspaces"), "List workspaces", None)],
+            ExecutionStatus::Completed,
+            None,
+            Some(90),
+        )
+        .await
+        .unwrap();
+
+    let recs = engine
+        .recommend("resume my focus session", None, 5)
+        .await
+        .unwrap();
+    assert_eq!(recs.len(), 1);
+    let rec = &recs[0];
+    assert!(rec.confidence_score > 0.0);
+    let factors: Vec<&str> = rec.explanation.iter().map(|f| f.factor.as_str()).collect();
+    assert!(factors.contains(&"similarity"));
+    assert!(factors.contains(&"success_history"));
+    // Completion time is recorded on the outcome.
+    assert_eq!(rec.record.outcome.duration_seconds, 90);
+}
+
+#[tokio::test]
+async fn learning_health_reports_quality_and_utilization() {
+    let (engine, _guard) = engine().await;
+    for _ in 0..3 {
+        engine
+            .record_execution(
+                Uuid::new_v4(),
+                None,
+                "resume my focus session",
+                None,
+                &[step(Some("list_workspaces"), "List workspaces", None)],
+                ExecutionStatus::Completed,
+                None,
+                Some(60),
+            )
+            .await
+            .unwrap();
+    }
+    engine
+        .record_execution(
+            Uuid::new_v4(),
+            None,
+            "deploy the app",
+            None,
+            &[step(Some("run_deploy"), "Deploy", Some("boom"))],
+            ExecutionStatus::Failed,
+            Some("boom".into()),
+            Some(300),
+        )
+        .await
+        .unwrap();
+
+    let health = engine.learning_health().await.unwrap();
+    assert!(health.confidence_average > 0.0 && health.confidence_average <= 1.0);
+    assert!(
+        health.confidence_successful > health.confidence_average,
+        "successful memories must outscore the store average"
+    );
+    assert_eq!(health.workflow_quality.workflow_count, 2);
+    assert!(health.workflow_quality.avg_success_rate >= 0.5);
+    assert!(health.workflow_quality.avg_duration_seconds > 0);
+    assert_eq!(health.memory_utilization.total_records, 4);
+    assert_eq!(health.success_trends.len(), 14);
+    assert!(health.acceptance_rate >= 0.0);
+}
+
+#[tokio::test]
+async fn duplicate_groups_and_merge_compact_the_store() {
+    let (engine, _guard) = engine().await;
+    for _ in 0..3 {
+        engine
+            .record_execution(
+                Uuid::new_v4(),
+                None,
+                "resume my focus session",
+                None,
+                &[step(Some("list_workspaces"), "List workspaces", None)],
+                ExecutionStatus::Completed,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+    }
+
+    let groups = engine.duplicate_groups().await.unwrap();
+    assert_eq!(groups.len(), 1, "three identical runs form one group");
+    assert_eq!(groups[0].records.len(), 3);
+
+    let result = engine.merge_duplicates().await.unwrap();
+    assert_eq!(result.groups_merged, 1);
+    assert_eq!(result.records_merged, 2);
+
+    let stats = engine.stats().await.unwrap();
+    assert_eq!(stats.total_records, 1, "merge must compact the store");
+    assert!(engine.duplicate_groups().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn failure_patterns_and_aging_summary_are_exposed() {
+    let (engine, _guard) = engine().await;
+    for _ in 0..2 {
+        engine
+            .record_execution(
+                Uuid::new_v4(),
+                None,
+                "deploy the app",
+                None,
+                &[step(Some("run_deploy"), "Deploy", Some("port busy"))],
+                ExecutionStatus::Failed,
+                Some("port busy".into()),
+                None,
+            )
+            .await
+            .unwrap();
+    }
+
+    let patterns = engine.failure_patterns().await.unwrap();
+    assert!(
+        patterns
+            .iter()
+            .any(|p| p.goal_fingerprint == "deploy the app"),
+        "repeated failures must be detected: {patterns:?}"
+    );
+
+    let scoped = engine
+        .failure_patterns_for_goal("deploy the app")
+        .await
+        .unwrap();
+    assert!(!scoped.is_empty());
+
+    let aging = engine.aging_summary().await.unwrap();
+    assert_eq!(aging.total_records, 2);
+    assert_eq!(aging.fresh_records, 2);
+    assert!(aging.avg_freshness > 0.9);
+
+    let families = engine.workflow_families().await.unwrap();
+    assert!(
+        !families.is_empty(),
+        "failed runs still cluster into families"
+    );
 }

@@ -6,23 +6,35 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   BrainCircuit,
+  Check,
   Database,
   History,
   RefreshCw,
   Search,
   ShieldAlert,
   TrendingUp,
+  X,
 } from "lucide-react";
+import { DuplicateGroupsCard } from "@/features/memory/components/DuplicateGroupsCard";
+import { FailurePatternsCard } from "@/features/memory/components/FailurePatternsCard";
+import { LearningHealthCard } from "@/features/memory/components/LearningHealthCard";
+import { MemoryAgingCard } from "@/features/memory/components/MemoryAgingCard";
+import { WorkflowFamiliesCard } from "@/features/memory/components/WorkflowFamiliesCard";
 import { memoryRepository } from "@/services/memoryRepository";
 import type {
   AvoidedStrategy,
+  DuplicateGroup,
   ExecutionMemoryRecord,
+  FailurePattern,
   LearnedWorkflow,
+  LearningHealth,
+  MemoryAgingSummary,
   MemoryHit,
   MemoryKind,
   MemoryRecommendation,
   MemoryStats,
   VectorIndexStatus,
+  WorkflowFamily,
 } from "@/types/memory";
 
 const KIND_LABELS: Record<MemoryKind, string> = {
@@ -76,6 +88,9 @@ function RecordCard({ hit }: { hit: MemoryHit }) {
         <span className="rounded bg-(--color-surface) px-1.5 py-0.5">{KIND_LABELS[record.kind]}</span>
         <span>similarity {hit.similarity.toFixed(2)}</span>
         <span>{record.outcome.completed}/{record.outcome.steps} steps</span>
+        {record.outcome.duration_seconds > 0 && (
+          <span>{Math.round(record.outcome.duration_seconds / 60)} min</span>
+        )}
         {record.replay_count > 0 && <span>{record.replay_count} replay(s)</span>}
       </div>
       {record.tools_used.length > 0 && (
@@ -86,6 +101,80 @@ function RecordCard({ hit }: { hit: MemoryHit }) {
       {record.error && (
         <p className="mt-1.5 truncate text-[11px] text-red-500">{record.error}</p>
       )}
+    </div>
+  );
+}
+
+function RecommendationCard({
+  recommendation,
+  onFeedback,
+}: {
+  recommendation: MemoryRecommendation;
+  onFeedback: (accepted: boolean) => void;
+}) {
+  const record = recommendation.record;
+  return (
+    <div className="rounded-lg border border-(--color-border) bg-(--color-surface-raised) p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-sm font-medium text-(--color-foreground)">{record.goal}</p>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
+            score {recommendation.score.toFixed(2)}
+          </span>
+          <span
+            className="rounded-full border border-(--color-border) bg-(--color-surface) px-2 py-0.5 text-[11px] font-medium text-(--color-foreground)"
+            title={recommendation.explanation
+              .map((factor) => `${factor.factor}: ${factor.description}`)
+              .join("\n")}
+          >
+            confidence {recommendation.confidence_score.toFixed(2)}
+          </span>
+        </div>
+      </div>
+      {record.plan && (
+        <p className="mt-1 font-mono text-[11px] text-(--color-muted-foreground)">
+          {record.plan.tasks.map((task) => task.description).join(" → ")}
+        </p>
+      )}
+      {recommendation.explanation.length > 0 && (
+        <ul className="mt-2 space-y-1 border-t border-(--color-border) pt-2">
+          {recommendation.explanation.map((factor) => (
+            <li key={factor.factor} className="flex items-baseline gap-2 text-[11px]">
+              <span
+                className={
+                  factor.impact > 0
+                    ? "font-medium text-emerald-600"
+                    : factor.impact < 0
+                      ? "font-medium text-red-500"
+                      : "font-medium text-(--color-muted-foreground)"
+                }
+              >
+                {factor.impact > 0 ? "▲" : factor.impact < 0 ? "▼" : "·"} {factor.factor}
+              </span>
+              <span className="text-(--color-faint-foreground)">{factor.description}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          onClick={() => onFeedback(true)}
+          title="Accept this recommendation"
+          className="flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-600 transition-opacity hover:opacity-80"
+        >
+          <Check className="h-3 w-3" /> Accept
+        </button>
+        <button
+          onClick={() => onFeedback(false)}
+          title="Reject this recommendation"
+          className="flex items-center gap-1 rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-500 transition-opacity hover:opacity-80"
+        >
+          <X className="h-3 w-3" /> Reject
+        </button>
+        <span className="text-[11px] text-(--color-faint-foreground)">
+          {recommendation.replay_count} replay(s)
+        </span>
+      </div>
     </div>
   );
 }
@@ -102,19 +191,35 @@ export function MemoryDashboard() {
   const [avoided, setAvoided] = useState<AvoidedStrategy[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [reindexing, setReindexing] = useState(false);
+  const [health, setHealth] = useState<LearningHealth | null>(null);
+  const [families, setFamilies] = useState<WorkflowFamily[]>([]);
+  const [aging, setAging] = useState<MemoryAgingSummary | null>(null);
+  const [failurePatterns, setFailurePatterns] = useState<FailurePattern[]>([]);
+  const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
 
   const loadOverview = useCallback(async () => {
     try {
-      const [statsData, indexData, workflowsData, recentData] = await Promise.all([
-        memoryRepository.stats(),
-        memoryRepository.indexStatus(),
-        memoryRepository.learnedWorkflows(),
-        memoryRepository.search("", { limit: 6 }),
-      ]);
+      const [statsData, indexData, workflowsData, recentData, healthData, familiesData, agingData, failuresData, duplicatesData] =
+        await Promise.all([
+          memoryRepository.stats(),
+          memoryRepository.indexStatus(),
+          memoryRepository.learnedWorkflows(),
+          memoryRepository.search("", { limit: 6 }),
+          memoryRepository.learningHealth(),
+          memoryRepository.workflowFamilies(),
+          memoryRepository.agingSummary(),
+          memoryRepository.failurePatterns(),
+          memoryRepository.duplicateGroups(),
+        ]);
       setStats(statsData);
       setIndexStatus(indexData);
       setWorkflows(workflowsData);
       setRecent(recentData);
+      setHealth(healthData);
+      setFamilies(familiesData);
+      setAging(agingData);
+      setFailurePatterns(failuresData);
+      setDuplicates(duplicatesData);
     } catch (err) {
       console.error("Failed to load memory overview:", err);
     } finally {
@@ -148,6 +253,19 @@ export function MemoryDashboard() {
     } catch (err) {
       console.error("Memory recommend failed:", err);
     }
+  };
+
+  const sendFeedback = async (memoryId: string, accepted: boolean) => {
+    try {
+      await memoryRepository.recommendationFeedback(memoryId, accepted);
+      await runRecommend();
+    } catch (err) {
+      console.error("Recommendation feedback failed:", err);
+    }
+  };
+
+  const runMergeDuplicates = async () => {
+    await loadOverview();
   };
 
   const runReindex = async () => {
@@ -194,6 +312,17 @@ export function MemoryDashboard() {
           <StatCard label="Learned workflows" value={stats.learned_workflows} />
         </section>
       )}
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <LearningHealthCard health={health} />
+        <div className="space-y-4">
+          <MemoryAgingCard summary={aging} />
+          <FailurePatternsCard patterns={failurePatterns} />
+        </div>
+      </section>
+
+      <WorkflowFamiliesCard families={families} />
+      <DuplicateGroupsCard groups={duplicates} onMerged={runMergeDuplicates} />
 
       {indexStatus && (
         <section className="rounded-lg border border-(--color-border) bg-(--color-surface-raised) p-4">
@@ -297,19 +426,11 @@ export function MemoryDashboard() {
               </p>
             )}
             {recommendations.map((rec) => (
-              <div key={rec.record.id} className="rounded-lg border border-(--color-border) bg-(--color-surface-raised) p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-medium text-(--color-foreground)">{rec.record.goal}</p>
-                  <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
-                    score {rec.score.toFixed(2)}
-                  </span>
-                </div>
-                {rec.record.plan && (
-                  <p className="mt-1 font-mono text-[11px] text-(--color-muted-foreground)">
-                    {rec.record.plan.tasks.map((t) => t.description).join(" → ")}
-                  </p>
-                )}
-              </div>
+              <RecommendationCard
+                key={rec.record.id}
+                recommendation={rec}
+                onFeedback={(accepted) => void sendFeedback(rec.record.id, accepted)}
+              />
             ))}
           </div>
         )}

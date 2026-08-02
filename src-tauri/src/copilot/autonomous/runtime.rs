@@ -499,6 +499,32 @@ impl AutonomousRuntime {
                     tracing::warn!(error = %error, "memory consultation failed for session");
                 }
             }
+
+            // Consult failure patterns (RC-6 M3): when the goal has
+            // repeated failures / unstable history / low-confidence plans
+            // in memory, surface it as an advisory signal before planning.
+            match memory.failure_patterns_for_goal(&goal).await {
+                Ok(patterns) if !patterns.is_empty() => {
+                    let worst = &patterns[0];
+                    self.record_reasoning(
+                        &state,
+                        ReasoningPhase::Planning,
+                        format!(
+                            "Memory warns: {} (severity {:.2})",
+                            worst.description, worst.severity
+                        ),
+                        Some(serde_json::json!({
+                            "pattern_type": worst.pattern_type,
+                            "occurrences": worst.occurrences,
+                        })),
+                    )
+                    .await;
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    tracing::warn!(error = %error, "failure-pattern consultation failed for session");
+                }
+            }
         }
 
         let mut plan = match self.planner.plan(workspace_id, Some(&token), &goal).await {

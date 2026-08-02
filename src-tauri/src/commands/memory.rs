@@ -11,8 +11,9 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::copilot::memory::{
-    AvoidedStrategy, IndexResult, LearnedWorkflow, MemoryEngine, MemoryHit, MemoryKind,
-    MemoryRecommendation, MemorySearchRequest, MemoryStats, MemoryStatus, VectorIndexStatus,
+    AvoidedStrategy, DuplicateGroup, FailurePattern, IndexResult, LearnedWorkflow, LearningHealth,
+    MemoryAgingSummary, MemoryEngine, MemoryHit, MemoryKind, MemoryRecommendation,
+    MemorySearchRequest, MemoryStats, MemoryStatus, MergeResult, VectorIndexStatus, WorkflowFamily,
 };
 
 /// Searches remembered runs by goal similarity, with optional filters.
@@ -104,4 +105,73 @@ pub async fn memory_index_status(
 #[tauri::command]
 pub async fn memory_reindex(engine: State<'_, Arc<MemoryEngine>>) -> Result<IndexResult, String> {
     engine.reindex().await.map_err(|e| e.to_string())
+}
+
+// ----------------------------------------------------------------------
+// RC-6 M3: adaptive learning commands (thin wrappers only)
+// ----------------------------------------------------------------------
+
+/// Records user acceptance/rejection of a recommendation, feeding the
+/// acceptance ledger the adaptive weights and confidence learn from.
+#[tauri::command]
+pub async fn memory_recommendation_feedback(
+    engine: State<'_, Arc<MemoryEngine>>,
+    memory_id: String,
+    accepted: bool,
+) -> Result<(), String> {
+    let memory_id = Uuid::parse_str(&memory_id).map_err(|e| e.to_string())?;
+    engine
+        .record_acceptance(memory_id, accepted)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Learning health: confidence averages, workflow quality, success
+/// trends, and memory utilization.
+#[tauri::command]
+pub async fn memory_learning_health(
+    engine: State<'_, Arc<MemoryEngine>>,
+) -> Result<LearningHealth, String> {
+    engine.learning_health().await.map_err(|e| e.to_string())
+}
+
+/// Detected failure patterns (repeated failures, unstable workflows,
+/// low-confidence plans).
+#[tauri::command]
+pub async fn memory_failure_patterns(
+    engine: State<'_, Arc<MemoryEngine>>,
+) -> Result<Vec<FailurePattern>, String> {
+    engine.failure_patterns().await.map_err(|e| e.to_string())
+}
+
+/// Workflow families learned by clustering remembered goals.
+#[tauri::command]
+pub async fn memory_workflow_families(
+    engine: State<'_, Arc<MemoryEngine>>,
+) -> Result<Vec<WorkflowFamily>, String> {
+    engine.workflow_families().await.map_err(|e| e.to_string())
+}
+
+/// Memory aging summary (fresh / aging / archived buckets).
+#[tauri::command]
+pub async fn memory_aging_summary(
+    engine: State<'_, Arc<MemoryEngine>>,
+) -> Result<MemoryAgingSummary, String> {
+    engine.aging_summary().await.map_err(|e| e.to_string())
+}
+
+/// Identical memories detected in the store.
+#[tauri::command]
+pub async fn memory_duplicate_groups(
+    engine: State<'_, Arc<MemoryEngine>>,
+) -> Result<Vec<DuplicateGroup>, String> {
+    engine.duplicate_groups().await.map_err(|e| e.to_string())
+}
+
+/// Merges identical memories, keeping the best record of each group.
+#[tauri::command]
+pub async fn memory_merge_duplicates(
+    engine: State<'_, Arc<MemoryEngine>>,
+) -> Result<MergeResult, String> {
+    engine.merge_duplicates().await.map_err(|e| e.to_string())
 }

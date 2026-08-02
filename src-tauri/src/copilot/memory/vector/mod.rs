@@ -165,4 +165,13 @@ impl MemoryVectorSystem {
     pub async fn last_indexed_at(&self) -> Result<Option<chrono::DateTime<Utc>>, DatabaseError> {
         self.repository.last_indexed_at().await
     }
+
+    /// Removes a memory from the vector index (duplicate merge, RC-6 M3):
+    /// deletes the durable row and drops the in-memory k-NN entry. The
+    /// `execution_memory` row itself is deleted by the memory repository.
+    pub async fn remove(&self, memory_id: Uuid) -> Result<(), DatabaseError> {
+        self.repository.remove_index(memory_id).await?;
+        self.index.remove(memory_id);
+        Ok(())
+    }
 }

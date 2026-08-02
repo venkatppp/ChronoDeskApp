@@ -16,8 +16,8 @@ use crate::copilot::execution::{ExecutionStatus, ExecutionStep};
 use crate::copilot::memory::learning;
 use crate::copilot::memory::models::{
     goal_fingerprint, outcome_from_report, AvoidedStrategy, ExecutionMemoryRecord, LearnedWorkflow,
-    MemoryHit, MemoryKind, MemoryOutcome, MemoryRecommendation, MemorySearchRequest, MemoryStats,
-    MemoryStatus,
+    MemoryAcceptance, MemoryHit, MemoryKind, MemoryOutcome, MemoryRecommendation,
+    MemorySearchRequest, MemoryStats, MemoryStatus,
 };
 use crate::copilot::memory::repository::MemoryRepository;
 use crate::copilot::memory::retrieval::{filter_records, rank_records};
@@ -80,6 +80,8 @@ impl MemoryEngine {
     /// failure never affects the execution lifecycle. The record is
     /// stored immediately and the background indexer is notified to
     /// embed the goal (RC-6 M2: incremental, batched indexing).
+    /// `duration_seconds` is the wall-clock run time when known (RC-6 M3:
+    /// feeds the duration factor of the learned blend).
     #[allow(clippy::too_many_arguments)] // one call site; the capture payload is the point
     pub async fn record_execution(
         &self,
@@ -90,6 +92,7 @@ impl MemoryEngine {
         steps: &[ExecutionStep],
         status: ExecutionStatus,
         error: Option<String>,
+        duration_seconds: Option<u64>,
     ) -> Result<(), DatabaseError> {
         let memory_status = match status {
             ExecutionStatus::Completed => MemoryStatus::Success,
@@ -107,6 +110,7 @@ impl MemoryEngine {
             replan_count: 0,
             retries_used: 0,
             plans_attempted: 1,
+            duration_seconds: duration_seconds.unwrap_or(0),
         };
 
         let record = ExecutionMemoryRecord {
@@ -225,6 +229,9 @@ impl MemoryEngine {
             None => (None, vec![], vec![], vec![]),
         };
 
+        let duration = (progress.updated_at - progress.created_at)
+            .num_seconds()
+            .max(0) as u64;
         let record = ExecutionMemoryRecord {
             id: Uuid::new_v4(),
             kind: MemoryKind::AutonomousSession,
@@ -249,6 +256,7 @@ impl MemoryEngine {
                 replan_count: progress.replans_used as usize,
                 retries_used: progress.retries_used,
                 plans_attempted: progress.plans_attempted,
+                duration_seconds: duration,
             },
             goal_embedding: None, // filled by the background indexer
             replay_count: 0,
@@ -290,8 +298,11 @@ impl MemoryEngine {
     }
 
     /// Retrieves the most similar *successful* workflows for a goal,
-    /// ranked by the learning blend (similarity + success history +
-    /// recency).
+    /// ranked by the learning blend (adaptive weights over similarity,
+    /// success history, recency, replay, user acceptance, duration, and
+    /// failures, archival-scaled) — RC-6 M3. Every recommendation also
+    /// carries a `confidence_score` from the Confidence Engine with
+    /// per-factor explanations.
     pub async fn recommend(
         &self,
         goal: &str,
@@ -318,16 +329,43 @@ impl MemoryEngine {
             },
             &all,
         );
+        let acceptance = self.repository.acceptance_map().await?;
         let now_ms = Utc::now().timestamp_millis();
-        let ranked =
-            learning::rank_historical(goal, query_embedding.as_deref(), &scoped, false, now_ms);
+        let weights = learning::learn_weights(&scoped, &acceptance, now_ms);
+        let ranked = learning::rank_historical(
+            goal,
+            query_embedding.as_deref(),
+            &scoped,
+            false,
+            &acceptance,
+            &weights,
+            now_ms,
+        );
         let recommendations: Vec<MemoryRecommendation> = ranked
             .into_iter()
             .take(limit)
-            .map(|hit| MemoryRecommendation {
-                score: learning::learned_score(&hit.record, hit.similarity, &scoped, now_ms),
-                replay_count: hit.record.replay_count,
-                record: hit.record,
+            .map(|hit| {
+                let confidence = learning::confidence_score(
+                    &hit.record,
+                    hit.similarity,
+                    &scoped,
+                    &acceptance,
+                    now_ms,
+                );
+                MemoryRecommendation {
+                    score: learning::learned_score(
+                        &hit.record,
+                        hit.similarity,
+                        &scoped,
+                        &acceptance,
+                        &weights,
+                        now_ms,
+                    ),
+                    replay_count: hit.record.replay_count,
+                    confidence_score: confidence.score,
+                    explanation: confidence.factors,
+                    record: hit.record,
+                }
             })
             .collect();
         Ok(recommendations)
@@ -385,6 +423,96 @@ impl MemoryEngine {
     /// the learning engine can weight frequently-reused workflows.
     pub async fn mark_replayed(&self, id: Uuid) -> Result<(), DatabaseError> {
         self.repository.mark_replayed(id).await
+    }
+
+    // ------------------------------------------------------------------
+    // Adaptive learning (RC-6 M3)
+    // ------------------------------------------------------------------
+
+    /// Records user acceptance/rejection of a recommendation into the
+    /// acceptance ledger, so the recommendation weights and confidence
+    /// adapt to what the user actually accepts.
+    pub async fn record_acceptance(
+        &self,
+        memory_id: Uuid,
+        accepted: bool,
+    ) -> Result<(), DatabaseError> {
+        self.repository.record_acceptance(memory_id, accepted).await
+    }
+
+    /// The acceptance ledger keyed by memory id (learning + dashboard).
+    pub async fn acceptance(
+        &self,
+    ) -> Result<std::collections::HashMap<Uuid, MemoryAcceptance>, DatabaseError> {
+        self.repository.acceptance_map().await
+    }
+
+    /// Learning health payload for the dashboard: confidence averages,
+    /// workflow quality, success trends, and memory utilization.
+    pub async fn learning_health(&self) -> Result<learning::LearningHealth, DatabaseError> {
+        let all = self.repository.list_all().await?;
+        let acceptance = self.repository.acceptance_map().await?;
+        let now_ms = Utc::now().timestamp_millis();
+        Ok(learning::learning_health(&all, &acceptance, now_ms))
+    }
+
+    /// Detected failure patterns over the whole store (repeated failures,
+    /// unstable workflows, low-confidence plans).
+    pub async fn failure_patterns(&self) -> Result<Vec<learning::FailurePattern>, DatabaseError> {
+        let all = self.repository.list_all().await?;
+        let now_ms = Utc::now().timestamp_millis();
+        Ok(learning::failure_patterns(&all, now_ms, 50))
+    }
+
+    /// Failure patterns relevant to one goal (advisory signal for the
+    /// autonomous runtime before it trusts a remembered plan).
+    pub async fn failure_patterns_for_goal(
+        &self,
+        goal: &str,
+    ) -> Result<Vec<learning::FailurePattern>, DatabaseError> {
+        let all = self.repository.list_all().await?;
+        let now_ms = Utc::now().timestamp_millis();
+        Ok(learning::failure_patterns_for_goal(goal, &all, now_ms))
+    }
+
+    /// Clusters remembered goals into reusable workflow families.
+    pub async fn workflow_families(&self) -> Result<Vec<learning::WorkflowFamily>, DatabaseError> {
+        let all = self.repository.list_all().await?;
+        Ok(learning::workflow_families(&all))
+    }
+
+    /// Identical memories detected in the store (duplicate groups).
+    pub async fn duplicate_groups(&self) -> Result<Vec<learning::DuplicateGroup>, DatabaseError> {
+        let all = self.repository.list_all().await?;
+        Ok(learning::duplicate_groups(&all))
+    }
+
+    /// Merges identical memories: keeps the best record of each group and
+    /// deletes the rest (including their vector index entries).
+    pub async fn merge_duplicates(&self) -> Result<learning::MergeResult, DatabaseError> {
+        let all = self.repository.list_all().await?;
+        let groups = learning::duplicate_groups(&all);
+        let plan = learning::merge_plan(&groups);
+
+        let mut result = learning::MergeResult {
+            groups_merged: groups.len(),
+            records_merged: 0,
+        };
+        for (_, removals) in plan {
+            for id in removals {
+                self.vectors.remove(id).await?;
+                self.repository.delete(id).await?;
+                result.records_merged += 1;
+            }
+        }
+        Ok(result)
+    }
+
+    /// Aging summary of the store (fresh / aging / archived buckets).
+    pub async fn aging_summary(&self) -> Result<learning::MemoryAgingSummary, DatabaseError> {
+        let all = self.repository.list_all().await?;
+        let now_ms = Utc::now().timestamp_millis();
+        Ok(learning::aging_summary(&all, now_ms))
     }
 
     // ------------------------------------------------------------------

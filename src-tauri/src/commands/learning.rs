@@ -3,25 +3,42 @@
 use std::sync::Arc;
 use tauri::State;
 
+use crate::copilot::memory::MemoryEngine;
 use crate::learning::models::*;
 use crate::learning::{AdaptiveLearningEngine, LearningRepository};
 
 /// Submits user feedback on a recommendation or prediction.
+///
+/// Recommendation feedback is also forwarded to the execution-memory
+/// acceptance ledger (RC-6 M3), so the adaptive recommendation weights
+/// and confidence learn from what the user actually accepts.
 #[tauri::command]
 pub async fn submit_feedback(
     engine: State<'_, Arc<AdaptiveLearningEngine>>,
+    memory: State<'_, Arc<MemoryEngine>>,
     request: SubmitFeedbackRequest,
 ) -> Result<(), String> {
     engine
         .record_feedback(
             request.feedback_type,
             request.target_type,
-            request.target_id,
+            request.target_id.clone(),
             request.action,
             request.context.unwrap_or(serde_json::json!({})),
         )
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    if request.target_type == FeedbackTargetType::Recommendation {
+        let accepted = matches!(
+            request.action,
+            FeedbackAction::Accepted | FeedbackAction::Helpful
+        );
+        if let Ok(memory_id) = uuid::Uuid::parse_str(&request.target_id) {
+            let _ = memory.record_acceptance(memory_id, accepted).await;
+        }
+    }
+    Ok(())
 }
 
 /// Gets learning insights for the dashboard.

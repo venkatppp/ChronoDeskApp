@@ -186,14 +186,16 @@ impl Planner {
                         }
                         reused.confidence = best.score.clamp(0.5, 0.95);
                         reused.reasoning = format!(
-                            "Reused successful workflow from execution memory (score {:.2}, {} replays): {}",
+                            "Reused successful workflow from execution memory (score {:.2}, confidence {:.2}, {} replays): {}",
                             best.score,
+                            best.confidence_score,
                             best.replay_count,
                             remembered.reasoning
                         );
                         let _ = memory.mark_replayed(best.record.id).await;
                         tracing::info!(
                             score = best.score,
+                            confidence = best.confidence_score,
                             memory_id = %best.record.id,
                             "planner reused a remembered workflow for goal"
                         );
@@ -1657,6 +1659,7 @@ mod tests {
                 }],
                 ExecutionStatus::Completed,
                 None,
+                None,
             )
             .await
             .expect("memory capture should succeed");
@@ -1702,6 +1705,7 @@ mod tests {
                 Some(&binding_plan()),
                 &[],
                 ExecutionStatus::Completed,
+                None,
                 None,
             )
             .await

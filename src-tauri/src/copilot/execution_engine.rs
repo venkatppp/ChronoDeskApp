@@ -978,6 +978,20 @@ impl ExecutionEngine {
                 return;
             }
         };
+        // Completion time (RC-6 M3): wall-clock duration of the run, when
+        // the execution recorded its start/finish timestamps.
+        let duration_seconds = self
+            .repository
+            .get_execution(execution_id)
+            .await
+            .ok()
+            .flatten()
+            .and_then(|execution| {
+                execution
+                    .started_at
+                    .zip(execution.completed_at)
+                    .map(|(started, completed)| (completed - started).num_seconds().max(0) as u64)
+            });
         if let Err(err) = memory
             .record_execution(
                 execution_id,
@@ -987,6 +1001,7 @@ impl ExecutionEngine {
                 &steps,
                 status,
                 error,
+                duration_seconds,
             )
             .await
         {

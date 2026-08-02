@@ -20,9 +20,13 @@ pub mod retrieval;
 pub mod vector;
 
 pub use engine::MemoryEngine;
+pub use learning::{
+    DuplicateGroup, FailurePattern, LearningHealth, MemoryAgingSummary, MergeResult, WorkflowFamily,
+};
 pub use models::{
-    AvoidedStrategy, ExecutionMemoryRecord, LearnedWorkflow, MemoryHit, MemoryKind, MemoryOutcome,
-    MemoryRecommendation, MemorySearchRequest, MemoryStats, MemoryStatus,
+    AvoidedStrategy, ExecutionMemoryRecord, LearnedWorkflow, MemoryAcceptance, MemoryHit,
+    MemoryKind, MemoryOutcome, MemoryRecommendation, MemorySearchRequest, MemoryStats,
+    MemoryStatus,
 };
 pub use repository::MemoryRepository;
 pub use vector::{IndexResult, LocalVectorProvider, MemoryVectorSystem, VectorIndexStatus};

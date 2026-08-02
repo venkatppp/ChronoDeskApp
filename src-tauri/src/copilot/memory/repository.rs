@@ -8,7 +8,7 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::copilot::memory::models::{
-    embedding_to_blob, ExecutionMemoryRecord, MemoryKind, MemoryStatus,
+    embedding_to_blob, ExecutionMemoryRecord, MemoryAcceptance, MemoryKind, MemoryStatus,
 };
 use crate::errors::DatabaseError;
 
@@ -211,6 +211,91 @@ impl MemoryRepository {
         .bind(id.to_string())
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
+
+    /// Records user feedback on a recommendation into the acceptance
+    /// ledger (RC-6 M3): accepted/rejected tallies per memory record.
+    pub async fn record_acceptance(
+        &self,
+        memory_id: Uuid,
+        accepted: bool,
+    ) -> Result<(), DatabaseError> {
+        let now = Utc::now().to_rfc3339();
+        if accepted {
+            sqlx::query(
+                r#"
+                INSERT INTO memory_acceptance
+                    (memory_id, accepted_count, rejected_count, first_feedback_at, last_feedback_at)
+                VALUES (?, 1, 0, ?, ?)
+                ON CONFLICT(memory_id) DO UPDATE SET
+                    accepted_count = accepted_count + 1,
+                    last_feedback_at = excluded.last_feedback_at
+                "#,
+            )
+            .bind(memory_id.to_string())
+            .bind(&now)
+            .bind(&now)
+            .execute(&self.pool)
+            .await?;
+        } else {
+            sqlx::query(
+                r#"
+                INSERT INTO memory_acceptance
+                    (memory_id, accepted_count, rejected_count, first_feedback_at, last_feedback_at)
+                VALUES (?, 0, 1, ?, ?)
+                ON CONFLICT(memory_id) DO UPDATE SET
+                    rejected_count = rejected_count + 1,
+                    last_feedback_at = excluded.last_feedback_at
+                "#,
+            )
+            .bind(memory_id.to_string())
+            .bind(&now)
+            .bind(&now)
+            .execute(&self.pool)
+            .await?;
+        }
+        Ok(())
+    }
+
+    /// Loads the full acceptance ledger keyed by memory id.
+    pub async fn acceptance_map(
+        &self,
+    ) -> Result<std::collections::HashMap<Uuid, MemoryAcceptance>, DatabaseError> {
+        type Row = (String, i64, i64);
+        let rows: Vec<Row> = sqlx::query_as(
+            r#"
+            SELECT memory_id, accepted_count, rejected_count
+            FROM memory_acceptance
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut map = std::collections::HashMap::with_capacity(rows.len());
+        for (memory_id, accepted, rejected) in rows {
+            if let Ok(id) = Uuid::parse_str(&memory_id) {
+                map.insert(
+                    id,
+                    MemoryAcceptance {
+                        accepted: accepted.max(0) as u64,
+                        rejected: rejected.max(0) as u64,
+                    },
+                );
+            }
+        }
+        Ok(map)
+    }
+
+    /// Hard-deletes a memory record (duplicate merge, RC-6 M3). The
+    /// acceptance ledger and the durable vector index row cascade via
+    /// their `ON DELETE CASCADE` foreign keys; the in-memory vector index
+    /// must be updated by the caller.
+    pub async fn delete(&self, id: Uuid) -> Result<(), DatabaseError> {
+        sqlx::query("DELETE FROM execution_memory WHERE id = ?")
+            .bind(id.to_string())
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
@@ -530,6 +615,38 @@ mod tests {
         repo.mark_replayed(record.id).await.unwrap();
         repo.mark_replayed(record.id).await.unwrap();
         assert_eq!(repo.total_replays().await.unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn acceptance_ledger_tallies_and_delete_removes() {
+        let (database, _guard) = test_database().await;
+        let repo = MemoryRepository::new(database.pool().clone());
+        let record = sample_record(
+            MemoryKind::Execution,
+            Uuid::new_v4(),
+            "g",
+            MemoryStatus::Success,
+        );
+        repo.upsert(&record).await.unwrap();
+
+        repo.record_acceptance(record.id, true).await.unwrap();
+        repo.record_acceptance(record.id, true).await.unwrap();
+        repo.record_acceptance(record.id, true).await.unwrap();
+        repo.record_acceptance(record.id, false).await.unwrap();
+
+        let map = repo.acceptance_map().await.unwrap();
+        let entry = map.get(&record.id).expect("ledger entry exists");
+        assert_eq!(entry.accepted, 3);
+        assert_eq!(entry.rejected, 1);
+        assert!((entry.rate() - 0.75).abs() < 1e-9);
+
+        // Unknown records carry no entry (callers treat them as neutral).
+        assert!(!map.contains_key(&Uuid::new_v4()));
+
+        // Deleting the memory cascades its acceptance row.
+        repo.delete(record.id).await.unwrap();
+        assert!(repo.get(record.id).await.unwrap().is_none());
+        assert!(repo.acceptance_map().await.unwrap().is_empty());
     }
 
     #[tokio::test]

@@ -73,6 +73,16 @@ impl MemoryVectorRepository {
         Ok(())
     }
 
+    /// Removes one memory's index row (duplicate merge, RC-6 M3). The
+    /// caller is responsible for the in-memory index.
+    pub async fn remove_index(&self, memory_id: Uuid) -> Result<(), DatabaseError> {
+        sqlx::query("DELETE FROM memory_vector_index WHERE memory_id = ?")
+            .bind(memory_id.to_string())
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     /// Loads every indexed vector (used to warm up the in-memory index at
     /// startup).
     pub async fn load_vectors(&self) -> Result<Vec<IndexedVector>, DatabaseError> {
@@ -404,6 +414,35 @@ mod tests {
         let id = sample_record(&repo, "g", Utc::now()).await;
         repo.upsert_index(id, "g", &[1.0]).await.unwrap();
         assert!(repo.last_indexed_at().await.unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn remove_index_drops_only_the_requested_memory() {
+        let (database, _guard) = test_database().await;
+        let repo = MemoryVectorRepository::new(database.pool().clone());
+        let a = sample_record(&repo, "goal a", Utc::now()).await;
+        let b = sample_record(&repo, "goal b", Utc::now()).await;
+        repo.upsert_index(a, "goal a", &[1.0, 0.0]).await.unwrap();
+        repo.upsert_index(b, "goal b", &[0.0, 1.0]).await.unwrap();
+        assert_eq!(repo.count_indexed().await.unwrap(), 2);
+
+        repo.remove_index(a).await.unwrap();
+        assert_eq!(repo.count_indexed().await.unwrap(), 1);
+        let vectors = repo.load_vectors().await.unwrap();
+        assert_eq!(vectors.len(), 1);
+        assert_eq!(
+            vectors[0].memory_id, b,
+            "the other memory's vector survives"
+        );
+
+        // The durable cascade also covers the record: deleting the memory
+        // row removes the (already removed) index row safely.
+        sqlx::query("DELETE FROM execution_memory WHERE id = ?")
+            .bind(b.to_string())
+            .execute(database.pool())
+            .await
+            .unwrap();
+        assert_eq!(repo.count_indexed().await.unwrap(), 0);
     }
 
     #[tokio::test]

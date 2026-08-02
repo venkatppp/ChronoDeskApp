@@ -29,7 +29,9 @@
 /// 20 = `execution_memory` table (RC-6 M1 execution memory store).
 /// 21 = `memory_vector_index` + `memory_embedding_cache` tables
 ///     (RC-6 M2 production vector memory system).
-pub const CURRENT_SCHEMA_VERSION: i64 = 21;
+/// 22 = `memory_acceptance` table (RC-6 M3 adaptive learning: the
+///     recommendation acceptance ledger that adapts weights + confidence).
+pub const CURRENT_SCHEMA_VERSION: i64 = 22;
 
 /// Table name constants. Repository query strings use literal SQL for
 /// readability (and because `sqlx::query_as` takes a plain `&str`, not a

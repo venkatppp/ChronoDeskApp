@@ -17,6 +17,7 @@ export interface MemoryOutcome {
   replan_count: number;
   retries_used: number;
   plans_attempted: number;
+  duration_seconds: number;
 }
 
 export interface ExecutionMemoryRecord {
@@ -48,6 +49,16 @@ export interface MemoryRecommendation {
   record: ExecutionMemoryRecord;
   score: number;
   replay_count: number;
+  /** Confidence Engine score (RC-6 M3): 0..1 */
+  confidence_score: number;
+  /** Why the confidence is what it is, per factor (RC-6 M3) */
+  explanation: RecommendationExplanation[];
+}
+
+export interface RecommendationExplanation {
+  factor: string;
+  impact: number;
+  description: string;
 }
 
 export interface AvoidedStrategy {
@@ -98,4 +109,92 @@ export interface IndexResult {
   indexed: number;
   failed: number;
   skipped: number;
+}
+
+// --- RC-6 M3: adaptive learning ---
+
+export interface SuccessTrend {
+  date: string;
+  successes: number;
+  failures: number;
+  success_rate: number;
+}
+
+export interface WorkflowQuality {
+  workflow_count: number;
+  avg_success_rate: number;
+  avg_plan_confidence: number;
+  avg_duration_seconds: number;
+  replay_adoption_rate: number;
+  replay_per_run: number;
+}
+
+export interface MemoryUtilization {
+  total_records: number;
+  active_records: number;
+  aging_records: number;
+  archived_records: number;
+  avg_freshness: number;
+  utilization_ratio: number;
+  workflows_per_record: number;
+}
+
+export interface LearningHealth {
+  confidence_average: number;
+  confidence_successful: number;
+  acceptance_rate: number;
+  workflow_quality: WorkflowQuality;
+  success_trends: SuccessTrend[];
+  memory_utilization: MemoryUtilization;
+  score_average: number;
+}
+
+export type FailurePatternType =
+  | "repeated_failure"
+  | "unstable_workflow"
+  | "low_confidence_plan";
+
+export interface FailurePattern {
+  pattern_type: FailurePatternType;
+  goal: string;
+  goal_fingerprint: string;
+  description: string;
+  severity: number;
+  occurrences: number;
+  last_seen: string;
+  avg_plan_confidence: number | null;
+}
+
+export interface WorkflowFamily {
+  family_id: number;
+  name: string;
+  member_count: number;
+  goals: string[];
+  shared_tools: string[];
+  total_successes: number;
+  total_failures: number;
+  avg_duration_seconds: number;
+  avg_confidence: number;
+}
+
+export interface MemoryAgingSummary {
+  total_records: number;
+  fresh_records: number;
+  aging_records: number;
+  archived_records: number;
+  avg_freshness: number;
+  oldest_days: number;
+  newest_days: number;
+}
+
+export interface DuplicateGroup {
+  goal_fingerprint: string;
+  records: ExecutionMemoryRecord[];
+  keep_id: string;
+  reason: string;
+}
+
+export interface MergeResult {
+  groups_merged: number;
+  records_merged: number;
 }
