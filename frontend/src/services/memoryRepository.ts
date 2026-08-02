@@ -5,18 +5,26 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AvoidedStrategy,
+  CleanupReport,
+  CompressionResult,
   DuplicateGroup,
   FailurePattern,
+  ImportResult,
   IndexResult,
   LearnedWorkflow,
   LearningHealth,
   MemoryAgingSummary,
   MemoryHit,
   MemoryKind,
+  MemoryLineage,
   MemoryRecommendation,
+  MemorySnapshot,
   MemoryStats,
   MemoryStatus,
+  MemoryStorageStats,
   MergeResult,
+  RestoreResult,
+  RetentionPolicy,
   VectorIndexStatus,
   WorkflowFamily,
 } from "@/types/memory";
@@ -155,5 +163,95 @@ export const memoryRepository = {
    */
   async mergeDuplicates(): Promise<MergeResult> {
     return invoke<MergeResult>("memory_merge_duplicates");
+  },
+
+  // --- RC-6 M4: memory lifecycle ---
+
+  /**
+   * Sets a record's retention policy (permanent / temporary + deadline /
+   * archived / expired).
+   */
+  async setRetention(
+    memoryId: string,
+    policy: RetentionPolicy,
+    retentionUntil?: string | null
+  ): Promise<void> {
+    return invoke<void>("memory_set_retention", {
+      memoryId,
+      policy,
+      retentionUntil: retentionUntil ?? null,
+    });
+  },
+
+  /**
+   * Runs one cleanup pass now (expire, delete, dedupe archives, remove
+   * orphaned vectors, compress).
+   */
+  async cleanupNow(): Promise<CleanupReport> {
+    return invoke<CleanupReport>("memory_cleanup_now");
+  },
+
+  /**
+   * Compresses oversized reasoning histories (budgeted pass).
+   */
+  async compressOversized(): Promise<CompressionResult> {
+    return invoke<CompressionResult>("memory_compress_oversized");
+  },
+
+  /**
+   * Restores a compressed record from its preservation archive.
+   */
+  async restoreCompressed(memoryId: string): Promise<boolean> {
+    return invoke<boolean>("memory_restore_compressed", { memoryId });
+  },
+
+  /**
+   * The full lineage of a memory: version ancestry, descendants, merges.
+   */
+  async lineage(memoryId: string): Promise<MemoryLineage | null> {
+    return invoke<MemoryLineage | null>("memory_lineage", { memoryId });
+  },
+
+  /**
+   * Exports the whole memory store as JSON (snapshot-compatible format).
+   */
+  async exportJson(): Promise<string> {
+    return invoke<string>("memory_export_json");
+  },
+
+  /**
+   * Imports an export payload (idempotent by record id).
+   */
+  async importJson(content: string): Promise<ImportResult> {
+    return invoke<ImportResult>("memory_import_json", { content });
+  },
+
+  /**
+   * Creates a memory snapshot (full-store export under a label).
+   */
+  async snapshotCreate(label?: string): Promise<MemorySnapshot> {
+    return invoke<MemorySnapshot>("memory_snapshot_create", { label: label ?? null });
+  },
+
+  /**
+   * Lists stored snapshots, newest first.
+   */
+  async snapshotList(): Promise<MemorySnapshot[]> {
+    return invoke<MemorySnapshot[]>("memory_snapshot_list");
+  },
+
+  /**
+   * Restores the store from a snapshot (rebuilding the vector index).
+   */
+  async snapshotRestore(snapshotId: string): Promise<RestoreResult> {
+    return invoke<RestoreResult>("memory_snapshot_restore", { snapshotId });
+  },
+
+  /**
+   * Storage statistics: database / vector index / cache sizes and
+   * retention counts.
+   */
+  async storageStats(): Promise<MemoryStorageStats> {
+    return invoke<MemoryStorageStats>("memory_storage_stats");
   },
 };

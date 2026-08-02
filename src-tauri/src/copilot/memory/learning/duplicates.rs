@@ -122,7 +122,9 @@ pub struct MergeResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::copilot::memory::models::{MemoryKind, MemoryOutcome, MemoryStatus};
+    use crate::copilot::memory::models::{
+        MemoryKind, MemoryOutcome, MemoryStatus, RetentionPolicy,
+    };
     use chrono::Utc;
     use uuid::Uuid;
 
@@ -156,6 +158,14 @@ mod tests {
             replay_count: replays,
             created_at: now,
             updated_at: now,
+            retention: RetentionPolicy::Permanent,
+            retention_until: None,
+            archived_at: None,
+            expired_at: None,
+            summary: None,
+            compressed_at: None,
+            version: 1,
+            parent_id: None,
         }
     }
 

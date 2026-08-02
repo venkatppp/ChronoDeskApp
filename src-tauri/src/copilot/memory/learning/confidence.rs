@@ -108,7 +108,9 @@ fn describe_factor(name: &str, value: f64, record: &ExecutionMemoryRecord) -> St
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::copilot::memory::models::{MemoryKind, MemoryOutcome, MemoryStatus};
+    use crate::copilot::memory::models::{
+        MemoryKind, MemoryOutcome, MemoryStatus, RetentionPolicy,
+    };
     use chrono::{Duration, Utc};
     use uuid::Uuid;
 
@@ -137,6 +139,14 @@ mod tests {
             replay_count: replays,
             created_at: created,
             updated_at: created,
+            retention: RetentionPolicy::Permanent,
+            retention_until: None,
+            archived_at: None,
+            expired_at: None,
+            summary: None,
+            compressed_at: None,
+            version: 1,
+            parent_id: None,
         }
     }
 

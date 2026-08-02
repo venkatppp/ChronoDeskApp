@@ -281,6 +281,7 @@ mod tests {
     use super::*;
     use crate::copilot::memory::models::{
         embedding_to_blob, ExecutionMemoryRecord, MemoryKind, MemoryOutcome, MemoryStatus,
+        RetentionPolicy,
     };
     use crate::database::test_database;
 
@@ -308,6 +309,14 @@ mod tests {
             replay_count: 0,
             created_at: updated_at,
             updated_at,
+            retention: RetentionPolicy::Permanent,
+            retention_until: None,
+            archived_at: None,
+            expired_at: None,
+            summary: None,
+            compressed_at: None,
+            version: 1,
+            parent_id: None,
         };
         // Insert directly (the memory repository has its own tests; this
         // helper keeps vector tests focused on the index SQL).

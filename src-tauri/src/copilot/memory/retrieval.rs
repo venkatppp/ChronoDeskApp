@@ -162,7 +162,7 @@ pub fn filter_records(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::copilot::memory::models::{MemoryKind, MemoryStatus};
+    use crate::copilot::memory::models::{MemoryKind, MemoryStatus, RetentionPolicy};
     use chrono::Utc;
     use uuid::Uuid;
 
@@ -185,6 +185,14 @@ mod tests {
             replay_count: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            retention: RetentionPolicy::Permanent,
+            retention_until: None,
+            archived_at: None,
+            expired_at: None,
+            summary: None,
+            compressed_at: None,
+            version: 1,
+            parent_id: None,
         }
     }
 

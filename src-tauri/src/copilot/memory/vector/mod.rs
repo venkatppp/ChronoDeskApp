@@ -130,6 +130,11 @@ impl MemoryVectorSystem {
         self.index.knn(query, k)
     }
 
+    /// In-memory embedding cache stats (dashboard storage card).
+    pub fn cache_stats(&self) -> CacheStats {
+        self.cache.stats()
+    }
+
     /// Number of records in the in-memory index.
     pub fn index_len(&self) -> usize {
         self.index.len()

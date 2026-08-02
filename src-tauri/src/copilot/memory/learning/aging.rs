@@ -114,7 +114,9 @@ pub fn aging_summary(records: &[ExecutionMemoryRecord], now_ms: i64) -> MemoryAg
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::copilot::memory::models::{MemoryKind, MemoryOutcome, MemoryStatus};
+    use crate::copilot::memory::models::{
+        MemoryKind, MemoryOutcome, MemoryStatus, RetentionPolicy,
+    };
     use chrono::{Duration, Utc};
     use uuid::Uuid;
 
@@ -138,6 +140,14 @@ mod tests {
             replay_count: 0,
             created_at: created,
             updated_at: created,
+            retention: RetentionPolicy::Permanent,
+            retention_until: None,
+            archived_at: None,
+            expired_at: None,
+            summary: None,
+            compressed_at: None,
+            version: 1,
+            parent_id: None,
         }
     }
 

@@ -10,6 +10,10 @@ export type MemoryKind = "execution" | "planner_report" | "autonomous_session";
 
 export type MemoryStatus = "success" | "failed" | "cancelled";
 
+// --- RC-6 M4: retention policy ---
+
+export type RetentionPolicy = "permanent" | "temporary" | "archived" | "expired";
+
 export interface MemoryOutcome {
   steps: number;
   completed: number;
@@ -38,6 +42,16 @@ export interface ExecutionMemoryRecord {
   replay_count: number;
   created_at: string;
   updated_at: string;
+
+  // --- RC-6 M4: lifecycle ---
+  retention: RetentionPolicy;
+  retention_until: string | null;
+  archived_at: string | null;
+  expired_at: string | null;
+  summary: string | null;
+  compressed_at: string | null;
+  version: number;
+  parent_id: string | null;
 }
 
 export interface MemoryHit {
@@ -197,4 +211,79 @@ export interface DuplicateGroup {
 export interface MergeResult {
   groups_merged: number;
   records_merged: number;
+}
+
+// --- RC-6 M4: memory lifecycle ---
+
+export interface CleanupReport {
+  expired_marked: number;
+  removed_expired: number;
+  removed_duplicate_archives: number;
+  removed_orphaned_vectors: number;
+  compressed: number;
+  ran_at: string;
+}
+
+export interface CompressionResult {
+  examined: number;
+  compressed: number;
+  already_compressed: number;
+}
+
+export interface MemoryStorageStats {
+  database_size_bytes: number;
+  vector_index_size_bytes: number;
+  cache_entries: number;
+  cache_size_bytes: number;
+  cache_capacity: number;
+  cache_occupancy: number;
+  archived_memories: number;
+  expired_memories: number;
+  temporary_memories: number;
+  permanent_memories: number;
+  snapshots: number;
+  snapshot_size_bytes: number;
+  compressed_records: number;
+  compression_archive_count: number;
+}
+
+export type LineageRelation = "parent" | "merged";
+
+export interface LineageNode {
+  id: string;
+  goal: string;
+  status: MemoryStatus;
+  retention: RetentionPolicy;
+  version: number;
+  created_at: string;
+  relation: LineageRelation | null;
+}
+
+export interface MemoryLineage {
+  memory_id: string;
+  root_id: string | null;
+  version: number;
+  ancestors: LineageNode[];
+  children: LineageNode[];
+  merged_into: LineageNode[];
+  merged_into_id: string | null;
+}
+
+export interface MemorySnapshot {
+  id: string;
+  label: string;
+  created_at: string;
+  record_count: number;
+}
+
+export interface ImportResult {
+  imported: number;
+  skipped: number;
+  acceptance_restored: number;
+}
+
+export interface RestoreResult {
+  records_restored: number;
+  acceptance_restored: number;
+  snapshots_kept: number;
 }

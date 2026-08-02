@@ -18,7 +18,11 @@ import {
 import { DuplicateGroupsCard } from "@/features/memory/components/DuplicateGroupsCard";
 import { FailurePatternsCard } from "@/features/memory/components/FailurePatternsCard";
 import { LearningHealthCard } from "@/features/memory/components/LearningHealthCard";
+import { LineageExplorerCard } from "@/features/memory/components/LineageExplorerCard";
 import { MemoryAgingCard } from "@/features/memory/components/MemoryAgingCard";
+import { RetentionManagerCard } from "@/features/memory/components/RetentionManagerCard";
+import { SnapshotManagerCard } from "@/features/memory/components/SnapshotManagerCard";
+import { StorageStatsCard } from "@/features/memory/components/StorageStatsCard";
 import { WorkflowFamiliesCard } from "@/features/memory/components/WorkflowFamiliesCard";
 import { memoryRepository } from "@/services/memoryRepository";
 import type {
@@ -33,6 +37,7 @@ import type {
   MemoryKind,
   MemoryRecommendation,
   MemoryStats,
+  MemoryStorageStats,
   VectorIndexStatus,
   WorkflowFamily,
 } from "@/types/memory";
@@ -196,10 +201,11 @@ export function MemoryDashboard() {
   const [aging, setAging] = useState<MemoryAgingSummary | null>(null);
   const [failurePatterns, setFailurePatterns] = useState<FailurePattern[]>([]);
   const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
+  const [storageStats, setStorageStats] = useState<MemoryStorageStats | null>(null);
 
   const loadOverview = useCallback(async () => {
     try {
-      const [statsData, indexData, workflowsData, recentData, healthData, familiesData, agingData, failuresData, duplicatesData] =
+      const [statsData, indexData, workflowsData, recentData, healthData, familiesData, agingData, failuresData, duplicatesData, storageData] =
         await Promise.all([
           memoryRepository.stats(),
           memoryRepository.indexStatus(),
@@ -210,6 +216,7 @@ export function MemoryDashboard() {
           memoryRepository.agingSummary(),
           memoryRepository.failurePatterns(),
           memoryRepository.duplicateGroups(),
+          memoryRepository.storageStats(),
         ]);
       setStats(statsData);
       setIndexStatus(indexData);
@@ -220,6 +227,7 @@ export function MemoryDashboard() {
       setAging(agingData);
       setFailurePatterns(failuresData);
       setDuplicates(duplicatesData);
+      setStorageStats(storageData);
     } catch (err) {
       console.error("Failed to load memory overview:", err);
     } finally {
@@ -323,6 +331,23 @@ export function MemoryDashboard() {
 
       <WorkflowFamiliesCard families={families} />
       <DuplicateGroupsCard groups={duplicates} onMerged={runMergeDuplicates} />
+
+      <section className="space-y-4 border-t border-(--color-border) pt-5">
+        <div>
+          <h2 className="flex items-center gap-2 text-sm font-medium text-(--color-foreground)">
+            <Database className="h-4 w-4 text-(--color-accent)" /> Memory lifecycle
+          </h2>
+          <p className="mt-1 text-xs text-(--color-muted-foreground)">
+            Retention policies, automatic cleanup, compression, lineage, snapshots, and storage.
+          </p>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <StorageStatsCard stats={storageStats} />
+          <RetentionManagerCard />
+          <SnapshotManagerCard />
+          <LineageExplorerCard />
+        </div>
+      </section>
 
       {indexStatus && (
         <section className="rounded-lg border border-(--color-border) bg-(--color-surface-raised) p-4">

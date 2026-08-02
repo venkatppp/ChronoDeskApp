@@ -141,7 +141,7 @@ fn normalize(weights: &mut LearningWeights) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::copilot::memory::models::{MemoryKind, MemoryOutcome};
+    use crate::copilot::memory::models::{MemoryKind, MemoryOutcome, RetentionPolicy};
     use chrono::Utc;
     use uuid::Uuid;
 
@@ -164,6 +164,14 @@ mod tests {
             replay_count: replays,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            retention: RetentionPolicy::Permanent,
+            retention_until: None,
+            archived_at: None,
+            expired_at: None,
+            summary: None,
+            compressed_at: None,
+            version: 1,
+            parent_id: None,
         }
     }
 

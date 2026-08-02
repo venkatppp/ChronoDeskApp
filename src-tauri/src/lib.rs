@@ -434,6 +434,16 @@ pub fn run() {
                 async move { memory_indexer.run().await }
             });
 
+            // RC-6 M4: background memory lifecycle worker — periodic
+            // cleanup passes (expire/delete/dedupe/compress) and
+            // automatic snapshots.
+            let memory_cleanup =
+                copilot::memory::MemoryCleanupWorker::new((*memory_engine).clone());
+            tauri::async_runtime::spawn({
+                let memory_cleanup = memory_cleanup.clone();
+                async move { memory_cleanup.run().await }
+            });
+
             // --- Execution Engine (RC-2) ---
             let execution_repository = Arc::new(copilot::ExecutionRepository::new(pool.clone()));
             let execution_engine = Arc::new(
@@ -690,6 +700,17 @@ pub fn run() {
             commands::memory::memory_aging_summary,
             commands::memory::memory_duplicate_groups,
             commands::memory::memory_merge_duplicates,
+            commands::memory::memory_set_retention,
+            commands::memory::memory_cleanup_now,
+            commands::memory::memory_compress_oversized,
+            commands::memory::memory_restore_compressed,
+            commands::memory::memory_lineage,
+            commands::memory::memory_export_json,
+            commands::memory::memory_import_json,
+            commands::memory::memory_snapshot_create,
+            commands::memory::memory_snapshot_list,
+            commands::memory::memory_snapshot_restore,
+            commands::memory::memory_storage_stats,
             commands::autonomous::autonomous_start,
             commands::autonomous::autonomous_get_progress,
             commands::autonomous::autonomous_list_recent,

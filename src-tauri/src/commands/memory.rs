@@ -11,9 +11,11 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::copilot::memory::{
-    AvoidedStrategy, DuplicateGroup, FailurePattern, IndexResult, LearnedWorkflow, LearningHealth,
-    MemoryAgingSummary, MemoryEngine, MemoryHit, MemoryKind, MemoryRecommendation,
-    MemorySearchRequest, MemoryStats, MemoryStatus, MergeResult, VectorIndexStatus, WorkflowFamily,
+    AvoidedStrategy, CleanupReport, CompressionResult, DuplicateGroup, FailurePattern,
+    ImportResult, IndexResult, LearnedWorkflow, LearningHealth, MemoryAgingSummary, MemoryEngine,
+    MemoryHit, MemoryKind, MemoryLineage, MemoryRecommendation, MemorySearchRequest,
+    MemorySnapshot, MemoryStats, MemoryStatus, MemoryStorageStats, MergeResult, RestoreResult,
+    RetentionPolicy, VectorIndexStatus, WorkflowFamily,
 };
 
 /// Searches remembered runs by goal similarity, with optional filters.
@@ -174,4 +176,132 @@ pub async fn memory_merge_duplicates(
     engine: State<'_, Arc<MemoryEngine>>,
 ) -> Result<MergeResult, String> {
     engine.merge_duplicates().await.map_err(|e| e.to_string())
+}
+
+// ----------------------------------------------------------------------
+// RC-6 M4: memory lifecycle commands (thin wrappers only)
+// ----------------------------------------------------------------------
+
+/// Sets a record's retention policy (permanent / temporary + deadline /
+/// archived / expired).
+#[tauri::command]
+pub async fn memory_set_retention(
+    engine: State<'_, Arc<MemoryEngine>>,
+    memory_id: String,
+    policy: RetentionPolicy,
+    retention_until: Option<String>,
+) -> Result<(), String> {
+    let memory_id = Uuid::parse_str(&memory_id).map_err(|e| e.to_string())?;
+    let retention_until = retention_until
+        .map(|s| chrono::DateTime::parse_from_rfc3339(&s))
+        .transpose()
+        .map_err(|e| e.to_string())?
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+    engine
+        .set_retention(memory_id, policy, retention_until)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Runs one cleanup pass now (expire, delete, dedupe archives, remove
+/// orphaned vectors, compress).
+#[tauri::command]
+pub async fn memory_cleanup_now(
+    engine: State<'_, Arc<MemoryEngine>>,
+) -> Result<CleanupReport, String> {
+    engine.run_cleanup().await.map_err(|e| e.to_string())
+}
+
+/// Compresses oversized reasoning histories (budgeted pass).
+#[tauri::command]
+pub async fn memory_compress_oversized(
+    engine: State<'_, Arc<MemoryEngine>>,
+) -> Result<CompressionResult, String> {
+    engine
+        .compress_oversized(32)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Restores a compressed record from its preservation archive.
+#[tauri::command]
+pub async fn memory_restore_compressed(
+    engine: State<'_, Arc<MemoryEngine>>,
+    memory_id: String,
+) -> Result<bool, String> {
+    let memory_id = Uuid::parse_str(&memory_id).map_err(|e| e.to_string())?;
+    engine
+        .restore_compressed(memory_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// The full lineage of a memory: version ancestry, descendants, merges.
+#[tauri::command]
+pub async fn memory_lineage(
+    engine: State<'_, Arc<MemoryEngine>>,
+    memory_id: String,
+) -> Result<Option<MemoryLineage>, String> {
+    let memory_id = Uuid::parse_str(&memory_id).map_err(|e| e.to_string())?;
+    engine.lineage(memory_id).await.map_err(|e| e.to_string())
+}
+
+/// Exports the whole memory store as JSON (snapshot-compatible format).
+#[tauri::command]
+pub async fn memory_export_json(engine: State<'_, Arc<MemoryEngine>>) -> Result<String, String> {
+    engine.export_json().await.map_err(|e| e.to_string())
+}
+
+/// Imports an export payload (idempotent by record id).
+#[tauri::command]
+pub async fn memory_import_json(
+    engine: State<'_, Arc<MemoryEngine>>,
+    content: String,
+) -> Result<ImportResult, String> {
+    engine
+        .import_json(&content)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Creates a memory snapshot (full-store export under a label).
+#[tauri::command]
+pub async fn memory_snapshot_create(
+    engine: State<'_, Arc<MemoryEngine>>,
+    label: Option<String>,
+) -> Result<MemorySnapshot, String> {
+    engine
+        .create_snapshot(label.as_deref())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Lists stored snapshots, newest first.
+#[tauri::command]
+pub async fn memory_snapshot_list(
+    engine: State<'_, Arc<MemoryEngine>>,
+) -> Result<Vec<MemorySnapshot>, String> {
+    engine.list_snapshots().await.map_err(|e| e.to_string())
+}
+
+/// Restores the store from a snapshot (rebuilding the vector index).
+#[tauri::command]
+pub async fn memory_snapshot_restore(
+    engine: State<'_, Arc<MemoryEngine>>,
+    snapshot_id: String,
+) -> Result<RestoreResult, String> {
+    let snapshot_id = Uuid::parse_str(&snapshot_id).map_err(|e| e.to_string())?;
+    engine
+        .restore_snapshot(snapshot_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Storage statistics: database / vector index / cache sizes and
+/// retention counts.
+#[tauri::command]
+pub async fn memory_storage_stats(
+    engine: State<'_, Arc<MemoryEngine>>,
+) -> Result<MemoryStorageStats, String> {
+    engine.storage_stats().await.map_err(|e| e.to_string())
 }

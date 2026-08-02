@@ -14,10 +14,11 @@ use crate::copilot::autonomous::models::AutonomousSessionProgress;
 use crate::copilot::autonomous::AutonomousStatus;
 use crate::copilot::execution::{ExecutionStatus, ExecutionStep};
 use crate::copilot::memory::learning;
+use crate::copilot::memory::lifecycle_repository::LifecycleRepository;
 use crate::copilot::memory::models::{
     goal_fingerprint, outcome_from_report, AvoidedStrategy, ExecutionMemoryRecord, LearnedWorkflow,
     MemoryAcceptance, MemoryHit, MemoryKind, MemoryOutcome, MemoryRecommendation,
-    MemorySearchRequest, MemoryStats, MemoryStatus,
+    MemorySearchRequest, MemoryStats, MemoryStatus, RetentionPolicy,
 };
 use crate::copilot::memory::repository::MemoryRepository;
 use crate::copilot::memory::retrieval::{filter_records, rank_records};
@@ -33,19 +34,23 @@ use crate::errors::DatabaseError;
 /// index.
 #[derive(Clone)]
 pub struct MemoryEngine {
-    repository: MemoryRepository,
-    vectors: MemoryVectorSystem,
+    pub(crate) repository: MemoryRepository,
+    pub(crate) vectors: MemoryVectorSystem,
+    pub(crate) lifecycle: LifecycleRepository,
 }
 
 impl MemoryEngine {
     /// Creates a memory engine over a repository and a vector provider
     /// (RC-6 M2: the provider feeds the cache + k-NN index + background
-    /// indexer).
+    /// indexer; RC-6 M4 adds the lifecycle repository over the same
+    /// pool).
     pub fn new(repository: MemoryRepository, provider: Arc<dyn VectorProvider>) -> Self {
         let vectors = MemoryVectorSystem::new(repository.pool().clone(), provider);
+        let lifecycle = LifecycleRepository::new(repository.pool().clone());
         Self {
             repository,
             vectors,
+            lifecycle,
         }
     }
 
@@ -100,6 +105,23 @@ impl MemoryEngine {
             _ => MemoryStatus::Cancelled,
         };
 
+        // RC-6 M4 versioning: a new successful run of a goal whose
+        // workflow was already learned becomes the *next version* of that
+        // workflow, chained to its most-replayed ancestor so lineage can
+        // show the evolution.
+        let (version, parent_id) = if memory_status == MemoryStatus::Success {
+            match self
+                .lifecycle
+                .best_reusable_ancestor(&goal_fingerprint(goal))
+                .await?
+            {
+                Some((parent, parent_version)) => (parent_version + 1, Some(parent)),
+                None => (1, None),
+            }
+        } else {
+            (1, None)
+        };
+
         let outcome = MemoryOutcome {
             steps: steps.len(),
             completed: steps
@@ -135,8 +157,21 @@ impl MemoryEngine {
             replay_count: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            retention: RetentionPolicy::Permanent,
+            retention_until: None,
+            archived_at: None,
+            expired_at: None,
+            summary: None,
+            compressed_at: None,
+            version,
+            parent_id,
         };
         self.repository.upsert(&record).await?;
+        if let Some(parent) = parent_id {
+            self.lifecycle
+                .insert_lineage(record.id, parent, "parent")
+                .await?;
+        }
         self.vectors.indexer().notify();
         Ok(())
     }
@@ -190,6 +225,14 @@ impl MemoryEngine {
             replay_count: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            retention: RetentionPolicy::Permanent,
+            retention_until: None,
+            archived_at: None,
+            expired_at: None,
+            summary: None,
+            compressed_at: None,
+            version: 1,
+            parent_id: None,
         };
         self.repository.upsert(&record).await?;
         self.vectors.indexer().notify();
@@ -262,6 +305,14 @@ impl MemoryEngine {
             replay_count: 0,
             created_at: progress.updated_at,
             updated_at: progress.updated_at,
+            retention: RetentionPolicy::Permanent,
+            retention_until: None,
+            archived_at: None,
+            expired_at: None,
+            summary: None,
+            compressed_at: None,
+            version: 1,
+            parent_id: None,
         };
         self.repository.upsert(&record).await?;
         self.vectors.indexer().notify();
@@ -292,6 +343,7 @@ impl MemoryEngine {
             _ => self.repository.list_all().await?,
         };
         let filtered = filter_records(request, &all);
+        let filtered = retain_live(filtered);
         let mut hits = rank_records(&request.query, query_embedding.as_deref(), &filtered);
         hits.truncate(request.limit);
         Ok(hits)
@@ -329,6 +381,7 @@ impl MemoryEngine {
             },
             &all,
         );
+        let scoped = retain_live(scoped);
         let acceptance = self.repository.acceptance_map().await?;
         let now_ms = Utc::now().timestamp_millis();
         let weights = learning::learn_weights(&scoped, &acceptance, now_ms);
@@ -402,7 +455,7 @@ impl MemoryEngine {
         Ok(learning::avoid_strategies(
             goal,
             query_embedding.as_deref(),
-            &scoped,
+            &retain_live(scoped),
             limit,
         ))
     }
@@ -498,8 +551,14 @@ impl MemoryEngine {
             groups_merged: groups.len(),
             records_merged: 0,
         };
-        for (_, removals) in plan {
+        for (keeper_id, removals) in plan {
             for id in removals {
+                // RC-6 M4: record the merge in the lineage *before* the
+                // deletion so the merged memory's history survives it
+                // (the edge references the removed record's id).
+                self.lifecycle
+                    .insert_lineage(id, keeper_id, "merged")
+                    .await?;
                 self.vectors.remove(id).await?;
                 self.repository.delete(id).await?;
                 result.records_merged += 1;
@@ -560,6 +619,16 @@ impl MemoryEngine {
                 .collect(),
         )
     }
+}
+
+/// Keeps only live (non-expired) records for retrieval: expired memories
+/// are deleted by the next cleanup pass, so they must not surface in
+/// searches, recommendations, or avoid lists.
+fn retain_live(records: Vec<ExecutionMemoryRecord>) -> Vec<ExecutionMemoryRecord> {
+    records
+        .into_iter()
+        .filter(|r| r.retention != RetentionPolicy::Expired)
+        .collect()
 }
 
 #[cfg(test)]

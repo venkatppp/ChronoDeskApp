@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use crate::copilot::memory::learning::*;
 use crate::copilot::memory::models::{
     ExecutionMemoryRecord, MemoryAcceptance, MemoryKind, MemoryOutcome, MemorySearchRequest,
-    MemoryStatus,
+    MemoryStatus, RetentionPolicy,
 };
 use crate::copilot::memory::retrieval::filter_records;
 use chrono::{Duration, Utc};
@@ -53,6 +53,14 @@ fn record(
         replay_count: 0,
         created_at: now,
         updated_at: now,
+        retention: RetentionPolicy::Permanent,
+        retention_until: None,
+        archived_at: None,
+        expired_at: None,
+        summary: None,
+        compressed_at: None,
+        version: 1,
+        parent_id: None,
     }
 }
 

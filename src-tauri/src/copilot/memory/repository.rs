@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::copilot::memory::models::{
     embedding_to_blob, ExecutionMemoryRecord, MemoryAcceptance, MemoryKind, MemoryStatus,
+    RetentionPolicy,
 };
 use crate::errors::DatabaseError;
 
@@ -49,9 +50,11 @@ impl MemoryRepository {
             INSERT INTO execution_memory (
                 id, kind, source_id, workspace_id, goal, status, plan, steps,
                 reasoning, tools_used, failed_steps, error, outcome,
-                goal_embedding, goal_embedding_dim, replay_count, created_at, updated_at
+                goal_embedding, goal_embedding_dim, replay_count, created_at, updated_at,
+                retention, retention_until, archived_at, expired_at, summary,
+                compressed_at, version, parent_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(kind, source_id) DO UPDATE SET
                 workspace_id = excluded.workspace_id,
                 goal = excluded.goal,
@@ -65,6 +68,14 @@ impl MemoryRepository {
                 outcome = excluded.outcome,
                 goal_embedding = excluded.goal_embedding,
                 goal_embedding_dim = excluded.goal_embedding_dim,
+                retention = excluded.retention,
+                retention_until = excluded.retention_until,
+                archived_at = excluded.archived_at,
+                expired_at = excluded.expired_at,
+                summary = excluded.summary,
+                compressed_at = excluded.compressed_at,
+                version = excluded.version,
+                parent_id = excluded.parent_id,
                 updated_at = excluded.updated_at
             "#,
         )
@@ -86,6 +97,14 @@ impl MemoryRepository {
         .bind(record.replay_count as i64)
         .bind(record.created_at.to_rfc3339())
         .bind(record.updated_at.to_rfc3339())
+        .bind(record.retention.to_string())
+        .bind(record.retention_until.map(|t| t.to_rfc3339()))
+        .bind(record.archived_at.map(|t| t.to_rfc3339()))
+        .bind(record.expired_at.map(|t| t.to_rfc3339()))
+        .bind(record.summary.as_deref())
+        .bind(record.compressed_at.map(|t| t.to_rfc3339()))
+        .bind(record.version as i64)
+        .bind(record.parent_id.map(|id| id.to_string()))
         .execute(&self.pool)
         .await?;
 
@@ -258,6 +277,37 @@ impl MemoryRepository {
         Ok(())
     }
 
+    /// Sets the exact acceptance tallies of a record (RC-6 M4 import /
+    /// snapshot restore: ledger entries travel with exports and must be
+    /// restored to their exact values, not incremented).
+    pub async fn restore_acceptance(
+        &self,
+        memory_id: Uuid,
+        accepted: u64,
+        rejected: u64,
+    ) -> Result<(), DatabaseError> {
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(
+            r#"
+            INSERT INTO memory_acceptance
+                (memory_id, accepted_count, rejected_count, first_feedback_at, last_feedback_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(memory_id) DO UPDATE SET
+                accepted_count = excluded.accepted_count,
+                rejected_count = excluded.rejected_count,
+                last_feedback_at = excluded.last_feedback_at
+            "#,
+        )
+        .bind(memory_id.to_string())
+        .bind(accepted as i64)
+        .bind(rejected as i64)
+        .bind(&now)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     /// Loads the full acceptance ledger keyed by memory id.
     pub async fn acceptance_map(
         &self,
@@ -395,6 +445,30 @@ impl MemoryRepository {
             replay_count: row.get::<i64, _>("replay_count").max(0) as u64,
             created_at: parse_rfc3339(&row.get::<String, _>("created_at"))?,
             updated_at: parse_rfc3339(&row.get::<String, _>("updated_at"))?,
+            retention: self.parse_retention(&row.get::<String, _>("retention"))?,
+            retention_until: row
+                .get::<Option<String>, _>("retention_until")
+                .map(|s| parse_rfc3339(&s))
+                .transpose()?,
+            archived_at: row
+                .get::<Option<String>, _>("archived_at")
+                .map(|s| parse_rfc3339(&s))
+                .transpose()?,
+            expired_at: row
+                .get::<Option<String>, _>("expired_at")
+                .map(|s| parse_rfc3339(&s))
+                .transpose()?,
+            summary: row.get("summary"),
+            compressed_at: row
+                .get::<Option<String>, _>("compressed_at")
+                .map(|s| parse_rfc3339(&s))
+                .transpose()?,
+            version: row.get::<i64, _>("version").max(1) as u64,
+            parent_id: row
+                .get::<Option<String>, _>("parent_id")
+                .map(|s| Uuid::parse_str(&s))
+                .transpose()
+                .map_err(|e| DatabaseError::IoError(e.to_string()))?,
         })
     }
 
@@ -412,6 +486,18 @@ impl MemoryRepository {
             "autonomous_session" => Ok(MemoryKind::AutonomousSession),
             other => Err(DatabaseError::IoError(format!(
                 "Unknown memory kind: {other}"
+            ))),
+        }
+    }
+
+    fn parse_retention(&self, s: &str) -> Result<RetentionPolicy, DatabaseError> {
+        match s {
+            "permanent" => Ok(RetentionPolicy::Permanent),
+            "temporary" => Ok(RetentionPolicy::Temporary),
+            "archived" => Ok(RetentionPolicy::Archived),
+            "expired" => Ok(RetentionPolicy::Expired),
+            other => Err(DatabaseError::IoError(format!(
+                "Unknown retention policy: {other}"
             ))),
         }
     }
@@ -437,7 +523,7 @@ fn parse_rfc3339(s: &str) -> Result<chrono::DateTime<Utc>, DatabaseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::copilot::memory::models::MemoryOutcome;
+    use crate::copilot::memory::models::{MemoryOutcome, RetentionPolicy};
     use crate::database::test_database;
     use crate::errors::DatabaseError;
 
@@ -469,6 +555,14 @@ mod tests {
             replay_count: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            retention: RetentionPolicy::Permanent,
+            retention_until: None,
+            archived_at: None,
+            expired_at: None,
+            summary: None,
+            compressed_at: None,
+            version: 1,
+            parent_id: None,
         }
     }
 
