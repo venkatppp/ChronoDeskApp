@@ -13,6 +13,7 @@ use crate::errors::DatabaseError;
 
 struct ActiveExecutionState {
     cancellation_token: CancellationToken,
+    workspace_id: Option<Uuid>,
 }
 
 /// Engine for executing approved plans.
@@ -93,6 +94,7 @@ impl ExecutionEngine {
             execution.id,
             ActiveExecutionState {
                 cancellation_token: CancellationToken::new(),
+                workspace_id: plan.workspace_id,
             },
         );
 
@@ -164,7 +166,7 @@ impl ExecutionEngine {
         };
         self.repository.record_event(event).await?;
 
-        let cancellation_token = self.execution_cancellation_token(execution_id).await;
+        let (cancellation_token, workspace_id) = self.execution_context(execution_id).await;
 
         let result = if let (Some(tool_name), Some(arguments)) = (&step.tool_name, &step.arguments)
         {
@@ -172,7 +174,7 @@ impl ExecutionEngine {
                 .invoke_tool_with_context(ToolInvocationRequest {
                     tool_name: tool_name.clone(),
                     arguments: arguments.clone(),
-                    workspace_id: None,
+                    workspace_id,
                     cancellation_token: cancellation_token.clone(),
                 })
                 .await
@@ -381,12 +383,17 @@ impl ExecutionEngine {
         Ok(())
     }
 
-    async fn execution_cancellation_token(&self, execution_id: Uuid) -> Option<CancellationToken> {
+    async fn execution_context(
+        &self,
+        execution_id: Uuid,
+    ) -> (Option<CancellationToken>, Option<Uuid>) {
         self.active_executions
             .read()
             .await
             .get(&execution_id)
-            .map(|state| state.cancellation_token.clone())
+            .map_or((None, None), |state| {
+                (Some(state.cancellation_token.clone()), state.workspace_id)
+            })
     }
 
     /// Gets execution progress.

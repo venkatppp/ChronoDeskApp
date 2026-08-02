@@ -14,7 +14,8 @@ pub(crate) type ToolFuture<'a> =
 #[derive(Clone)]
 pub(crate) struct ToolHandler {
     pub(crate) definition: ToolDefinition,
-    pub(crate) execute: for<'a> fn(&'a ToolExecutor, &'a serde_json::Value) -> ToolFuture<'a>,
+    pub(crate) execute:
+        for<'a> fn(&'a ToolExecutor, &'a serde_json::Value, Option<uuid::Uuid>) -> ToolFuture<'a>,
 }
 
 pub(crate) fn build_registry() -> HashMap<String, ToolHandler> {
@@ -27,7 +28,7 @@ pub(crate) fn build_registry() -> HashMap<String, ToolHandler> {
                 vec![],
                 ToolPermission::read_only(),
             ),
-            |executor, arguments| Box::pin(executor.list_workspaces(arguments)),
+            |executor, arguments, _| Box::pin(executor.list_workspaces(arguments)),
         ),
         tool_handler(
             ToolDefinition::new(
@@ -41,7 +42,7 @@ pub(crate) fn build_registry() -> HashMap<String, ToolHandler> {
                 )],
                 ToolPermission::read_only(),
             ),
-            |executor, arguments| Box::pin(executor.get_workspace(arguments)),
+            |executor, arguments, _| Box::pin(executor.get_workspace(arguments)),
         ),
         tool_handler(
             ToolDefinition::new(
@@ -51,7 +52,7 @@ pub(crate) fn build_registry() -> HashMap<String, ToolHandler> {
                 vec![],
                 ToolPermission::read_only(),
             ),
-            |executor, arguments| Box::pin(executor.get_active_workspace(arguments)),
+            |executor, arguments, _| Box::pin(executor.get_active_workspace(arguments)),
         ),
         tool_handler(
             ToolDefinition::new(
@@ -72,7 +73,9 @@ pub(crate) fn build_registry() -> HashMap<String, ToolHandler> {
                 ],
                 ToolPermission::read_only(),
             ),
-            |executor, arguments| Box::pin(executor.get_recent_events(arguments)),
+            |executor, arguments, workspace_id| {
+                Box::pin(executor.get_recent_events(arguments, workspace_id))
+            },
         ),
         tool_handler(
             ToolDefinition::new(
@@ -89,7 +92,9 @@ pub(crate) fn build_registry() -> HashMap<String, ToolHandler> {
                 ],
                 ToolPermission::read_only(),
             ),
-            |executor, arguments| Box::pin(executor.search_timeline(arguments)),
+            |executor, arguments, workspace_id| {
+                Box::pin(executor.search_timeline(arguments, workspace_id))
+            },
         ),
         tool_handler(
             ToolDefinition::new(
@@ -103,7 +108,9 @@ pub(crate) fn build_registry() -> HashMap<String, ToolHandler> {
                 )],
                 ToolPermission::read_only(),
             ),
-            |executor, arguments| Box::pin(executor.get_session_summary(arguments)),
+            |executor, arguments, workspace_id| {
+                Box::pin(executor.get_session_summary(arguments, workspace_id))
+            },
         ),
         tool_handler(
             ToolDefinition::new(
@@ -117,7 +124,7 @@ pub(crate) fn build_registry() -> HashMap<String, ToolHandler> {
                 )],
                 ToolPermission::write_with_confirmation(),
             ),
-            |executor, arguments| Box::pin(executor.resume_workspace(arguments)),
+            |executor, arguments, _| Box::pin(executor.resume_workspace(arguments)),
         ),
     ]
     .into_iter()
@@ -127,7 +134,11 @@ pub(crate) fn build_registry() -> HashMap<String, ToolHandler> {
 
 fn tool_handler(
     definition: ToolDefinition,
-    execute: for<'a> fn(&'a ToolExecutor, &'a serde_json::Value) -> ToolFuture<'a>,
+    execute: for<'a> fn(
+        &'a ToolExecutor,
+        &'a serde_json::Value,
+        Option<uuid::Uuid>,
+    ) -> ToolFuture<'a>,
 ) -> ToolHandler {
     ToolHandler {
         definition,

@@ -129,7 +129,7 @@ impl ToolExecutor {
                 max_attempts,
             ));
 
-            let execute = (handler.execute)(self, &request.arguments);
+            let execute = (handler.execute)(self, &request.arguments, request.workspace_id);
             let timeout = Duration::from_millis(handler.definition.timeout_ms);
             let attempt_result = if let Some(token) = &request.cancellation_token {
                 tokio::select! {
@@ -339,8 +339,9 @@ impl ToolExecutor {
     pub(super) async fn get_recent_events(
         &self,
         arguments: &serde_json::Value,
+        context_workspace_id: Option<Uuid>,
     ) -> Result<serde_json::Value, DatabaseError> {
-        let workspace_id = optional_uuid(arguments, "workspace_id")?;
+        let workspace_id = optional_uuid(arguments, "workspace_id")?.or(context_workspace_id);
         let limit = arguments
             .get("limit")
             .and_then(|v| v.as_u64())
@@ -357,12 +358,13 @@ impl ToolExecutor {
     pub(super) async fn search_timeline(
         &self,
         arguments: &serde_json::Value,
+        context_workspace_id: Option<Uuid>,
     ) -> Result<serde_json::Value, DatabaseError> {
         let query = arguments
             .get("query")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DatabaseError::InvalidInput("Missing query".to_string()))?;
-        let workspace_id = optional_uuid(arguments, "workspace_id")?;
+        let workspace_id = optional_uuid(arguments, "workspace_id")?.or(context_workspace_id);
         let events = if let Some(ws_id) = workspace_id {
             self.timeline_engine.recent_events(ws_id, Some(100)).await?
         } else {
@@ -386,8 +388,9 @@ impl ToolExecutor {
     pub(super) async fn get_session_summary(
         &self,
         arguments: &serde_json::Value,
+        context_workspace_id: Option<Uuid>,
     ) -> Result<serde_json::Value, DatabaseError> {
-        let workspace_id = optional_uuid(arguments, "workspace_id")?;
+        let workspace_id = optional_uuid(arguments, "workspace_id")?.or(context_workspace_id);
 
         if let Some(ws_id) = workspace_id {
             if let Some(session) = self.session_engine.get_latest_session(ws_id, None).await? {
