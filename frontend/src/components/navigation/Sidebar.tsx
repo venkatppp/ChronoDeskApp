@@ -9,6 +9,7 @@ import {
   Sparkles,
   PlayCircle,
   Bot,
+  BrainCircuit,
 } from "lucide-react";
 import { NavItem } from "@/components/navigation/NavItem";
 
@@ -22,6 +23,7 @@ const PRIMARY_NAV = [
   { to: "/copilot", label: "AI Copilot", icon: Sparkles },
   { to: "/executions", label: "Executions", icon: PlayCircle },
   { to: "/autonomous", label: "Autonomous", icon: Bot },
+  { to: "/memory", label: "Memory", icon: BrainCircuit },
 ] as const;
 
 export function Sidebar() {

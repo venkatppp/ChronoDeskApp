@@ -18,6 +18,7 @@ pub mod graph;
 pub mod intelligence;
 pub mod learning;
 pub mod llm;
+pub mod memory;
 pub mod predictive;
 pub mod proactive;
 pub mod runtime;

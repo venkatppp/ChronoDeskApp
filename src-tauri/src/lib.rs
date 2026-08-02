@@ -324,7 +324,7 @@ pub fn run() {
 
             let semantic_engine = semantic::SemanticMemoryEngine::new(
                 semantic_repository.clone(),
-                embedding_provider,
+                embedding_provider.clone(),
             );
             let semantic_search = semantic::SemanticSearchEngine::new(
                 semantic_engine.clone(),
@@ -414,19 +414,30 @@ pub fn run() {
                 Arc::new(reasoning_engine.clone()),
             ));
 
+            // --- Execution Memory & Learning (RC-6 M1) ---
+            // The same embedding provider the semantic layer uses; the
+            // store is consulted by the planner and the autonomous
+            // runtime, and captures every terminal execution/session.
+            let memory_engine = Arc::new(copilot::MemoryEngine::new(
+                copilot::MemoryRepository::new(pool.clone()),
+                embedding_provider.clone(),
+            ));
+
             // --- Execution Engine (RC-2) ---
             let execution_repository = Arc::new(copilot::ExecutionRepository::new(pool.clone()));
             let execution_engine = Arc::new(
                 copilot::ExecutionEngine::new(execution_repository, tool_executor.clone())
                     .with_event_emitter(
                         Arc::new(app_handle.clone()) as Arc<dyn app_events::AppEventEmitter>
-                    ),
+                    )
+                    .with_memory(memory_engine.clone()),
             );
 
             // --- Autonomous Planning Engine (RC-5) ---
             let planner = Arc::new(
                 copilot::Planner::new(tool_executor.clone(), Some(tool_permission_service.clone()))
-                    .with_execution_engine(execution_engine.clone()),
+                    .with_execution_engine(execution_engine.clone())
+                    .with_memory(memory_engine.clone()),
             );
 
             // --- Autonomous Agent Runtime (RC-5 M6) ---
@@ -438,7 +449,8 @@ pub fn run() {
                 )
                 .with_event_emitter(
                     Arc::new(app_handle.clone()) as Arc<dyn app_events::AppEventEmitter>
-                ),
+                )
+                .with_memory(memory_engine.clone()),
             );
 
             // --- File Watcher, wired to a real AppEventEmitter (the AppHandle) ---
@@ -508,6 +520,7 @@ pub fn run() {
             app.manage(execution_engine);
             app.manage(planner);
             app.manage(autonomous_runtime);
+            app.manage(memory_engine);
 
             tracing::info!("ChronoDesk backend ready");
 
@@ -652,6 +665,11 @@ pub fn run() {
             commands::execution::execution_cancel,
             commands::execution::execution_get_progress,
             commands::execution::execution_list_recent,
+            commands::memory::memory_search,
+            commands::memory::memory_recommend,
+            commands::memory::memory_avoid,
+            commands::memory::memory_learned_workflows,
+            commands::memory::memory_stats,
             commands::autonomous::autonomous_start,
             commands::autonomous::autonomous_get_progress,
             commands::autonomous::autonomous_list_recent,

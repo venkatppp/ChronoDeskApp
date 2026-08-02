@@ -22,6 +22,8 @@ use uuid::Uuid;
 use crate::copilot::execution::ExecutionStatus;
 use crate::copilot::execution_context::UNRESOLVED_VARIABLE_MARKER;
 use crate::copilot::execution_engine::ExecutionEngine;
+use crate::copilot::memory::learning::RECOMMENDATION_THRESHOLD;
+use crate::copilot::memory::MemoryEngine;
 use crate::copilot::proactive_models::{ExecutionPlan, PlanApprovalStatus, PlanGate, PlanTask};
 use crate::copilot::tools::{
     ToolDefinition, ToolExecutor, ToolInvocationStatus, ToolPermissionDecision,
@@ -93,6 +95,10 @@ pub struct Planner {
     tool_executor: Arc<ToolExecutor>,
     permission_service: Option<Arc<ToolPermissionService>>,
     execution_engine: Option<Arc<ExecutionEngine>>,
+    /// Execution memory consulted before planning so learned workflows can
+    /// be reused (RC-6 M1). Optional; `None` keeps the planner fully
+    /// deterministic and backward compatible.
+    memory: Option<Arc<MemoryEngine>>,
 }
 
 impl Planner {
@@ -105,12 +111,20 @@ impl Planner {
             tool_executor,
             permission_service,
             execution_engine: None,
+            memory: None,
         }
     }
 
     /// Attaches the execution engine the planner hands plans to.
     pub fn with_execution_engine(mut self, engine: Arc<ExecutionEngine>) -> Self {
         self.execution_engine = Some(engine);
+        self
+    }
+
+    /// Attaches the execution memory store the planner consults before
+    /// building a plan (RC-6 M1). Optional for backward compatibility.
+    pub fn with_memory(mut self, memory: Arc<MemoryEngine>) -> Self {
+        self.memory = Some(memory);
         self
     }
 
@@ -146,6 +160,57 @@ impl Planner {
             return Err(PlannerError::NoToolsAvailable);
         }
         let tool_names: Vec<String> = tools.iter().map(|t| t.name.clone()).collect();
+
+        // Consult execution memory (RC-6 M1): when a previous execution
+        // achieved a sufficiently similar goal successfully, reuse that
+        // workflow instead of building the deterministic chain from
+        // scratch. The reused plan is re-keyed (fresh ids) so it remains
+        // an independent execution.
+        if let Some(memory) = &self.memory {
+            match memory.recommend(goal, workspace_id, 3).await {
+                Ok(recommendations) => {
+                    if let Some(best) = recommendations
+                        .into_iter()
+                        .find(|r| r.score >= RECOMMENDATION_THRESHOLD && r.record.plan.is_some())
+                    {
+                        let remembered = best.record.plan.expect("plan presence checked above");
+                        let mut reused = remembered.clone();
+                        reused.id = Uuid::new_v4();
+                        reused.workspace_id = workspace_id;
+                        reused.goal = goal.to_string();
+                        reused.status = PlanApprovalStatus::Pending;
+                        reused.created_at = Utc::now();
+                        for task in &mut reused.tasks {
+                            task.id = Uuid::new_v4();
+                            task.completed = false;
+                        }
+                        reused.confidence = best.score.clamp(0.5, 0.95);
+                        reused.reasoning = format!(
+                            "Reused successful workflow from execution memory (score {:.2}, {} replays): {}",
+                            best.score,
+                            best.replay_count,
+                            remembered.reasoning
+                        );
+                        let _ = memory.mark_replayed(best.record.id).await;
+                        tracing::info!(
+                            score = best.score,
+                            memory_id = %best.record.id,
+                            "planner reused a remembered workflow for goal"
+                        );
+                        return Ok(reused);
+                    }
+                }
+                Err(error) => {
+                    // Memory is advisory: a failure to consult it must not
+                    // break planning, which falls back to the
+                    // deterministic chain below.
+                    tracing::warn!(
+                        error = %error,
+                        "memory consultation failed; planning without learned workflows"
+                    );
+                }
+            }
+        }
 
         let workflow = workflow_plan(&tool_names);
         if workflow.is_empty() {
@@ -601,10 +666,12 @@ mod tests {
     use crate::copilot::execution::ExecutionStatus;
     use crate::copilot::execution_engine::ExecutionEngine;
     use crate::copilot::execution_repository::ExecutionRepository;
+    use crate::copilot::memory::{MemoryEngine, MemoryRepository, MemorySearchRequest};
     use crate::database::test_database;
     use crate::repositories::{
         FileRepository, SettingsRepository, TimelineRepository, WorkspaceRepository,
     };
+    use crate::semantic::embeddings::LocalEmbeddingProvider;
     use crate::services::{TimelineService, WorkspaceService};
     use crate::session::SessionEngine;
     use crate::timeline::recorder::TimelineRecorder;
@@ -718,6 +785,27 @@ mod tests {
         let planner =
             Planner::new(executor, Some(permission_service)).with_execution_engine(engine.clone());
 
+        (planner, engine)
+    }
+
+    /// A memory-backed stack: the engine and planner both carry the shared
+    /// `MemoryEngine` (RC-6 M1 wiring), so terminal runs are captured and
+    /// the planner can reuse learned workflows.
+    async fn execution_stack_with_memory(
+        pool: &sqlx::SqlitePool,
+        memory: Arc<MemoryEngine>,
+    ) -> (Planner, Arc<ExecutionEngine>) {
+        let (planner, _engine) = execution_stack(pool).await;
+        let engine = Arc::new(
+            ExecutionEngine::new(
+                Arc::new(ExecutionRepository::new(pool.clone())),
+                planner.tool_executor.clone(),
+            )
+            .with_memory(memory.clone()),
+        );
+        let planner = planner
+            .with_memory(memory)
+            .with_execution_engine(engine.clone());
         (planner, engine)
     }
 
@@ -1532,5 +1620,187 @@ mod tests {
             .planner_report
             .expect("planner report must be visible after restart");
         assert_eq!(streamed.replan_count, 1);
+    }
+
+    #[tokio::test]
+    async fn plan_reuses_remembered_workflow_from_memory() {
+        let (database, _guard) = test_database().await;
+        let pool = database.pool().clone();
+        seed_workspaces(&pool).await;
+        let memory = Arc::new(MemoryEngine::new(
+            MemoryRepository::new(pool.clone()),
+            Arc::new(LocalEmbeddingProvider::default()),
+        ));
+
+        // A previous successful run of the same goal lives in memory.
+        let mut remembered = binding_plan();
+        remembered.goal = "resume my focus session".to_string();
+        memory
+            .record_execution(
+                Uuid::new_v4(),
+                None,
+                "resume my focus session",
+                Some(&remembered),
+                &[crate::copilot::execution::ExecutionStep {
+                    id: Uuid::new_v4(),
+                    execution_id: Uuid::new_v4(),
+                    step_number: 0,
+                    description: "List active workspaces".into(),
+                    tool_name: Some("list_workspaces".into()),
+                    arguments: None,
+                    status: crate::copilot::StepStatus::Completed,
+                    result: None,
+                    error: None,
+                    started_at: None,
+                    completed_at: None,
+                    created_at: Utc::now(),
+                }],
+                ExecutionStatus::Completed,
+                None,
+            )
+            .await
+            .expect("memory capture should succeed");
+
+        let (planner, _engine) = execution_stack_with_memory(&pool, memory).await;
+        let plan = planner
+            .plan(None, None, "resume my focus session")
+            .await
+            .expect("plan should generate from memory");
+        assert!(
+            plan.reasoning.contains("execution memory"),
+            "reused plans must cite the memory source, got: {}",
+            plan.reasoning
+        );
+        assert!(
+            plan.reasoning.contains("Reused successful workflow"),
+            "expected reuse reasoning, got: {}",
+            plan.reasoning
+        );
+        assert!(!plan.tasks.is_empty(), "reused plan keeps its steps");
+        assert!(
+            plan.tasks.iter().all(|t| !t.completed),
+            "reused plan steps must be reset to incomplete"
+        );
+    }
+
+    #[tokio::test]
+    async fn plan_ignores_weak_memory_matches() {
+        let (database, _guard) = test_database().await;
+        let pool = database.pool().clone();
+        seed_workspaces(&pool).await;
+        let memory = Arc::new(MemoryEngine::new(
+            MemoryRepository::new(pool.clone()),
+            Arc::new(LocalEmbeddingProvider::default()),
+        ));
+
+        // An unrelated goal must not be reused for a different query.
+        memory
+            .record_execution(
+                Uuid::new_v4(),
+                None,
+                "organize tax documents for april",
+                Some(&binding_plan()),
+                &[],
+                ExecutionStatus::Completed,
+                None,
+            )
+            .await
+            .expect("memory capture should succeed");
+
+        let (planner, _engine) = execution_stack_with_memory(&pool, memory).await;
+        let plan = planner
+            .plan(None, None, "resume my focus session")
+            .await
+            .expect("plan should generate deterministically");
+        assert!(
+            !plan.reasoning.contains("execution memory"),
+            "unrelated memory must not influence the plan"
+        );
+        assert_eq!(plan.goal, "resume my focus session");
+    }
+
+    #[tokio::test]
+    async fn completed_execution_is_captured_into_memory() {
+        let (database, _guard) = test_database().await;
+        let pool = database.pool().clone();
+        seed_workspaces(&pool).await;
+        let memory = Arc::new(MemoryEngine::new(
+            MemoryRepository::new(pool.clone()),
+            Arc::new(LocalEmbeddingProvider::default()),
+        ));
+
+        let (planner, engine) = execution_stack_with_memory(&pool, memory.clone()).await;
+        let plan = binding_plan();
+        let execution_id = engine
+            .start_execution(&plan, None)
+            .await
+            .expect("execution should start");
+        engine
+            .execute_until_complete(execution_id)
+            .await
+            .expect("execution should complete");
+        assert_eq!(planner.dependency_order(&plan).unwrap().len(), 2);
+
+        let hits = memory
+            .search(&MemorySearchRequest::new("bind outputs"))
+            .await
+            .expect("search should succeed");
+        assert_eq!(
+            hits.len(),
+            1,
+            "terminal executions must be captured into memory"
+        );
+        assert_eq!(hits[0].record.source_id, execution_id);
+        assert!(matches!(
+            hits[0].record.status,
+            crate::copilot::memory::MemoryStatus::Success
+        ));
+        assert_eq!(hits[0].record.steps.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn failed_execution_is_captured_with_error() {
+        let (database, _guard) = test_database().await;
+        let pool = database.pool().clone();
+        seed_workspaces(&pool).await;
+        let memory = Arc::new(MemoryEngine::new(
+            MemoryRepository::new(pool.clone()),
+            Arc::new(LocalEmbeddingProvider::default()),
+        ));
+
+        let (planner, engine) = execution_stack_with_memory(&pool, memory.clone()).await;
+        let permission_service = planner
+            .permission_service
+            .as_ref()
+            .expect("permission service attached")
+            .clone();
+        permission_service
+            .set_policy("list_workspaces", None, ToolPermissionDecision::Deny)
+            .await
+            .expect("policy should be recorded");
+
+        let plan = binding_plan();
+        let execution_id = engine
+            .start_execution(&plan, None)
+            .await
+            .expect("execution should start");
+        engine
+            .execute_until_complete(execution_id)
+            .await
+            .expect("execution should reach a terminal state");
+
+        let hits = memory
+            .search(&MemorySearchRequest::new("bind outputs"))
+            .await
+            .expect("search should succeed");
+        assert_eq!(hits.len(), 1, "failed runs must also be captured");
+        assert!(matches!(
+            hits[0].record.status,
+            crate::copilot::memory::MemoryStatus::Failed
+        ));
+        assert!(
+            hits[0].record.error.is_some(),
+            "the failure reason must be remembered"
+        );
     }
 }

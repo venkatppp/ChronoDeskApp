@@ -10,6 +10,7 @@ use crate::copilot::execution::*;
 use crate::copilot::execution_checkpoint::ExecutionCheckpoint;
 use crate::copilot::execution_context::{ExecutionContext, UNRESOLVED_VARIABLE_MARKER};
 use crate::copilot::execution_repository::ExecutionRepository;
+use crate::copilot::memory::MemoryEngine;
 use crate::copilot::planner::PlannerReport;
 use crate::copilot::proactive_models::{ExecutionPlan, PlanGate, PlanTask};
 use crate::copilot::tools::{ToolExecutor, ToolInvocationRequest, ToolInvocationStatus};
@@ -41,6 +42,10 @@ pub struct ExecutionEngine {
     planner_reports: Arc<RwLock<std::collections::HashMap<Uuid, PlannerReport>>>,
     /// Frontend event emitter for live `execution:progress` snapshots.
     event_emitter: Option<Arc<dyn AppEventEmitter>>,
+    /// Execution memory capture (RC-6 M1). Terminal states are recorded
+    /// here so ChronoDesk learns from every run. Optional; captures are
+    /// best-effort and never affect the execution lifecycle.
+    memory: Option<Arc<MemoryEngine>>,
 }
 
 impl ExecutionEngine {
@@ -52,12 +57,20 @@ impl ExecutionEngine {
             active_executions: Arc::new(RwLock::new(std::collections::HashMap::new())),
             planner_reports: Arc::new(RwLock::new(std::collections::HashMap::new())),
             event_emitter: None,
+            memory: None,
         }
     }
 
     /// Attaches a frontend event emitter for streamed execution progress.
     pub fn with_event_emitter(mut self, emitter: Arc<dyn AppEventEmitter>) -> Self {
         self.event_emitter = Some(emitter);
+        self
+    }
+
+    /// Attaches the execution memory store so terminal runs are captured
+    /// for learning (RC-6 M1).
+    pub fn with_memory(mut self, memory: Arc<MemoryEngine>) -> Self {
+        self.memory = Some(memory);
         self
     }
 
@@ -645,6 +658,9 @@ impl ExecutionEngine {
         // dashboard shows the DAG through the cancelled terminal state.
         self.publish_progress(execution_id).await?;
 
+        self.capture_memory(execution_id, ExecutionStatus::Cancelled, None)
+            .await;
+
         self.repository.delete_checkpoint(execution_id).await?;
         self.active_executions.write().await.remove(&execution_id);
 
@@ -811,7 +827,8 @@ impl ExecutionEngine {
 
     /// Attaches a planner report to an execution (set once the autonomous
     /// planner finishes a run), then re-emits a progress snapshot carrying
-    /// it.
+    /// it. The report is also recorded into execution memory (RC-6 M1) so
+    /// the learning engine can rank planner-driven runs.
     pub async fn attach_planner_report(
         &self,
         execution_id: Uuid,
@@ -821,6 +838,11 @@ impl ExecutionEngine {
         self.repository
             .save_planner_report(execution_id, &report)
             .await?;
+        if let Some(memory) = &self.memory {
+            if let Err(err) = memory.record_planner_report(&report).await {
+                tracing::warn!(error = %err, "planner report memory capture failed");
+            }
+        }
         self.planner_reports
             .write()
             .await
@@ -869,6 +891,9 @@ impl ExecutionEngine {
         // dashboard shows the DAG through the completed terminal state.
         self.publish_progress(execution_id).await?;
 
+        self.capture_memory(execution_id, ExecutionStatus::Completed, None)
+            .await;
+
         self.repository.delete_checkpoint(execution_id).await?;
         self.active_executions.write().await.remove(&execution_id);
 
@@ -909,9 +934,63 @@ impl ExecutionEngine {
         // dashboard shows the DAG through the failed terminal state.
         self.publish_progress(execution_id).await?;
 
+        self.capture_memory(
+            execution_id,
+            ExecutionStatus::Failed,
+            Some(error.to_string()),
+        )
+        .await;
+
         self.repository.delete_checkpoint(execution_id).await?;
         self.active_executions.write().await.remove(&execution_id);
 
         Ok(())
+    }
+
+    /// Records the run into execution memory (RC-6 M1). Best-effort: a
+    /// capture failure is logged and never fails the execution lifecycle.
+    /// Called on terminal states while the active plan and checkpoint are
+    /// still present.
+    async fn capture_memory(
+        &self,
+        execution_id: Uuid,
+        status: ExecutionStatus,
+        error: Option<String>,
+    ) {
+        let Some(memory) = &self.memory else {
+            return;
+        };
+        let (plan, workspace_id) = self
+            .active_executions
+            .read()
+            .await
+            .get(&execution_id)
+            .map(|state| (state.plan.clone(), state.workspace_id))
+            .unwrap_or((None, None));
+        let goal = plan
+            .as_ref()
+            .map(|p| p.goal.clone())
+            .unwrap_or_else(|| "unknown goal".to_string());
+        let steps = match self.repository.get_execution_steps(execution_id).await {
+            Ok(steps) => steps,
+            Err(err) => {
+                tracing::warn!(error = %err, "memory capture could not load steps");
+                return;
+            }
+        };
+        if let Err(err) = memory
+            .record_execution(
+                execution_id,
+                workspace_id,
+                &goal,
+                plan.as_ref(),
+                &steps,
+                status,
+                error,
+            )
+            .await
+        {
+            tracing::warn!(error = %err, "memory capture failed for execution");
+        }
     }
 }

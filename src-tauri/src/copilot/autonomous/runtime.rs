@@ -20,6 +20,7 @@ use crate::app_events::{emit, AppEventEmitter};
 use crate::copilot::autonomous::models::*;
 use crate::copilot::execution::{ExecutionStatus, StepStatus};
 use crate::copilot::execution_engine::ExecutionEngine;
+use crate::copilot::memory::MemoryEngine;
 use crate::copilot::planner::{Planner, PlannerReport, ReplanFeedback};
 use crate::copilot::proactive_models::ExecutionPlan;
 use crate::copilot::tools::{ToolExecutor, ToolRiskLevel};
@@ -115,6 +116,10 @@ pub struct AutonomousRuntime {
     sessions: Arc<RwLock<HashMap<Uuid, Arc<SessionState>>>>,
     event_emitter: Option<Arc<dyn AppEventEmitter>>,
     tool_meta: ToolRiskLookup,
+    /// Execution memory consulted during reasoning and fed with terminal
+    /// sessions (RC-6 M1). Optional for backward compatibility; all
+    /// memory interactions are advisory and best-effort.
+    memory: Option<Arc<MemoryEngine>>,
 }
 
 /// Statically inspected risk metadata over the tool registry, used for
@@ -194,12 +199,20 @@ impl AutonomousRuntime {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             event_emitter: None,
             tool_meta,
+            memory: None,
         }
     }
 
     /// Attaches the frontend event emitter forwarding `autonomous:*` events.
     pub fn with_event_emitter(mut self, emitter: Arc<dyn AppEventEmitter>) -> Self {
         self.event_emitter = Some(emitter);
+        self
+    }
+
+    /// Attaches the execution memory store the runtime consults during
+    /// reasoning and feeds with terminal sessions (RC-6 M1).
+    pub fn with_memory(mut self, memory: Arc<MemoryEngine>) -> Self {
+        self.memory = Some(memory);
         self
     }
 
@@ -374,6 +387,7 @@ impl AutonomousRuntime {
             None,
         )
         .await;
+        self.capture_session(&state).await;
         self.progress_for(&state).await
     }
 
@@ -432,6 +446,7 @@ impl AutonomousRuntime {
                 note.map(|n| serde_json::json!({ "note": n })),
             )
             .await;
+            self.capture_session(&state).await;
         }
         state.approval_notify.notify_waiters();
         self.progress_for(&state).await
@@ -446,6 +461,45 @@ impl AutonomousRuntime {
             let inner = state.inner.read().await;
             (inner.workspace_id, inner.goal.clone(), state.token.clone())
         };
+
+        // Consult execution memory (RC-6 M1): surface learned workflows
+        // and previously failed strategies in the reasoning stream before
+        // the planner builds the first plan. The planner itself reuses a
+        // matching successful workflow when one exists.
+        if let Some(memory) = &self.memory {
+            match memory.recommend(&goal, workspace_id, 3).await {
+                Ok(recommendations) if !recommendations.is_empty() => {
+                    let top = &recommendations[0];
+                    self.record_reasoning(
+                        &state,
+                        ReasoningPhase::Planning,
+                        format!(
+                            "Execution memory holds {} similar run(s); top workflow scored {:.2}",
+                            recommendations.len(),
+                            top.score
+                        ),
+                        Some(serde_json::json!({
+                            "memory_id": top.record.id,
+                            "replays": top.replay_count,
+                            "similar_goal": top.record.goal,
+                        })),
+                    )
+                    .await;
+                }
+                Ok(_) => {
+                    self.record_reasoning(
+                        &state,
+                        ReasoningPhase::Planning,
+                        "Execution memory has no similar workflows for this goal",
+                        None,
+                    )
+                    .await;
+                }
+                Err(error) => {
+                    tracing::warn!(error = %error, "memory consultation failed for session");
+                }
+            }
+        }
 
         let mut plan = match self.planner.plan(workspace_id, Some(&token), &goal).await {
             Ok(plan) => plan,
@@ -463,6 +517,7 @@ impl AutonomousRuntime {
                     None,
                 )
                 .await;
+                self.capture_session(&state).await;
                 return;
             }
         };
@@ -474,6 +529,7 @@ impl AutonomousRuntime {
                 self.set_status(&state, AutonomousStatus::Cancelled).await;
                 self.record_reasoning(&state, ReasoningPhase::Terminal, "Session cancelled", None)
                     .await;
+                self.capture_session(&state).await;
                 return;
             }
 
@@ -493,6 +549,7 @@ impl AutonomousRuntime {
                 self.set_error(&state, error.clone()).await;
                 self.record_reasoning(&state, ReasoningPhase::Terminal, error, None)
                     .await;
+                self.capture_session(&state).await;
                 return;
             }
 
@@ -508,6 +565,7 @@ impl AutonomousRuntime {
                             None,
                         )
                         .await;
+                        self.capture_session(&state).await;
                     }
                     return;
                 }
@@ -519,6 +577,7 @@ impl AutonomousRuntime {
                 self.set_status(&state, AutonomousStatus::Cancelled).await;
                 self.record_reasoning(&state, ReasoningPhase::Terminal, "Session cancelled", None)
                     .await;
+                self.capture_session(&state).await;
                 return;
             }
 
@@ -551,6 +610,7 @@ impl AutonomousRuntime {
                         None,
                     )
                     .await;
+                    self.capture_session(&state).await;
                     return;
                 }
                 RunOutcome::Paused => {
@@ -743,6 +803,7 @@ impl AutonomousRuntime {
             self.set_error(state, err.clone()).await;
             self.record_reasoning(state, ReasoningPhase::Terminal, err, None)
                 .await;
+            self.capture_session(state).await;
             return None;
         }
 
@@ -774,6 +835,7 @@ impl AutonomousRuntime {
             self.set_error(state, reason.clone()).await;
             self.record_reasoning(state, ReasoningPhase::Terminal, reason, None)
                 .await;
+            self.capture_session(state).await;
             return None;
         }
 
@@ -783,6 +845,32 @@ impl AutonomousRuntime {
             error: Some(error.clone()),
             retry_exhausted: !can_retry,
         };
+
+        // Consult execution memory (RC-6 M1): surface strategies that
+        // failed for similar goals before retrying/replanning, so the
+        // runtime visibly avoids repeating past mistakes.
+        if let Some(memory) = &self.memory {
+            let (goal, workspace_id) = (plan.goal.clone(), plan.workspace_id);
+            match memory.avoid(&goal, workspace_id, 3).await {
+                Ok(avoided) if !avoided.is_empty() => {
+                    let top = &avoided[0];
+                    self.record_reasoning(
+                        state,
+                        ReasoningPhase::Replanning,
+                        format!(
+                            "Memory: avoiding a previously failed strategy — {}",
+                            top.failure
+                        ),
+                        Some(serde_json::json!({
+                            "memory_id": top.record.id,
+                            "similarity": top.similarity,
+                        })),
+                    )
+                    .await;
+                }
+                _ => {}
+            }
+        }
 
         if can_retry {
             let mut inner = state.inner.write().await;
@@ -828,6 +916,7 @@ impl AutonomousRuntime {
                 self.set_error(state, reason.clone()).await;
                 self.record_reasoning(state, ReasoningPhase::Terminal, reason, None)
                     .await;
+                self.capture_session(state).await;
                 None
             }
         }
@@ -1008,6 +1097,7 @@ impl AutonomousRuntime {
             Some(serde_json::json!({ "goal": plan.goal })),
         )
         .await;
+        self.capture_session(state).await;
     }
 
     async fn budget_breach(&self, state: &Arc<SessionState>) -> Option<String> {
@@ -1110,6 +1200,24 @@ impl AutonomousRuntime {
         }
     }
 
+    /// Records the session's terminal snapshot into execution memory
+    /// (RC-6 M1). Best-effort; a capture failure never affects the loop.
+    async fn capture_session(&self, state: &Arc<SessionState>) {
+        let Some(memory) = &self.memory else {
+            return;
+        };
+        match self.progress_for(state).await {
+            Ok(progress) => {
+                if let Err(error) = memory.record_autonomous_session(&progress).await {
+                    tracing::warn!(error = %error, "autonomous session memory capture failed");
+                }
+            }
+            Err(error) => {
+                tracing::warn!(error = %error, "session snapshot unavailable for memory capture");
+            }
+        }
+    }
+
     async fn progress_for(
         &self,
         state: &Arc<SessionState>,
@@ -1148,12 +1256,14 @@ mod tests {
     use super::*;
     use crate::copilot::execution_engine::ExecutionEngine;
     use crate::copilot::execution_repository::ExecutionRepository;
+    use crate::copilot::memory::{MemoryEngine, MemoryKind, MemoryRepository, MemorySearchRequest};
     use crate::copilot::planner::Planner;
     use crate::copilot::tools::ToolPermissionService;
     use crate::database::test_database;
     use crate::repositories::{
         FileRepository, SettingsRepository, TimelineRepository, WorkspaceRepository,
     };
+    use crate::semantic::embeddings::LocalEmbeddingProvider;
     use crate::services::{TimelineService, WorkspaceService};
     use crate::session::SessionEngine;
     use crate::timeline::recorder::TimelineRecorder;
@@ -1356,5 +1466,72 @@ mod tests {
             gate_replans: false,
         };
         assert!(approval_required(&manual, &plan, &meta).0);
+    }
+
+    #[tokio::test]
+    async fn completed_session_is_captured_into_memory() {
+        let (database, _guard) = test_database().await;
+        let pool = database.pool().clone();
+        seed_workspaces(&pool).await;
+        let memory = Arc::new(MemoryEngine::new(
+            MemoryRepository::new(pool.clone()),
+            Arc::new(LocalEmbeddingProvider::default()),
+        ));
+
+        let (planner, engine, executor) = execution_stack(&pool).await;
+        let runtime = AutonomousRuntime::new(planner, engine, executor).with_memory(memory.clone());
+
+        let progress = runtime
+            .start_session(None, "resume the most recent workspace", None)
+            .await
+            .expect("session should start");
+        let session_id = progress.session_id;
+
+        let terminal = tokio::time::timeout(Duration::from_secs(15), async {
+            loop {
+                let snapshot = runtime
+                    .get_progress(session_id)
+                    .await
+                    .expect("session should exist");
+                if snapshot.terminal() {
+                    return snapshot;
+                }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("session should reach a terminal state");
+
+        if terminal.status != AutonomousStatus::Completed {
+            panic!(
+                "session should complete for a seedable workspace: {:?}",
+                terminal.error
+            );
+        }
+
+        let hits = memory
+            .search(&MemorySearchRequest {
+                query: "resume the most recent workspace".into(),
+                kind: Some(MemoryKind::AutonomousSession),
+                workspace_id: None,
+                status: None,
+                limit: 10,
+            })
+            .await
+            .expect("memory search should succeed");
+        assert_eq!(
+            hits.len(),
+            1,
+            "terminal sessions must be captured into execution memory"
+        );
+        assert_eq!(hits[0].record.source_id, session_id);
+        assert!(matches!(
+            hits[0].record.status,
+            crate::copilot::memory::MemoryStatus::Success
+        ));
+        assert!(
+            !hits[0].record.reasoning.is_empty(),
+            "session reasoning should be remembered"
+        );
     }
 }
