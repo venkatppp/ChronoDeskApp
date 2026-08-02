@@ -28,11 +28,12 @@ use std::fs;
 use std::time::Duration;
 
 use chronodesk_lib::database::Database;
+use chronodesk_lib::models::kg::{GraphNodeType, GraphRelationshipType};
 use chronodesk_lib::models::{CreateWorkspaceInput, TimelineEventType, UpdateWorkspaceInput};
 use chronodesk_lib::repositories::{
-    FileRepository, SettingsRepository, TimelineRepository, WorkspaceRepository,
+    FileRepository, KgRepository, SettingsRepository, TimelineRepository, WorkspaceRepository,
 };
-use chronodesk_lib::services::{TimelineService, WorkspaceService};
+use chronodesk_lib::services::{KgService, TimelineService, WorkspaceService};
 use chronodesk_lib::timeline::recorder::TimelineRecorder;
 use chronodesk_lib::timeline::TimelineEngine;
 use chronodesk_lib::watcher::FileWatcher;
@@ -343,4 +344,159 @@ async fn workspace_lifecycle_matches_what_every_ipc_command_handler_calls() {
         after_delete.is_err(),
         "workspace should be gone after delete"
     );
+}
+
+/// RC-8 M1: the knowledge graph sync (the exact call `lib.rs` makes at
+/// startup and `graph_sync` forwards) builds nodes for every source
+/// aggregate — workspaces, files, planner reports, executions, memory
+/// records, and autonomous sessions — along with the structural edges
+/// that connect them, against a real migrated database.
+#[tokio::test]
+async fn knowledge_graph_sync_builds_nodes_and_relationships_for_all_sources() {
+    let stack = build_full_stack().await;
+    let pool = stack.pool.clone();
+    let kg_service = KgService::new(KgRepository::new(pool.clone()));
+
+    // Workspace (the only source writable through a public service).
+    let workspace = stack
+        .workspace_service
+        .create_workspace(CreateWorkspaceInput {
+            name: "KG Integration Workspace".to_string(),
+            description: Some("integration".to_string()),
+            root_path: None,
+        })
+        .await
+        .unwrap();
+
+    // File.
+    let now = chrono::Utc::now().to_rfc3339();
+    sqlx::query(
+        "INSERT INTO files (id, workspace_id, artifact_type, path_or_url, created_at, updated_at)
+         VALUES (?, ?, 'file', ?, ?, ?)",
+    )
+    .bind(uuid::Uuid::new_v4())
+    .bind(workspace.id)
+    .bind("/tmp/kg_integration.rs")
+    .bind(&now)
+    .bind(&now)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Execution + conversation (so the execution resolves a workspace).
+    let conversation_id = uuid::Uuid::new_v4();
+    let execution_id = uuid::Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO copilot_conversations (id, workspace_id, title, created_at, updated_at)
+         VALUES (?, ?, 'conv', ?, ?)",
+    )
+    .bind(conversation_id)
+    .bind(workspace.id)
+    .bind(&now)
+    .bind(&now)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO plan_executions
+             (id, plan_id, conversation_id, status, current_step, total_steps, created_at, updated_at)
+         VALUES (?, ?, ?, 'completed', 0, 3, ?, ?)",
+    )
+    .bind(execution_id)
+    .bind(uuid::Uuid::new_v4())
+    .bind(conversation_id)
+    .bind(&now)
+    .bind(&now)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Planner report for that execution.
+    sqlx::query(
+        "INSERT INTO plan_execution_reports (execution_id, report) VALUES (?, 'integration report')",
+    )
+    .bind(execution_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Memory record + autonomous session.
+    let memory_id = uuid::Uuid::new_v4();
+    let session_id = uuid::Uuid::new_v4();
+    for (id, kind, source_id, goal) in [
+        (
+            memory_id,
+            "execution",
+            execution_id,
+            "integrate the knowledge graph",
+        ),
+        (
+            uuid::Uuid::new_v4(),
+            "autonomous_session",
+            session_id,
+            "ship the knowledge graph milestone",
+        ),
+    ] {
+        sqlx::query(
+            "INSERT INTO execution_memory
+                 (id, kind, source_id, workspace_id, goal, status, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, 'success', ?, ?)",
+        )
+        .bind(id)
+        .bind(kind)
+        .bind(source_id)
+        .bind(workspace.id)
+        .bind(goal)
+        .bind(&now)
+        .bind(&now)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+
+    // Sync once — same call `GraphEngine::sync_graph` / `graph_sync` make.
+    let summary = kg_service.sync_graph().await.unwrap();
+    assert_eq!(summary.created_nodes, 6);
+    assert_eq!(summary.created_edges, 6);
+
+    let stats = kg_service.stats().await.unwrap();
+    assert_eq!(stats.node_count, 6);
+    assert_eq!(stats.edge_count, 6);
+
+    // Traversal: the file's subgraph reaches the workspace; the path from
+    // the file to the memory record goes through the workspace.
+    let subgraph = kg_service
+        .subgraph(GraphNodeType::File, uuid::Uuid::new_v4(), Some(1))
+        .await;
+    assert!(subgraph.is_err(), "unknown node has no subgraph");
+
+    let path = kg_service
+        .find_path(
+            GraphNodeType::File,
+            uuid::Uuid::new_v4(),
+            GraphNodeType::MemoryRecord,
+            memory_id,
+            Some(6),
+        )
+        .await
+        .unwrap();
+    assert!(path.is_none(), "unlinked nodes have no path");
+
+    // Context discovery for the memory record surfaces its execution.
+    let discovery = kg_service
+        .discover_context(GraphNodeType::MemoryRecord, memory_id, Some(10))
+        .await
+        .unwrap();
+    assert!(discovery.related.iter().any(|hit| {
+        hit.node.entity_id == execution_id
+            && matches!(
+                hit.relationship_type,
+                Some(GraphRelationshipType::DerivedFrom)
+            )
+    }));
+
+    // Re-sync is idempotent — no new nodes or edges.
+    let second = kg_service.sync_graph().await.unwrap();
+    assert_eq!(second.created_nodes, 0);
+    assert_eq!(second.created_edges, 0);
 }

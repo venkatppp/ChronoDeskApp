@@ -97,12 +97,13 @@ use predictive::{
     AdaptiveLearning, AutomationEngine, PredictiveEngine, PredictiveRepository, WorkflowEngine,
 };
 use repositories::{
-    FileRepository, GraphRepository, LLMRepository, MLRepository, SearchRepository,
+    FileRepository, GraphRepository, KgRepository, LLMRepository, MLRepository, SearchRepository,
     SettingsRepository, TimelineRepository, WorkspaceRepository,
 };
 use search::SearchEngine;
 use services::{
-    ContextService, GraphService, MLService, SearchService, TimelineService, WorkspaceService,
+    ContextService, GraphService, KgService, MLService, SearchService, TimelineService,
+    WorkspaceService,
 };
 use session::SessionEngine;
 use timeline::recorder::TimelineRecorder;
@@ -161,11 +162,35 @@ pub fn run() {
             let graph_service = GraphService::new(graph_repository.clone());
             let ml_service = MLService::new(ml_repository.clone(), file_repository.clone());
 
+            // --- RC-8 M1: Knowledge Graph Foundation ---
+            // The RC-8 knowledge graph (typed `graph_nodes` registry +
+            // `graph_relationships`) is constructed automatically from
+            // every source aggregate. The engine holds both the legacy
+            // Phase 4 graph service and the new knowledge graph service.
+            let kg_repository = KgRepository::new(pool.clone());
+            let kg_service = KgService::new(kg_repository);
+
             // --- Engines (the public facades commands and the watcher pipeline hold) ---
             let workspace_manager = WorkspaceManager::new(workspace_service.clone());
             let timeline_engine = TimelineEngine::new(timeline_service.clone());
             let search_engine = SearchEngine::new(search_service.clone());
-            let graph_engine = GraphEngine::new(graph_service.clone());
+            let graph_engine = GraphEngine::new(graph_service.clone()).with_kg_service(kg_service);
+
+            // RC-8 M1: build the knowledge graph once at startup (and on
+            // every later launch) so the Graph page is populated even
+            // before the first manual sync. The pass is idempotent.
+            match tauri::async_runtime::block_on(graph_engine.sync_graph()) {
+                Ok(summary) => tracing::info!(
+                    nodes = summary.total_nodes,
+                    edges = summary.total_edges,
+                    created_nodes = summary.created_nodes,
+                    created_edges = summary.created_edges,
+                    "knowledge graph synced at startup"
+                ),
+                Err(error) => {
+                    tracing::error!(error = %error, "initial knowledge graph sync failed")
+                }
+            }
 
             // --- Session Engine & Context Service (Phase 5A) ---
             let session_engine =
@@ -576,6 +601,13 @@ pub fn run() {
             commands::graph::get_graph,
             commands::graph::get_node_details,
             commands::graph::get_graph_stats,
+            commands::graph::graph_sync,
+            commands::graph::graph_search,
+            commands::graph::graph_subgraph,
+            commands::graph::graph_path,
+            commands::graph::graph_context,
+            commands::graph::graph_kg_stats,
+            commands::graph::graph_nodes,
             commands::duplicates::scan_workspace_for_duplicates,
             commands::duplicates::scan_file,
             commands::duplicates::get_duplicate_groups,
