@@ -98,7 +98,7 @@ impl ToolParameter {
 }
 
 /// JSON-level parameter types supported by validation.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ToolParameterType {
     String,
@@ -298,7 +298,7 @@ impl ToolInvocationResult {
 }
 
 /// Invocation lifecycle status.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ToolInvocationStatus {
     Pending,

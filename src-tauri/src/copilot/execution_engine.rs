@@ -2,20 +2,25 @@
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::copilot::execution::*;
 use crate::copilot::execution_repository::ExecutionRepository;
 use crate::copilot::proactive_models::ExecutionPlan;
-use crate::copilot::tools::ToolExecutor;
+use crate::copilot::tools::{ToolExecutor, ToolInvocationRequest, ToolInvocationStatus};
 use crate::errors::DatabaseError;
+
+struct ActiveExecutionState {
+    cancellation_token: CancellationToken,
+}
 
 /// Engine for executing approved plans.
 #[derive(Clone)]
 pub struct ExecutionEngine {
     repository: Arc<ExecutionRepository>,
     tool_executor: Arc<ToolExecutor>,
-    active_executions: Arc<RwLock<std::collections::HashMap<Uuid, Arc<RwLock<PlanExecution>>>>>,
+    active_executions: Arc<RwLock<std::collections::HashMap<Uuid, ActiveExecutionState>>>,
 }
 
 impl ExecutionEngine {
@@ -90,10 +95,12 @@ impl ExecutionEngine {
 
         // Track active execution
         let execution = self.repository.get_execution(execution_id).await?.unwrap();
-        self.active_executions
-            .write()
-            .await
-            .insert(execution.id, Arc::new(RwLock::new(execution)));
+        self.active_executions.write().await.insert(
+            execution.id,
+            ActiveExecutionState {
+                cancellation_token: CancellationToken::new(),
+            },
+        );
 
         Ok(execution_id)
     }
@@ -150,19 +157,46 @@ impl ExecutionEngine {
         };
         self.repository.record_event(event).await?;
 
-        // Execute step
+        let cancellation_token = self.execution_cancellation_token(execution_id).await;
+
         let result = if let (Some(tool_name), Some(arguments)) = (&step.tool_name, &step.arguments)
         {
-            self.tool_executor.execute_tool(tool_name, arguments).await
+            self.tool_executor
+                .invoke_tool_with_context(ToolInvocationRequest {
+                    tool_name: tool_name.clone(),
+                    arguments: arguments.clone(),
+                    workspace_id: None,
+                    cancellation_token: cancellation_token.clone(),
+                })
+                .await
         } else {
-            Ok(serde_json::json!({"status": "skipped", "reason": "No tool specified"}))
+            self.repository
+                .update_step_status(
+                    step.id,
+                    StepStatus::Skipped,
+                    Some(
+                        serde_json::json!({"status": "skipped", "reason": "No tool specified"})
+                            .to_string(),
+                    ),
+                    None,
+                )
+                .await?;
+            self.repository
+                .update_current_step(execution_id, execution.current_step + 1)
+                .await?;
+            return Ok(());
         };
 
         match result {
-            Ok(res) => {
-                // Step succeeded
+            Ok(invocation) if invocation.status == ToolInvocationStatus::Success => {
+                let invocation_json = serde_json::to_value(&invocation)?;
                 self.repository
-                    .update_step_status(step.id, StepStatus::Completed, Some(res.to_string()), None)
+                    .update_step_status(
+                        step.id,
+                        StepStatus::Completed,
+                        Some(invocation_json.to_string()),
+                        None,
+                    )
                     .await?;
 
                 let event = ExecutionEvent {
@@ -175,7 +209,7 @@ impl ExecutionEngine {
                         step.step_number + 1,
                         step.description
                     ),
-                    metadata: Some(res),
+                    metadata: Some(invocation_json),
                     created_at: chrono::Utc::now(),
                 };
                 self.repository.record_event(event).await?;
@@ -185,8 +219,46 @@ impl ExecutionEngine {
                     .update_current_step(execution_id, execution.current_step + 1)
                     .await?;
             }
+            Ok(invocation) if invocation.status == ToolInvocationStatus::Cancelled => {
+                let invocation_json = serde_json::to_value(&invocation)?;
+                self.repository
+                    .update_step_status(
+                        step.id,
+                        StepStatus::Failed,
+                        Some(invocation_json.clone().to_string()),
+                        invocation.error.clone(),
+                    )
+                    .await?;
+                self.cancel_execution(execution_id).await?;
+            }
+            Ok(invocation) => {
+                let error_msg = invocation
+                    .error
+                    .clone()
+                    .unwrap_or_else(|| "tool invocation failed".to_string());
+                let invocation_json = serde_json::to_value(&invocation)?;
+                self.repository
+                    .update_step_status(
+                        step.id,
+                        StepStatus::Failed,
+                        Some(invocation_json.clone().to_string()),
+                        Some(error_msg.clone()),
+                    )
+                    .await?;
+
+                let event = ExecutionEvent {
+                    id: Uuid::new_v4(),
+                    execution_id,
+                    event_type: ExecutionEventType::StepFailed,
+                    step_number: Some(step.step_number),
+                    message: format!("Failed step {}: {}", step.step_number + 1, error_msg),
+                    metadata: Some(invocation_json),
+                    created_at: chrono::Utc::now(),
+                };
+                self.repository.record_event(event).await?;
+                self.fail_execution(execution_id, &error_msg).await?;
+            }
             Err(e) => {
-                // Step failed
                 let error_msg = e.to_string();
                 self.repository
                     .update_step_status(step.id, StepStatus::Failed, None, Some(error_msg.clone()))
@@ -203,7 +275,6 @@ impl ExecutionEngine {
                 };
                 self.repository.record_event(event).await?;
 
-                // Fail entire execution
                 self.fail_execution(execution_id, &error_msg).await?;
             }
         }
@@ -274,6 +345,10 @@ impl ExecutionEngine {
 
     /// Cancels an execution.
     pub async fn cancel_execution(&self, execution_id: Uuid) -> Result<(), DatabaseError> {
+        if let Some(active) = self.active_executions.read().await.get(&execution_id) {
+            active.cancellation_token.cancel();
+        }
+
         self.repository
             .update_execution_status(execution_id, ExecutionStatus::Cancelled, None)
             .await?;
@@ -302,6 +377,14 @@ impl ExecutionEngine {
         self.active_executions.write().await.remove(&execution_id);
 
         Ok(())
+    }
+
+    async fn execution_cancellation_token(&self, execution_id: Uuid) -> Option<CancellationToken> {
+        self.active_executions
+            .read()
+            .await
+            .get(&execution_id)
+            .map(|state| state.cancellation_token.clone())
     }
 
     /// Gets execution progress.
