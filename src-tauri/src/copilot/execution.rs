@@ -4,6 +4,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::copilot::planner::PlannerReport;
+use crate::copilot::proactive_models::ExecutionPlan;
+
 /// Plan execution record with progress tracking.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanExecution {
@@ -181,4 +184,10 @@ pub struct ExecutionProgress {
     pub progress_percentage: f64,
     pub steps: Vec<ExecutionStep>,
     pub recent_events: Vec<ExecutionEvent>,
+    /// The full plan DAG backing this execution, when available, so the
+    /// frontend can render dependency/gate structure alongside step status.
+    pub plan: Option<ExecutionPlan>,
+    /// Planner report attached once a planner-driven run completes, so the
+    /// streamed progress snapshot carries replan/retry accounting to the UI.
+    pub planner_report: Option<PlannerReport>,
 }

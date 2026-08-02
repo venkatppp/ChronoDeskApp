@@ -7,6 +7,7 @@ import {
   Settings,
   Brain,
   Sparkles,
+  PlayCircle,
 } from "lucide-react";
 import { NavItem } from "@/components/navigation/NavItem";
 
@@ -18,6 +19,7 @@ const PRIMARY_NAV = [
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/learning", label: "Learning", icon: Brain },
   { to: "/copilot", label: "AI Copilot", icon: Sparkles },
+  { to: "/executions", label: "Executions", icon: PlayCircle },
 ] as const;
 
 export function Sidebar() {

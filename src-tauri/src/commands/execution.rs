@@ -85,3 +85,17 @@ pub async fn execution_get_progress(
     let eid = Uuid::parse_str(&execution_id).map_err(|e| e.to_string())?;
     engine.get_progress(eid).await.map_err(|e| e.to_string())
 }
+
+/// Lists most recently updated executions with full progress, so the
+/// dashboard can re-attach to an in-flight or last-completed run after a
+/// reload/restart (reconnect: fetch current state, then resubscribe).
+#[tauri::command]
+pub async fn execution_list_recent(
+    engine: State<'_, Arc<ExecutionEngine>>,
+    limit: Option<usize>,
+) -> Result<Vec<ExecutionProgress>, String> {
+    engine
+        .list_recent(limit.unwrap_or(10))
+        .await
+        .map_err(|e| e.to_string())
+}

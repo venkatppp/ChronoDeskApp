@@ -16,6 +16,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use chrono::Utc;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::copilot::execution::ExecutionStatus;
@@ -52,7 +53,7 @@ pub enum PlannerError {
 }
 
 /// Outcome of an autonomous plan run.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlannerReport {
     pub plan: ExecutionPlan,
     /// Id of the final execution that ran the plan (only when an execution
@@ -364,7 +365,7 @@ impl Planner {
             }
         }
 
-        Ok(PlannerReport {
+        let report = PlannerReport {
             plan,
             execution_id: last_execution_id,
             completed,
@@ -372,7 +373,25 @@ impl Planner {
             replaced,
             replan_count,
             error: last_error,
-        })
+        };
+
+        // Publish the report into the execution stream so the frontend's
+        // live dashboard shows replan/retry accounting alongside final state.
+        if let Some(execution_id) = report.execution_id {
+            if let Some(engine) = &self.execution_engine {
+                if let Err(err) = engine
+                    .attach_planner_report(execution_id, report.clone())
+                    .await
+                {
+                    tracing::warn!(
+                        error = %err,
+                        "failed to attach planner report to execution stream"
+                    );
+                }
+            }
+        }
+
+        Ok(report)
     }
 
     /// Tools a goal may reference, excluding any denied by registry metadata
@@ -540,6 +559,37 @@ mod tests {
     use crate::session::SessionEngine;
     use crate::timeline::recorder::TimelineRecorder;
     use crate::timeline::TimelineEngine;
+
+    use crate::app_events::AppEventEmitter;
+
+    /// Records every emitted event payload so tests can assert on what would
+    /// reach the frontend's `execution:progress` listener.
+    #[derive(Debug, Clone, Default)]
+    pub struct RecordingEmitter {
+        pub events: Arc<std::sync::Mutex<Vec<String>>>,
+    }
+
+    impl RecordingEmitter {
+        fn new() -> Self {
+            Self {
+                events: Arc::new(std::sync::Mutex::new(Vec::new())),
+            }
+        }
+
+        fn progress_payloads(&self) -> Vec<serde_json::Value> {
+            let guard = self.events.lock().unwrap();
+            guard
+                .iter()
+                .filter_map(|s| serde_json::from_str(s).ok())
+                .collect()
+        }
+    }
+
+    impl AppEventEmitter for RecordingEmitter {
+        fn emit_event(&self, _event: &str, payload: serde_json::Value) {
+            self.events.lock().unwrap().push(payload.to_string());
+        }
+    }
 
     fn workspace_id(n: u8) -> Uuid {
         Uuid::from_bytes([n; 16])
@@ -1271,5 +1321,119 @@ mod tests {
             after.is_none(),
             "terminal states must delete the durable checkpoint"
         );
+    }
+
+    #[tokio::test]
+    async fn progress_events_emitted_through_lifecycle() {
+        let (database, _guard) = test_database().await;
+        let pool = database.pool().clone();
+        seed_workspaces(&pool).await;
+        let (_planner, _engine) = execution_stack(&pool).await;
+
+        // Attach a recording emitter to the already-built engine by cloning the
+        // underlying Arc state is not possible; instead build a dedicated
+        // engine with an emitter to verify the wiring compiles and emits.
+        let recorder = Arc::new(RecordingEmitter::new());
+        let emitter: Arc<dyn AppEventEmitter> = recorder.clone();
+        let workspace_repo = WorkspaceRepository::new(pool.clone());
+        let file_repo = FileRepository::new(pool.clone());
+        let timeline_repo = TimelineRepository::new(pool.clone());
+        let workspace_service =
+            Arc::new(WorkspaceService::new(workspace_repo, timeline_repo.clone()));
+        let session_engine = Arc::new(SessionEngine::new(
+            TimelineRepository::new(pool.clone()),
+            FileRepository::new(pool.clone()),
+        ));
+        let timeline_engine = Arc::new(TimelineEngine::new(TimelineService::new(
+            TimelineRecorder::new(file_repo, timeline_repo.clone()),
+            timeline_repo,
+        )));
+        let permission_service = Arc::new(
+            ToolPermissionService::new(SettingsRepository::new(pool.clone()))
+                .await
+                .expect("permission service should initialize"),
+        );
+        let executor = Arc::new(
+            ToolExecutor::new(workspace_service, session_engine, timeline_engine)
+                .with_permission_service(permission_service.clone()),
+        );
+        let emitting_engine = Arc::new(
+            ExecutionEngine::new(
+                Arc::new(ExecutionRepository::new(pool.clone())),
+                executor.clone(),
+            )
+            .with_event_emitter(emitter),
+        );
+
+        let plan = binding_plan();
+        let execution_id = emitting_engine
+            .start_execution(&plan, None)
+            .await
+            .expect("execution should start");
+        emitting_engine
+            .execute_until_complete(execution_id)
+            .await
+            .expect("execution should complete");
+
+        let payloads = recorder.progress_payloads();
+        assert!(
+            !payloads.is_empty(),
+            "progress snapshots must be emitted during a run"
+        );
+        let final_status = payloads
+            .last()
+            .and_then(|v| v.get("status"))
+            .and_then(|s| s.as_str())
+            .unwrap_or_default();
+        assert_eq!(
+            final_status, "completed",
+            "final streamed snapshot must carry the terminal status"
+        );
+        assert!(
+            payloads.iter().any(|v| v.get("current_step").is_some()),
+            "snapshots must carry current_step for the DAG progress view"
+        );
+    }
+
+    #[tokio::test]
+    async fn planner_report_persisted_and_streamed() {
+        let (database, _guard) = test_database().await;
+        let pool = database.pool().clone();
+        seed_workspaces(&pool).await;
+
+        // Persist a planner report by attaching it through the engine, then
+        // verify a fresh engine (read-only reconnect path) still loads it.
+        let (_, engine) = execution_stack(&pool).await;
+        let report = PlannerReport {
+            plan: binding_plan(),
+            execution_id: None,
+            completed: vec![Uuid::new_v4()],
+            skipped: vec![],
+            replaced: vec![],
+            replan_count: 1,
+            error: None,
+        };
+
+        let plan = binding_plan();
+        let execution_id = engine
+            .start_execution(&plan, None)
+            .await
+            .expect("execution should start");
+        let mut report = report;
+        report.execution_id = Some(execution_id);
+        engine
+            .attach_planner_report(execution_id, report.clone())
+            .await
+            .expect("report attachment should succeed");
+
+        let (_, fresh_engine) = execution_stack(&pool).await;
+        let progress = fresh_engine
+            .get_progress(execution_id)
+            .await
+            .expect("progress should be readable");
+        let streamed = progress
+            .planner_report
+            .expect("planner report must be visible after restart");
+        assert_eq!(streamed.replan_count, 1);
     }
 }

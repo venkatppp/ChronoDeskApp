@@ -416,10 +416,12 @@ pub fn run() {
 
             // --- Execution Engine (RC-2) ---
             let execution_repository = Arc::new(copilot::ExecutionRepository::new(pool.clone()));
-            let execution_engine = Arc::new(copilot::ExecutionEngine::new(
-                execution_repository,
-                tool_executor.clone(),
-            ));
+            let execution_engine = Arc::new(
+                copilot::ExecutionEngine::new(execution_repository, tool_executor.clone())
+                    .with_event_emitter(
+                        Arc::new(app_handle.clone()) as Arc<dyn app_events::AppEventEmitter>
+                    ),
+            );
 
             // --- Autonomous Planning Engine (RC-5) ---
             let planner = Arc::new(
@@ -636,6 +638,7 @@ pub fn run() {
             commands::execution::execution_resume,
             commands::execution::execution_cancel,
             commands::execution::execution_get_progress,
+            commands::execution::execution_list_recent,
             commands::conversation::copilot_rename_conversation,
             commands::conversation::copilot_delete_conversation,
             commands::conversation::copilot_pin_conversation,

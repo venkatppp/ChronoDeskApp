@@ -24,7 +24,9 @@
 /// 17 = plan execution tables and conversation management metadata.
 /// 18 = `plan_execution_checkpoints` table and checkpoint lifecycle
 ///     event types (durable pause/resume).
-pub const CURRENT_SCHEMA_VERSION: i64 = 18;
+/// 19 = `plan_execution_reports` table (execution progress streaming;
+///     durable planner reports).
+pub const CURRENT_SCHEMA_VERSION: i64 = 19;
 
 /// Table name constants. Repository query strings use literal SQL for
 /// readability (and because `sqlx::query_as` takes a plain `&str`, not a

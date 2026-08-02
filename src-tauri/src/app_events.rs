@@ -60,6 +60,9 @@ pub const EVENT_RESUME_CONTEXT_READY: &str = "proactive:resume_context_ready";
 pub const EVENT_PLAN_GENERATED: &str = "proactive:plan_generated";
 pub const EVENT_AUTOMATION_REQUEST: &str = "proactive:automation_request";
 
+// Plan execution events
+pub const EVENT_EXECUTION_PROGRESS: &str = "execution:progress";
+
 /// Serializes `payload` and emits it. Serialization failure is logged,
 /// not propagated — event emission is always best-effort and must never
 /// fail the operation that triggered it (e.g. a workspace creation

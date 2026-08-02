@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::copilot::execution::*;
 use crate::copilot::execution_checkpoint::ExecutionCheckpoint;
 use crate::copilot::execution_context::ExecutionContext;
+use crate::copilot::planner::PlannerReport;
 use crate::copilot::proactive_models::ExecutionPlan;
 use crate::errors::DatabaseError;
 
@@ -585,6 +586,133 @@ impl ExecutionRepository {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    /// Persists the planner's final run summary for an execution (UPSERT so a
+    /// replan run keeps only its last report per execution).
+    pub async fn save_planner_report(
+        &self,
+        execution_id: Uuid,
+        report: &PlannerReport,
+    ) -> Result<(), DatabaseError> {
+        let report_json = serde_json::to_string(report)?;
+        sqlx::query(
+            r#"
+            INSERT INTO plan_execution_reports (execution_id, report, created_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(execution_id) DO UPDATE SET
+                report = excluded.report,
+                created_at = excluded.created_at
+            "#,
+        )
+        .bind(execution_id.to_string())
+        .bind(report_json)
+        .bind(Utc::now().to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Loads the planner report attached to an execution, if any.
+    pub async fn get_planner_report(
+        &self,
+        execution_id: Uuid,
+    ) -> Result<Option<PlannerReport>, DatabaseError> {
+        type Row = (String,);
+        let row: Option<Row> = sqlx::query_as(
+            r#"
+            SELECT report FROM plan_execution_reports WHERE execution_id = ?
+            "#,
+        )
+        .bind(execution_id.to_string())
+        .fetch_optional(&self.pool)
+        .await?;
+        match row {
+            Some((report_json,)) => Ok(Some(serde_json::from_str(&report_json)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Lists the most recently updated executions, newest first, so the
+    /// dashboard can re-attach to an in-flight or last-completed run.
+    pub async fn list_recent_executions(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<PlanExecution>, DatabaseError> {
+        type Row = (
+            String,
+            String,
+            Option<String>,
+            String,
+            i64,
+            i64,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            String,
+            String,
+        );
+
+        let rows: Vec<Row> = sqlx::query_as(
+            r#"
+            SELECT id, plan_id, conversation_id, status, current_step, total_steps,
+                   started_at, completed_at, error, created_at, updated_at
+            FROM plan_executions
+            ORDER BY updated_at DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut executions = Vec::new();
+        for (
+            id,
+            plan_id,
+            conversation_id,
+            status,
+            current_step,
+            total_steps,
+            started_at,
+            completed_at,
+            error,
+            created_at,
+            updated_at,
+        ) in rows
+        {
+            executions.push(PlanExecution {
+                id: Uuid::parse_str(&id).map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                plan_id: Uuid::parse_str(&plan_id)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                conversation_id: conversation_id
+                    .map(|s| Uuid::parse_str(&s))
+                    .transpose()
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?,
+                status: self.parse_execution_status(&status)?,
+                current_step: current_step as usize,
+                total_steps: total_steps as usize,
+                started_at: started_at
+                    .map(|s| chrono::DateTime::parse_from_rfc3339(&s))
+                    .transpose()
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                    .map(|dt| dt.with_timezone(&Utc)),
+                completed_at: completed_at
+                    .map(|s| chrono::DateTime::parse_from_rfc3339(&s))
+                    .transpose()
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                    .map(|dt| dt.with_timezone(&Utc)),
+                error,
+                created_at: chrono::DateTime::parse_from_rfc3339(&created_at)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                    .with_timezone(&Utc),
+                updated_at: chrono::DateTime::parse_from_rfc3339(&updated_at)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?
+                    .with_timezone(&Utc),
+            });
+        }
+
+        Ok(executions)
     }
 
     /// Helper: parse execution status.

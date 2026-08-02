@@ -5,10 +5,12 @@ use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+use crate::app_events::{emit, AppEventEmitter, EVENT_EXECUTION_PROGRESS};
 use crate::copilot::execution::*;
 use crate::copilot::execution_checkpoint::ExecutionCheckpoint;
 use crate::copilot::execution_context::{ExecutionContext, UNRESOLVED_VARIABLE_MARKER};
 use crate::copilot::execution_repository::ExecutionRepository;
+use crate::copilot::planner::PlannerReport;
 use crate::copilot::proactive_models::{ExecutionPlan, PlanGate, PlanTask};
 use crate::copilot::tools::{ToolExecutor, ToolInvocationRequest, ToolInvocationStatus};
 use crate::errors::DatabaseError;
@@ -34,6 +36,11 @@ pub struct ExecutionEngine {
     repository: Arc<ExecutionRepository>,
     tool_executor: Arc<ToolExecutor>,
     active_executions: Arc<RwLock<std::collections::HashMap<Uuid, ActiveExecutionState>>>,
+    /// Planner reports keyed by execution id, attached when a planner-driven
+    /// run completes so the streamed/queried progress carries retry accounting.
+    planner_reports: Arc<RwLock<std::collections::HashMap<Uuid, PlannerReport>>>,
+    /// Frontend event emitter for live `execution:progress` snapshots.
+    event_emitter: Option<Arc<dyn AppEventEmitter>>,
 }
 
 impl ExecutionEngine {
@@ -43,7 +50,15 @@ impl ExecutionEngine {
             repository,
             tool_executor,
             active_executions: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            planner_reports: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            event_emitter: None,
         }
+    }
+
+    /// Attaches a frontend event emitter for streamed execution progress.
+    pub fn with_event_emitter(mut self, emitter: Arc<dyn AppEventEmitter>) -> Self {
+        self.event_emitter = Some(emitter);
+        self
     }
 
     /// Starts execution of an approved plan.
@@ -116,6 +131,8 @@ impl ExecutionEngine {
                 context: ExecutionContext::new(plan.workspace_id, plan.goal.clone()),
             },
         );
+
+        self.publish_progress(execution_id).await?;
 
         Ok(execution_id)
     }
@@ -283,6 +300,7 @@ impl ExecutionEngine {
             created_at: chrono::Utc::now(),
         };
         self.repository.record_event(event).await?;
+        self.publish_progress(execution_id).await?;
 
         let (cancellation_token, workspace_id) = self.execution_context(execution_id).await;
 
@@ -356,6 +374,7 @@ impl ExecutionEngine {
                 .update_current_step(execution_id, step_index + 1)
                 .await?;
             self.save_checkpoint(execution_id).await?;
+            self.publish_progress(execution_id).await?;
             return Ok(());
         };
 
@@ -403,6 +422,7 @@ impl ExecutionEngine {
                     .update_current_step(execution_id, step_index + 1)
                     .await?;
                 self.save_checkpoint(execution_id).await?;
+                self.publish_progress(execution_id).await?;
             }
             Ok(invocation) if invocation.status == ToolInvocationStatus::Cancelled => {
                 let invocation_json = serde_json::to_value(&invocation)?;
@@ -499,6 +519,8 @@ impl ExecutionEngine {
             )
             .await?;
 
+        self.publish_progress(execution_id).await?;
+
         Ok(())
     }
 
@@ -584,6 +606,8 @@ impl ExecutionEngine {
             )
             .await?;
 
+        self.publish_progress(execution_id).await?;
+
         Ok(())
     }
 
@@ -616,6 +640,10 @@ impl ExecutionEngine {
                 "User cancelled execution",
             )
             .await?;
+
+        // Emit the final snapshot while the active plan is still indexed so the
+        // dashboard shows the DAG through the cancelled terminal state.
+        self.publish_progress(execution_id).await?;
 
         self.repository.delete_checkpoint(execution_id).await?;
         self.active_executions.write().await.remove(&execution_id);
@@ -742,6 +770,14 @@ impl ExecutionEngine {
             0.0
         };
 
+        let planner_report = match self.planner_reports.read().await.get(&execution_id) {
+            Some(report) => Some(report.clone()),
+            // Miss the in-memory cache (e.g. after an application restart):
+            // fall back to the durable planner-reports table so the dashboard
+            // still shows the summary for a run that completed earlier.
+            None => self.repository.get_planner_report(execution_id).await?,
+        };
+
         Ok(ExecutionProgress {
             execution_id,
             status: execution.status,
@@ -750,7 +786,57 @@ impl ExecutionEngine {
             progress_percentage,
             steps,
             recent_events: events,
+            plan: self
+                .active_executions
+                .read()
+                .await
+                .get(&execution_id)
+                .and_then(|state| state.plan.clone()),
+            planner_report,
         })
+    }
+
+    /// Builds the current [`ExecutionProgress`] snapshot and emits it to the
+    /// frontend as an `execution:progress` event. No-op when no emitter is
+    /// attached (tests, headless use). Called after every state change so
+    /// the Execution Dashboard stays live without polling.
+    pub async fn publish_progress(&self, execution_id: Uuid) -> Result<(), DatabaseError> {
+        let Some(emitter) = &self.event_emitter else {
+            return Ok(());
+        };
+        let progress = self.get_progress(execution_id).await?;
+        emit(emitter.as_ref(), EVENT_EXECUTION_PROGRESS, &progress);
+        Ok(())
+    }
+
+    /// Attaches a planner report to an execution (set once the autonomous
+    /// planner finishes a run), then re-emits a progress snapshot carrying
+    /// it.
+    pub async fn attach_planner_report(
+        &self,
+        execution_id: Uuid,
+        report: PlannerReport,
+    ) -> Result<(), DatabaseError> {
+        // Persist first so the report survives restarts and reconnect.
+        self.repository
+            .save_planner_report(execution_id, &report)
+            .await?;
+        self.planner_reports
+            .write()
+            .await
+            .insert(execution_id, report);
+        self.publish_progress(execution_id).await
+    }
+
+    /// Lists recent executions (newest first), each with full progress so the
+    /// dashboard can re-attach after a reload/restart.
+    pub async fn list_recent(&self, limit: usize) -> Result<Vec<ExecutionProgress>, DatabaseError> {
+        let executions = self.repository.list_recent_executions(limit).await?;
+        let mut progress = Vec::with_capacity(executions.len());
+        for execution in executions {
+            progress.push(self.get_progress(execution.id).await?);
+        }
+        Ok(progress)
     }
 
     /// Completes an execution successfully.
@@ -778,6 +864,10 @@ impl ExecutionEngine {
                 "All steps completed successfully",
             )
             .await?;
+
+        // Emit the final snapshot while the active plan is still indexed so the
+        // dashboard shows the DAG through the completed terminal state.
+        self.publish_progress(execution_id).await?;
 
         self.repository.delete_checkpoint(execution_id).await?;
         self.active_executions.write().await.remove(&execution_id);
@@ -814,6 +904,10 @@ impl ExecutionEngine {
                 &format!("Execution failed: {}", error),
             )
             .await?;
+
+        // Emit the final snapshot while the active plan is still indexed so the
+        // dashboard shows the DAG through the failed terminal state.
+        self.publish_progress(execution_id).await?;
 
         self.repository.delete_checkpoint(execution_id).await?;
         self.active_executions.write().await.remove(&execution_id);
