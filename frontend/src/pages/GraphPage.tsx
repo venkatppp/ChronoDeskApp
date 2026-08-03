@@ -8,9 +8,13 @@ import type {
   GraphSyncSummary,
   KgStats,
   ContextDiscovery,
+  GraphAnalytics,
+  RelationshipDetails,
+  SemanticEdgeResult,
+  EdgeDecaySummary,
 } from "@/types/graph";
 import { useAppEvents } from "@/hooks/useAppEvents";
-import { Network, RefreshCw, Search, X, Map, ChevronLeft } from "lucide-react";
+import { Network, RefreshCw, Search, X, Map, ChevronLeft, Sparkles, Hourglass, Activity } from "lucide-react";
 
 const NODE_TYPE_FILTERS: { value: GraphNodeType | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -33,16 +37,21 @@ const TYPE_COLORS: Record<GraphNodeType, string> = {
 
 export function GraphPage() {
   const [stats, setStats] = useState<KgStats | null>(null);
+  const [analytics, setAnalytics] = useState<GraphAnalytics | null>(null);
   const [nodes, setNodes] = useState<KgNode[]>([]);
   const [edges, setEdges] = useState<KgEdge[]>([]);
   const [exploring, setExploring] = useState(false);
   const [selectedNode, setSelectedNode] = useState<KgNode | null>(null);
   const [context, setContext] = useState<ContextDiscovery | null>(null);
+  const [relationships, setRelationships] = useState<RelationshipDetails | null>(null);
+  const [semanticResult, setSemanticResult] = useState<SemanticEdgeResult | null>(null);
+  const [decayResult, setDecayResult] = useState<EdgeDecaySummary | null>(null);
   const [activeFilter, setActiveFilter] = useState<GraphNodeType | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<KgNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isMaintaining, setIsMaintaining] = useState(false);
   const [lastSync, setLastSync] = useState<GraphSyncSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,18 +61,20 @@ export function GraphPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [allNodes, graphStats] = await Promise.all([
+      const [allNodes, graphStats, graphAnalytics] = await Promise.all([
         graphRepo.graphNodes(
           filter === "all" ? ["workspace", "file", "planner_report", "execution", "memory_record", "autonomous_session"] : [filter],
           undefined,
           400,
         ),
         graphRepo.graphKgStats(),
+        graphRepo.graphAnalytics(undefined, true),
       ]);
       setNodes(allNodes);
       setEdges([]);
       setExploring(false);
       setStats(graphStats);
+      setAnalytics(graphAnalytics);
     } catch (err) {
       console.error("Failed to fetch knowledge graph:", err);
       setError("Failed to load Knowledge Graph. Please try again.");
@@ -76,7 +87,7 @@ export function GraphPage() {
     fetchAllNodes();
   }, [fetchAllNodes]);
 
-  useAppEvents(["graph:edge_added", "workspace:indexed"], () => {
+  useAppEvents(["graph:edge_added", "workspace:indexed", "graph:updated"], () => {
     fetchAllNodes();
   });
 
@@ -93,14 +104,16 @@ export function GraphPage() {
       setSelectedNode(node);
       setIsLoading(true);
       try {
-        const [subgraph, discovery] = await Promise.all([
+        const [subgraph, discovery, details] = await Promise.all([
           graphRepo.graphSubgraph(node.nodeType, node.entityId, 2),
           graphRepo.graphContext(node.nodeType, node.entityId, 30),
+          graphRepo.graphRelationshipDetails(node.nodeType, node.entityId),
         ]);
         setNodes(subgraph.nodes);
         setEdges(subgraph.edges);
         setExploring(true);
         setContext(discovery);
+        setRelationships(details);
       } catch (err) {
         console.error("Failed to explore node:", err);
         setError("Failed to explore this node.");
@@ -122,6 +135,48 @@ export function GraphPage() {
       setError("Failed to rebuild the Knowledge Graph.");
     } finally {
       setIsSyncing(false);
+    }
+  }, [graphRepo, fetchAllNodes, activeFilter]);
+
+  const handleIncrementalSync = useCallback(async () => {
+    setIsMaintaining(true);
+    try {
+      const summary = await graphRepo.graphIncrementalSync();
+      setLastSync(summary);
+      await fetchAllNodes(activeFilter);
+    } catch (err) {
+      console.error("Failed to incrementally sync knowledge graph:", err);
+      setError("Failed to sync the Knowledge Graph.");
+    } finally {
+      setIsMaintaining(false);
+    }
+  }, [graphRepo, fetchAllNodes, activeFilter]);
+
+  const handleRebuildSemanticEdges = useCallback(async () => {
+    setIsMaintaining(true);
+    try {
+      const result = await graphRepo.graphRebuildSemanticEdges();
+      setSemanticResult(result);
+      await fetchAllNodes(activeFilter);
+    } catch (err) {
+      console.error("Failed to rebuild semantic edges:", err);
+      setError("Failed to rebuild semantic edges.");
+    } finally {
+      setIsMaintaining(false);
+    }
+  }, [graphRepo, fetchAllNodes, activeFilter]);
+
+  const handleApplyEdgeDecay = useCallback(async () => {
+    setIsMaintaining(true);
+    try {
+      const result = await graphRepo.graphApplyEdgeDecay();
+      setDecayResult(result);
+      await fetchAllNodes(activeFilter);
+    } catch (err) {
+      console.error("Failed to apply edge decay:", err);
+      setError("Failed to apply edge decay.");
+    } finally {
+      setIsMaintaining(false);
     }
   }, [graphRepo, fetchAllNodes, activeFilter]);
 
@@ -151,6 +206,20 @@ export function GraphPage() {
     return counts;
   }, [stats]);
 
+  const centralityToNode = useCallback(
+    (c: { nodeType: GraphNodeType; entityId: string; title: string }): KgNode => ({
+      nodeType: c.nodeType,
+      entityId: c.entityId,
+      title: c.title,
+      workspaceId: null,
+      summary: null,
+      metadata: {},
+      createdAt: "",
+      updatedAt: "",
+    }),
+    [],
+  );
+
   return (
     <div className="mx-auto flex h-[calc(100vh-64px)] flex-col overflow-hidden">
       <div className="flex shrink-0 items-center justify-between gap-4 border-b border-(--color-border-subtle) px-6 py-4">
@@ -168,6 +237,31 @@ export function GraphPage() {
             </span>
             <span className="text-(--color-border-subtle)">|</span>
             <span>{stats.edgeCount} edges</span>
+            {analytics && (
+              <>
+                <span className="text-(--color-border-subtle)">|</span>
+                <span className="inline-flex items-center gap-1">
+                  <Activity className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  density {(analytics.density * 100).toFixed(1)}% · avg degree {analytics.averageDegree.toFixed(1)}
+                </span>
+              </>
+            )}
+            {semanticResult && (
+              <>
+                <span className="text-(--color-border-subtle)">|</span>
+                <span className="text-(--color-success)">
+                  semantic +{semanticResult.created} · ~{semanticResult.updated} · -{semanticResult.pruned}
+                </span>
+              </>
+            )}
+            {decayResult && (
+              <>
+                <span className="text-(--color-border-subtle)">|</span>
+                <span className="text-(--color-warning)">
+                  decayed {decayResult.decayed} · pruned {decayResult.pruned}
+                </span>
+              </>
+            )}
             {lastSync && (
               <>
                 <span className="text-(--color-border-subtle)">|</span>
@@ -246,6 +340,31 @@ export function GraphPage() {
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} strokeWidth={1.75} />
             Rebuild
+          </button>
+          <span className="h-4 w-px bg-(--color-border-subtle)" />
+          <button
+            onClick={handleIncrementalSync}
+            disabled={isMaintaining}
+            className="flex shrink-0 items-center gap-1 rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface) px-2.5 py-1.5 text-xs font-medium text-(--color-muted-foreground) transition-colors hover:bg-(--color-surface-hover) disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isMaintaining ? "animate-spin" : ""}`} strokeWidth={1.75} />
+            Sync
+          </button>
+          <button
+            onClick={handleRebuildSemanticEdges}
+            disabled={isMaintaining}
+            className="flex shrink-0 items-center gap-1 rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface) px-2.5 py-1.5 text-xs font-medium text-(--color-muted-foreground) transition-colors hover:bg-(--color-surface-hover) disabled:opacity-50"
+          >
+            <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />
+            Semantic
+          </button>
+          <button
+            onClick={handleApplyEdgeDecay}
+            disabled={isMaintaining}
+            className="flex shrink-0 items-center gap-1 rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface) px-2.5 py-1.5 text-xs font-medium text-(--color-muted-foreground) transition-colors hover:bg-(--color-surface-hover) disabled:opacity-50"
+          >
+            <Hourglass className="h-3.5 w-3.5" strokeWidth={1.75} />
+            Decay
           </button>
         </div>
       </div>
@@ -356,12 +475,118 @@ export function GraphPage() {
                 </div>
               </div>
 
+              {relationships && relationships.relationships.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-(--color-faint-foreground)">
+                    Relationships ({relationships.relationships.length})
+                  </p>
+                  <div className="flex flex-col gap-1">
+                    {relationships.relationships.slice(0, 15).map((rel) => (
+                      <button
+                        key={rel.edge.id}
+                        onClick={() => handleNodeSelect(rel.neighbor)}
+                        className="flex items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left transition-colors hover:bg-(--color-surface-hover)"
+                      >
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: TYPE_COLORS[rel.neighbor.nodeType] }} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs text-(--color-foreground)">{rel.neighbor.title}</span>
+                          <span className="block truncate text-[10px] text-(--color-faint-foreground)">
+                            {rel.edge.relationshipType.replace("_", " ")}
+                            {rel.edge.relationshipType === "related_to" && rel.edge.confidence < 1.0
+                              ? ` · conf ${(rel.edge.confidence * 100).toFixed(0)}%`
+                              : ""}
+                          </span>
+                        </span>
+                        <span className="shrink-0 font-(family-name:--font-mono) text-[9px] text-(--color-faint-foreground)">
+                          {(rel.edge.weight * 100).toFixed(0)}%
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-(--color-faint-foreground)">Metadata</p>
                 <div className="rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface-hover) px-3 py-2 font-(family-name:--font-mono) text-[10px] text-(--color-muted-foreground)">
                   <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap">{JSON.stringify(selectedNode.metadata, null, 2)}</pre>
                 </div>
               </div>
+            </div>
+          ) : analytics ? (
+            <div className="flex flex-col gap-4 animate-fade-in">
+              <div className="flex items-start gap-2">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--color-accent)/10">
+                  <Activity className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-(--color-foreground)">Graph analytics</p>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-(--color-faint-foreground)">
+                    {analytics.scope === "all" ? "Global scope" : analytics.scope}
+                    {analytics.cached ? " · cached" : " · fresh"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: "Nodes", value: analytics.nodeCount },
+                  { label: "Edges", value: analytics.edgeCount },
+                  { label: "Avg degree", value: analytics.averageDegree.toFixed(1) },
+                  { label: "Density", value: `${(analytics.density * 100).toFixed(1)}%` },
+                  { label: "Components", value: analytics.components.length },
+                ].map((stat) => (
+                  <div key={stat.label} className="rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface-hover) px-3 py-2">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-(--color-faint-foreground)">{stat.label}</p>
+                    <p className="font-(family-name:--font-mono) text-sm text-(--color-foreground)">{stat.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {analytics.topCentralNodes.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-(--color-faint-foreground)">
+                    Top central nodes
+                  </p>
+                  <div className="flex flex-col gap-1">
+                    {analytics.topCentralNodes.slice(0, 6).map((node) => (
+                      <button
+                        key={`${node.nodeType}-${node.entityId}`}
+                        onClick={() => handleNodeSelect(centralityToNode(node))}
+                        className="flex items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left transition-colors hover:bg-(--color-surface-hover)"
+                      >
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: TYPE_COLORS[node.nodeType] }} />
+                        <span className="min-w-0 flex-1 truncate text-xs text-(--color-foreground)">{node.title}</span>
+                        <span className="shrink-0 font-(family-name:--font-mono) text-[9px] text-(--color-faint-foreground)">
+                          {node.eigenvector.toFixed(3)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {analytics.workspaceImportance.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-(--color-faint-foreground)">
+                    Workspace importance
+                  </p>
+                  <div className="flex flex-col gap-1">
+                    {analytics.workspaceImportance.slice(0, 5).map((ws) => (
+                      <div key={ws.workspaceId} className="flex items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5">
+                        <span className="min-w-0 flex-1 truncate text-xs text-(--color-foreground)">{ws.name}</span>
+                        <span className="shrink-0 font-(family-name:--font-mono) text-[9px] text-(--color-faint-foreground)">
+                          {ws.importance.toFixed(3)} · {ws.nodeCount} nodes
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <p className="rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface-hover) px-3 py-2 text-[10px] text-(--color-faint-foreground)">
+                Select a node to explore its context and relationships.
+              </p>
             </div>
           ) : (
             <div className="flex h-full flex-col items-center justify-center text-center opacity-40">

@@ -125,7 +125,7 @@ impl FromStr for GraphRelationshipType {
 }
 
 /// A node in the RC-8 knowledge graph — one row in `graph_nodes`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KgNode {
     pub node_type: GraphNodeType,
@@ -171,7 +171,7 @@ impl TryFrom<KgNodeRow> for KgNode {
 
 /// An edge between two knowledge graph nodes — one row in
 /// `graph_relationships`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KgEdge {
     pub id: Uuid,
@@ -182,6 +182,11 @@ pub struct KgEdge {
     pub relationship_type: GraphRelationshipType,
     /// Strength of the relationship (0.0 to 1.0).
     pub weight: f64,
+    /// Confidence in the relationship (0.0 to 1.0, RC-8 M2). Structural
+    /// edges are constructed at 1.0 and never decay; semantic
+    /// `related_to` edges start at the hered similarity and decay over
+    /// time until dropped below the pruning threshold.
+    pub confidence: f64,
     /// Free-form JSON evidence attached at construction time.
     pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
@@ -197,6 +202,7 @@ pub(crate) struct KgEdgeRow {
     pub target_entity_id: Uuid,
     pub relationship_type: String,
     pub weight: f64,
+    pub confidence: f64,
     pub metadata: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -214,6 +220,7 @@ impl TryFrom<KgEdgeRow> for KgEdge {
             target_entity_id: row.target_entity_id,
             relationship_type: GraphRelationshipType::from_str(&row.relationship_type)?,
             weight: row.weight,
+            confidence: row.confidence,
             metadata: serde_json::from_str(&row.metadata)
                 .unwrap_or(serde_json::Value::Object(Default::default())),
             created_at: row.created_at,
@@ -264,7 +271,7 @@ pub struct ContextDiscovery {
 }
 
 /// Accounting for one full graph construction pass.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphSyncSummary {
     pub created_nodes: u64,
@@ -302,4 +309,19 @@ pub struct GraphSource {
     pub workspace_id: Option<Uuid>,
     pub summary: Option<String>,
     pub metadata: serde_json::Value,
+}
+
+/// Construction evidence attached to structural edges. Shared by the
+/// full-sync pass (RC-8 M1) and the incremental/entity sync (RC-8 M2) so
+/// the edge metadata is always identical no matter which path wrote it.
+pub fn structural_edge_metadata(relationship: GraphRelationshipType) -> serde_json::Value {
+    match relationship {
+        GraphRelationshipType::Contains => serde_json::json!({ "source": "files" }),
+        GraphRelationshipType::RunsIn => serde_json::json!({ "source": "plan_executions" }),
+        GraphRelationshipType::ReportsOn => {
+            serde_json::json!({ "source": "plan_execution_reports" })
+        }
+        GraphRelationshipType::DerivedFrom => serde_json::json!({ "source": "execution_memory" }),
+        GraphRelationshipType::RelatedTo => serde_json::json!({ "source": "semantic" }),
+    }
 }

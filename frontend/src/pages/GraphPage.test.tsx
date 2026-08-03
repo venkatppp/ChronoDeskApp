@@ -29,6 +29,25 @@ const stats: KgStats = {
   edgesByType: [{ name: "contains", count: 2 }],
 };
 
+const analytics = {
+  scope: "all",
+  nodeCount: 3,
+  edgeCount: 2,
+  averageDegree: 1.33,
+  density: 0.667,
+  degreeDistribution: [
+    { degree: 1, count: 2 },
+    { degree: 2, count: 1 },
+  ],
+  topCentralNodes: [
+    { nodeType: "workspace", entityId: "ws-1", title: "Alpha WS", inDegree: 2, outDegree: 0, degreeCentrality: 1.0, eigenvector: 0.707 },
+  ],
+  components: [{ index: 0, size: 3, nodeTypes: [{ name: "workspace", count: 1 }], memberTitles: ["Alpha WS"] }],
+  workspaceImportance: [{ workspaceId: "ws-1", name: "Alpha WS", importance: 1.0, nodeCount: 3, edgeCount: 2, weightSum: 2.0 }],
+  cached: true,
+  computedAt: "2026-08-02T09:58:00Z",
+};
+
 const workspaceNode = makeNode();
 const fileNode = makeNode({
   nodeType: "file",
@@ -79,11 +98,46 @@ describe("GraphPage", () => {
           });
         case "graph_sync":
           return Promise.resolve({ createdNodes: 0, updatedNodes: 3, createdEdges: 0, updatedEdges: 2, totalNodes: 3, totalEdges: 2 });
+        case "graph_analytics":
+          return Promise.resolve(analytics);
+        case "graph_incremental_sync":
+          return Promise.resolve({ createdNodes: 1, updatedNodes: 0, createdEdges: 1, updatedEdges: 0, totalNodes: 3, totalEdges: 2 });
+        case "graph_rebuild_semantic_edges":
+          return Promise.resolve({ candidatePairs: 2, created: 1, updated: 0, pruned: 0, threshold: 0.45 });
+        case "graph_apply_edge_decay":
+          return Promise.resolve({ decayed: 2, pruned: 1, minConfidence: 0.1 });
+        case "graph_relationship_details":
+          return Promise.resolve({
+            node: args?.entityId === "file-1" ? fileNode : workspaceNode,
+            relationships: [
+              {
+                edge: {
+                  id: "edge-1",
+                  sourceNodeType: "workspace",
+                  sourceEntityId: "ws-1",
+                  targetNodeType: "file",
+                  targetEntityId: "file-1",
+                  relationshipType: "related_to",
+                  weight: 0.8,
+                  confidence: 0.62,
+                  metadata: {},
+                  createdAt: "2026-08-02T09:58:00Z",
+                  updatedAt: "2026-08-02T09:58:00Z",
+                },
+                neighbor: fileNode,
+              },
+            ],
+          });
         default:
           return Promise.reject(new Error(`unexpected command ${command}`));
       }
     });
     return invoke;
+  };
+
+  const findGraphNode = async (title: string) => {
+    const nodes = await screen.findAllByText(title);
+    return nodes[0];
   };
 
   it("loads stats and nodes on mount", async () => {
@@ -98,13 +152,13 @@ describe("GraphPage", () => {
       "graph_nodes",
       expect.objectContaining({ nodeTypes: expect.arrayContaining(["workspace", "file", "planner_report", "execution", "memory_record", "autonomous_session"]) }),
     );
-    expect(screen.getByText("Alpha WS")).toBeInTheDocument();
+    await findGraphNode("Alpha WS");
   });
 
   it("filters the node list by entity type", async () => {
     const invoke = mockCommands(await setupInvoke());
     render(<GraphPage />);
-    await screen.findByText("Alpha WS");
+    await findGraphNode("Alpha WS");
 
     fireEvent.click(screen.getByRole("button", { name: /files/i }));
     await waitFor(() => {
@@ -119,9 +173,9 @@ describe("GraphPage", () => {
   it("explores a node's subgraph and shows context discovery", async () => {
     mockCommands(await setupInvoke());
     render(<GraphPage />);
-    await screen.findByText("Alpha WS");
+    await findGraphNode("Alpha WS");
 
-    fireEvent.click(screen.getByText("Alpha WS"));
+    fireEvent.click(screen.getAllByText("Alpha WS")[0]);
     await waitFor(() => {
       expect(screen.getByText("Related context (1)")).toBeInTheDocument();
     });
@@ -133,7 +187,7 @@ describe("GraphPage", () => {
   it("searches the graph and jumps to a hit", async () => {
     const invoke = mockCommands(await setupInvoke());
     render(<GraphPage />);
-    await screen.findByText("Alpha WS");
+    await findGraphNode("Alpha WS");
 
     const input = screen.getByPlaceholderText("Search graph...");
     fireEvent.change(input, { target: { value: "main" } });
@@ -150,12 +204,72 @@ describe("GraphPage", () => {
   it("rebuilds the graph via graph_sync and refreshes", async () => {
     const invoke = mockCommands(await setupInvoke());
     render(<GraphPage />);
-    await screen.findByText("Alpha WS");
+    await findGraphNode("Alpha WS");
 
     fireEvent.click(screen.getByRole("button", { name: /rebuild/i }));
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith("graph_sync");
     });
     await screen.findByText("+0 nodes · +0 edges");
+  });
+
+  it("loads analytics on mount and shows graph density", async () => {
+    mockCommands(await setupInvoke());
+    render(<GraphPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/density 66\.7%/)).toBeInTheDocument();
+    });
+    expect(screen.getByText("Graph analytics")).toBeInTheDocument();
+    expect(screen.getByText("Global scope · cached")).toBeInTheDocument();
+  });
+
+  it("runs incremental sync, semantic rebuild, and edge decay", async () => {
+    const invoke = mockCommands(await setupInvoke());
+    render(<GraphPage />);
+    await findGraphNode("Alpha WS");
+
+    fireEvent.click(screen.getByRole("button", { name: /sync/i }));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("graph_incremental_sync");
+    });
+    await screen.findByText("+1 nodes · +1 edges");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /semantic/i })).not.toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /semantic/i }));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("graph_rebuild_semantic_edges", expect.anything());
+    });
+    await screen.findByText(/semantic \+1/);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /decay/i })).not.toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /decay/i }));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("graph_apply_edge_decay");
+    });
+    await screen.findByText(/decayed 2 · pruned 1/);
+  });
+
+  it("shows relationship details with confidence for a selected node", async () => {
+    const invoke = mockCommands(await setupInvoke());
+    render(<GraphPage />);
+    await findGraphNode("Alpha WS");
+
+    fireEvent.click(screen.getAllByText("Alpha WS")[0]);
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "graph_relationship_details",
+        expect.objectContaining({ nodeType: "workspace", entityId: "ws-1" }),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Relationships (1)")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/conf 62%/)).toBeInTheDocument();
+    expect(screen.getAllByText("80%").length).toBeGreaterThan(0);
   });
 });

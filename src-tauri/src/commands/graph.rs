@@ -7,6 +7,10 @@ use crate::models::graph::{GraphEdgeType, GraphStats, GraphView, NodeDetails};
 use crate::models::kg::{
     ContextDiscovery, GraphNodeType, GraphPath, GraphSyncSummary, KgNode, KgStats, KgSubgraph,
 };
+use crate::models::kg_live::{
+    EdgeDecaySummary, EntitySyncResult, GraphAnalytics, GraphRecommendation, MultiHopContext,
+    QueryCacheStats, RelationshipDetails, SemanticEdgeResult,
+};
 use crate::models::search::SearchEntityType;
 use crate::services::GraphService;
 
@@ -118,4 +122,104 @@ pub async fn graph_nodes(
     limit: Option<u32>,
 ) -> Result<Vec<KgNode>, DatabaseError> {
     engine.graph_nodes(node_types, workspace_id, limit).await
+}
+
+// ----------------------------------------------------------------------
+// RC-8 M2: Live Knowledge Graph commands
+// ----------------------------------------------------------------------
+
+/// Watermark-driven incremental graph sync (event-driven updates).
+#[tauri::command]
+pub async fn graph_incremental_sync(
+    engine: State<'_, GraphEngine>,
+) -> Result<GraphSyncSummary, DatabaseError> {
+    engine.incremental_sync().await
+}
+
+/// Syncs a single entity into the graph.
+#[tauri::command]
+pub async fn graph_sync_entity(
+    engine: State<'_, GraphEngine>,
+    node_type: GraphNodeType,
+    entity_id: Uuid,
+) -> Result<EntitySyncResult, DatabaseError> {
+    engine.sync_graph_entity(node_type, entity_id).await
+}
+
+/// Rebuilds semantic `related_to` edges from node embeddings.
+#[tauri::command]
+pub async fn graph_rebuild_semantic_edges(
+    engine: State<'_, GraphEngine>,
+    max_nodes: Option<usize>,
+) -> Result<SemanticEdgeResult, DatabaseError> {
+    engine.rebuild_semantic_edges(max_nodes).await
+}
+
+/// Ages semantic edge confidence and prunes edges below the floor.
+#[tauri::command]
+pub async fn graph_apply_edge_decay(
+    engine: State<'_, GraphEngine>,
+) -> Result<EdgeDecaySummary, DatabaseError> {
+    engine.apply_edge_decay().await
+}
+
+/// Graph analytics for the dashboard (cached per scope).
+#[tauri::command]
+pub async fn graph_analytics(
+    engine: State<'_, GraphEngine>,
+    workspace_id: Option<Uuid>,
+    cached: Option<bool>,
+) -> Result<GraphAnalytics, DatabaseError> {
+    engine
+        .graph_analytics(workspace_id, cached.unwrap_or(true))
+        .await
+}
+
+/// Multi-hop context expansion around one entity.
+#[tauri::command]
+pub async fn graph_expand_context(
+    engine: State<'_, GraphEngine>,
+    node_type: GraphNodeType,
+    entity_id: Uuid,
+    hops: Option<usize>,
+    limit: Option<usize>,
+    cached: Option<bool>,
+) -> Result<MultiHopContext, DatabaseError> {
+    engine
+        .graph_expand_context(node_type, entity_id, hops, limit, cached.unwrap_or(true))
+        .await
+}
+
+/// Related-work recommendations around one entity.
+#[tauri::command]
+pub async fn graph_recommendations(
+    engine: State<'_, GraphEngine>,
+    node_type: GraphNodeType,
+    entity_id: Uuid,
+    limit: Option<usize>,
+    cached: Option<bool>,
+) -> Result<Vec<GraphRecommendation>, DatabaseError> {
+    engine
+        .graph_recommendations(node_type, entity_id, limit, cached.unwrap_or(true))
+        .await
+}
+
+/// The relationship inspector payload for one node.
+#[tauri::command]
+pub async fn graph_relationship_details(
+    engine: State<'_, GraphEngine>,
+    node_type: GraphNodeType,
+    entity_id: Uuid,
+) -> Result<RelationshipDetails, DatabaseError> {
+    engine
+        .graph_relationship_details(node_type, entity_id)
+        .await
+}
+
+/// Query-cache bookkeeping for the dashboard.
+#[tauri::command]
+pub async fn graph_cache_stats(
+    engine: State<'_, GraphEngine>,
+) -> Result<QueryCacheStats, DatabaseError> {
+    engine.graph_cache_stats().await
 }

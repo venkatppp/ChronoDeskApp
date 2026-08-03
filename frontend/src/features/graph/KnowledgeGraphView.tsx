@@ -435,6 +435,8 @@ export function KnowledgeGraphView({
             const isHovered = hoveredEdge === edge.id;
             const showGlow = isHighlighted || isHovered;
             const ec = edgeColor(edge.relationshipType);
+            const isSemantic = edge.relationshipType === "related_to";
+            const confidenceOpacity = isSemantic ? 0.2 + edge.confidence * 0.8 : 1;
 
             return (
               <g
@@ -458,9 +460,13 @@ export function KnowledgeGraphView({
                   fill="none"
                   stroke={isHighlighted ? nodeColor(source.nodeType) : ec}
                   strokeWidth={isHighlighted ? Math.max(1.5, edge.weight * 2.5) : Math.max(0.5, edge.weight * 1.5)}
-                  strokeOpacity={isHighlighted ? 0.8 : isHovered ? 0.7 : 0.25}
+                  strokeOpacity={isHighlighted ? 0.8 * confidenceOpacity : isHovered ? 0.7 * confidenceOpacity : 0.25 * confidenceOpacity}
                   className="pointer-events-none transition-all duration-300 ease-[cubic-bezier(0.32,0.08,0.24,1)]"
-                />
+                >
+                  {isSemantic && (
+                    <title>{`${edge.relationshipType} · confidence ${(edge.confidence * 100).toFixed(0)}%`}</title>
+                  )}
+                </path>
               </g>
             );
           })}

@@ -97,13 +97,13 @@ use predictive::{
     AdaptiveLearning, AutomationEngine, PredictiveEngine, PredictiveRepository, WorkflowEngine,
 };
 use repositories::{
-    FileRepository, GraphRepository, KgRepository, LLMRepository, MLRepository, SearchRepository,
-    SettingsRepository, TimelineRepository, WorkspaceRepository,
+    FileRepository, GraphRepository, KgLiveRepository, KgRepository, LLMRepository, MLRepository,
+    SearchRepository, SettingsRepository, TimelineRepository, WorkspaceRepository,
 };
 use search::SearchEngine;
 use services::{
-    ContextService, GraphService, KgService, MLService, SearchService, TimelineService,
-    WorkspaceService,
+    ContextService, GraphService, KgLiveService, KgService, MLService, SearchService,
+    TimelineService, WorkspaceService,
 };
 use session::SessionEngine;
 use timeline::recorder::TimelineRecorder;
@@ -174,7 +174,8 @@ pub fn run() {
             let workspace_manager = WorkspaceManager::new(workspace_service.clone());
             let timeline_engine = TimelineEngine::new(timeline_service.clone());
             let search_engine = SearchEngine::new(search_service.clone());
-            let graph_engine = GraphEngine::new(graph_service.clone()).with_kg_service(kg_service);
+            let graph_engine = GraphEngine::new(graph_service.clone())
+                .with_kg_service(kg_service.clone());
 
             // RC-8 M1: build the knowledge graph once at startup (and on
             // every later launch) so the Graph page is populated even
@@ -469,6 +470,71 @@ pub fn run() {
                 async move { memory_cleanup.run().await }
             });
 
+            // --- RC-8 M2: Live Knowledge Graph (incremental sync, semantic
+            // edges, analytics, multi-hop context, recommendations) ---
+            // The M1 engine gains the M2 surfaces; node embeddings for
+            // semantic `related_to` edges come from the memory vector
+            // system's embedder. The engine handle is reassigned so the
+            // managed state below carries the live service.
+            let kg_live_service = KgLiveService::new(
+                kg_service.clone(),
+                KgLiveRepository::new(pool.clone()),
+            )
+            .with_embedder(Arc::new(memory_engine.vector_system().clone()));
+            let graph_engine = graph_engine.with_kg_live_service(kg_live_service);
+
+            // Advance the incremental-sync watermark to now. The M1 full
+            // build above just wrote every node, so this first pass is
+            // a cheap idempotent re-sync that leaves future event-driven
+            // passes down to the changes only.
+            match tauri::async_runtime::block_on(graph_engine.incremental_sync()) {
+                Ok(summary) => tracing::info!(
+                    total_nodes = summary.total_nodes,
+                    total_edges = summary.total_edges,
+                    "live knowledge graph watermark established at startup"
+                ),
+                Err(error) => {
+                    tracing::error!(error = %error, "initial incremental graph sync failed")
+                }
+            }
+
+            // RC-8 M2: background graph maintenance — every 5 minutes an
+            // incremental sync pass (event-driven updates stay live), every
+            // 6 hours a confidence-decay pass. Each sync emits
+            // `graph:updated` so the Graph page refreshes without polling.
+            {
+                let graph_engine = graph_engine.clone();
+                let emitter = Arc::new(app_handle.clone()) as Arc<dyn app_events::AppEventEmitter>;
+                tauri::async_runtime::spawn(async move {
+                    let mut sync_interval =
+                        tokio::time::interval(std::time::Duration::from_secs(300));
+                    let mut decay_interval =
+                        tokio::time::interval(std::time::Duration::from_secs(6 * 60 * 60));
+                    loop {
+                        tokio::select! {
+                            _ = sync_interval.tick() => {
+                                match graph_engine.incremental_sync().await {
+                                    Ok(summary) => {
+                                        app_events::emit(&*emitter, app_events::EVENT_GRAPH_UPDATED, &summary);
+                                    }
+                                    Err(error) => tracing::warn!(error = %error, "background graph sync failed"),
+                                }
+                            }
+                            _ = decay_interval.tick() => {
+                                match graph_engine.apply_edge_decay().await {
+                                    Ok(summary) => tracing::info!(
+                                        decayed = summary.decayed,
+                                        pruned = summary.pruned,
+                                        "semantic edge decay pass completed"
+                                    ),
+                                    Err(error) => tracing::warn!(error = %error, "background edge decay failed"),
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
             // --- Execution Engine (RC-2) ---
             let execution_repository = Arc::new(copilot::ExecutionRepository::new(pool.clone()));
             let execution_engine = Arc::new(
@@ -608,6 +674,15 @@ pub fn run() {
             commands::graph::graph_context,
             commands::graph::graph_kg_stats,
             commands::graph::graph_nodes,
+            commands::graph::graph_incremental_sync,
+            commands::graph::graph_sync_entity,
+            commands::graph::graph_rebuild_semantic_edges,
+            commands::graph::graph_apply_edge_decay,
+            commands::graph::graph_analytics,
+            commands::graph::graph_expand_context,
+            commands::graph::graph_recommendations,
+            commands::graph::graph_relationship_details,
+            commands::graph::graph_cache_stats,
             commands::duplicates::scan_workspace_for_duplicates,
             commands::duplicates::scan_file,
             commands::duplicates::get_duplicate_groups,

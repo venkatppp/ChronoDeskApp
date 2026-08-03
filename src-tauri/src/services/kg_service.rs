@@ -21,9 +21,10 @@ use uuid::Uuid;
 
 use crate::errors::DatabaseError;
 use crate::models::kg::{
-    ContextDiscovery, ContextHit, GraphNodeType, GraphPath, GraphRelationshipType,
-    GraphSyncSummary, KgEdge, KgNode, KgStats, KgSubgraph,
+    structural_edge_metadata, ContextDiscovery, ContextHit, GraphNodeType, GraphPath,
+    GraphRelationshipType, GraphSyncSummary, KgEdge, KgNode, KgStats, KgSubgraph,
 };
+use crate::models::kg_live::EntitySyncResult;
 use crate::repositories::KgRepository;
 
 /// Default depth for BFS subgraph extraction.
@@ -147,7 +148,7 @@ impl KgService {
                     file_id,
                     GraphRelationshipType::Contains,
                     1.0,
-                    serde_json::json!({ "source": "files" }),
+                    structural_edge_metadata(GraphRelationshipType::Contains),
                 )
                 .await
             {
@@ -173,7 +174,7 @@ impl KgService {
                     workspace_id,
                     GraphRelationshipType::RunsIn,
                     1.0,
-                    serde_json::json!({ "source": "plan_executions" }),
+                    structural_edge_metadata(GraphRelationshipType::RunsIn),
                 )
                 .await
             {
@@ -198,7 +199,7 @@ impl KgService {
                     execution_id,
                     GraphRelationshipType::ReportsOn,
                     1.0,
-                    serde_json::json!({ "source": "plan_execution_reports" }),
+                    structural_edge_metadata(GraphRelationshipType::ReportsOn),
                 )
                 .await
             {
@@ -223,7 +224,7 @@ impl KgService {
                     execution_id,
                     GraphRelationshipType::DerivedFrom,
                     1.0,
-                    serde_json::json!({ "source": "execution_memory" }),
+                    structural_edge_metadata(GraphRelationshipType::DerivedFrom),
                 )
                 .await
             {
@@ -248,7 +249,7 @@ impl KgService {
                     workspace_id,
                     GraphRelationshipType::RunsIn,
                     1.0,
-                    serde_json::json!({ "source": "execution_memory" }),
+                    structural_edge_metadata(GraphRelationshipType::RunsIn),
                 )
                 .await
             {
@@ -273,7 +274,7 @@ impl KgService {
                     workspace_id,
                     GraphRelationshipType::RunsIn,
                     1.0,
-                    serde_json::json!({ "source": "execution_memory" }),
+                    structural_edge_metadata(GraphRelationshipType::RunsIn),
                 )
                 .await
             {
@@ -300,6 +301,99 @@ impl KgService {
     }
 
     // ------------------------------------------------------------------
+    // Incremental, event-driven sync (RC-8 M2)
+    // ------------------------------------------------------------------
+
+    /// Syncs one entity into the graph — the incremental analogue of one
+    /// slice of [`KgService::sync_graph`]. Idempotent; a missing source
+    /// row drops the node (relationships cascade via FK).
+    pub async fn sync_entity(
+        &self,
+        node_type: GraphNodeType,
+        entity_id: Uuid,
+    ) -> Result<EntitySyncResult, DatabaseError> {
+        let mut result = EntitySyncResult::default();
+        let Some(source) = self.repository.source_for(node_type, entity_id).await? else {
+            let _ = self.repository.delete_node(node_type, entity_id).await?;
+            return Ok(result);
+        };
+
+        let created = self.repository.upsert_node(node_type, &source).await?;
+        result.node_created = created;
+        result.node_updated = !created;
+
+        for link in self.repository.links_for(node_type, entity_id).await? {
+            match self
+                .repository
+                .upsert_relationship(
+                    link.source_type,
+                    link.source_id,
+                    link.target_type,
+                    link.target_id,
+                    link.relationship_type,
+                    1.0,
+                    structural_edge_metadata(link.relationship_type),
+                )
+                .await
+            {
+                Ok(true) => result.edges_created += 1,
+                Ok(false) => result.edges_updated += 1,
+                Err(DatabaseError::Constraint(_)) => tracing::debug!(
+                    node_kind = %node_type,
+                    node_id = %entity_id,
+                    "skipping structural edge: endpoint node missing"
+                ),
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(result)
+    }
+
+    /// Watermark-based incremental sync. Each of the six aggregates is
+    /// processed only when one of its source rows changed after the last
+    /// pass (`graph_sync_state`), then missing rows are pruned and the
+    /// watermark advances. The first pass over an uninitialized state is
+    /// a full build — the cheap, correct fallback for fresh databases.
+    pub async fn sync_incremental(&self) -> Result<GraphSyncSummary, DatabaseError> {
+        const KINDS: [GraphNodeType; 6] = [
+            GraphNodeType::Workspace,
+            GraphNodeType::File,
+            GraphNodeType::Execution,
+            GraphNodeType::PlannerReport,
+            GraphNodeType::MemoryRecord,
+            GraphNodeType::AutonomousSession,
+        ];
+
+        let now = chrono::Utc::now();
+        let mut summary = GraphSyncSummary::default();
+
+        for kind in KINDS {
+            let since = self
+                .repository
+                .sync_state_get(kind)
+                .await?
+                .unwrap_or(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH);
+            for id in self.repository.sources_changed(kind, since).await? {
+                let result = self.sync_entity(kind, id).await?;
+                if result.node_created {
+                    summary.created_nodes += 1;
+                } else if result.node_updated {
+                    summary.updated_nodes += 1;
+                }
+                summary.created_edges += result.edges_created;
+                summary.updated_edges += result.edges_updated;
+            }
+            summary.updated_nodes += self.repository.prune_missing_nodes(kind).await?;
+            self.repository.sync_state_set(kind, now).await?;
+        }
+
+        let stats = self.repository.stats().await?;
+        summary.total_nodes = stats.node_count.max(0) as u64;
+        summary.total_edges = stats.edge_count.max(0) as u64;
+        Ok(summary)
+    }
+
+    // ------------------------------------------------------------------
     // Search & traversal
     // ------------------------------------------------------------------
 
@@ -313,6 +407,16 @@ impl KgService {
         self.repository
             .search_nodes(query, node_types.as_deref(), limit.unwrap_or(50))
             .await
+    }
+
+    /// Fetches a single graph node (used by the live-service traversal
+    /// paths that need node resolution beyond subgraph extraction).
+    pub async fn get_node(
+        &self,
+        node_type: GraphNodeType,
+        entity_id: Uuid,
+    ) -> Result<Option<KgNode>, DatabaseError> {
+        self.repository.get_node(node_type, entity_id).await
     }
 
     /// Breadth-first subgraph around a root node: every node reached

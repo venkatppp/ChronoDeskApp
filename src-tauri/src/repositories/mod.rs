@@ -10,6 +10,7 @@
 
 pub mod file_repository;
 pub mod graph_repository;
+pub mod kg_live_repository;
 pub mod kg_repository;
 pub mod llm;
 pub mod ml_repository;
@@ -20,6 +21,7 @@ pub mod workspace_repository;
 
 pub use file_repository::FileRepository;
 pub use graph_repository::GraphRepository;
+pub use kg_live_repository::KgLiveRepository;
 pub use kg_repository::KgRepository;
 pub use llm::LLMRepository;
 pub use ml_repository::MLRepository;

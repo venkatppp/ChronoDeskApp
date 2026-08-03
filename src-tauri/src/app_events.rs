@@ -37,6 +37,7 @@ pub const EVENT_FILE_CHANGED: &str = "file:changed";
 pub const EVENT_TIMELINE_EVENT_ADDED: &str = "timeline:event_added";
 pub const EVENT_SEARCH_INDEXED: &str = "search:indexed";
 pub const EVENT_GRAPH_EDGE_ADDED: &str = "graph:edge_added";
+pub const EVENT_GRAPH_UPDATED: &str = "graph:updated";
 
 // Session events
 pub const EVENT_SESSION_STARTED: &str = "session:started";

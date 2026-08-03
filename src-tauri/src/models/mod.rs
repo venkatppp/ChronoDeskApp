@@ -13,6 +13,7 @@ pub mod duplicates;
 pub mod file;
 pub mod graph;
 pub mod kg;
+pub mod kg_live;
 pub mod ml;
 pub mod search;
 pub mod timeline;

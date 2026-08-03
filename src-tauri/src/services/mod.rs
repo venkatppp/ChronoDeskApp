@@ -10,6 +10,7 @@
 
 pub mod context_service;
 pub mod graph_service;
+pub mod kg_live_service;
 pub mod kg_service;
 pub mod ml_service;
 pub mod search_service;
@@ -18,6 +19,7 @@ pub mod workspace_service;
 
 pub use context_service::ContextService;
 pub use graph_service::GraphService;
+pub use kg_live_service::KgLiveService;
 pub use kg_service::KgService;
 pub use ml_service::MLService;
 pub use search_service::SearchService;

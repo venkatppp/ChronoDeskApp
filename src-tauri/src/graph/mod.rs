@@ -15,8 +15,12 @@ use crate::models::graph::{GraphEdgeType, GraphStats, GraphView, NodeDetails};
 use crate::models::kg::{
     ContextDiscovery, GraphNodeType, GraphPath, GraphSyncSummary, KgNode, KgStats, KgSubgraph,
 };
+use crate::models::kg_live::{
+    EdgeDecaySummary, EntitySyncResult, GraphAnalytics, GraphRecommendation, MultiHopContext,
+    QueryCacheStats, RelationshipDetails, SemanticEdgeResult,
+};
 use crate::models::search::SearchEntityType;
-use crate::services::{GraphService, KgService};
+use crate::services::{GraphService, KgLiveService, KgService};
 use uuid::Uuid;
 
 /// Facade for Knowledge Graph operations.
@@ -24,6 +28,7 @@ use uuid::Uuid;
 pub struct GraphEngine {
     graph_service: GraphService,
     kg_service: Option<KgService>,
+    kg_live_service: Option<KgLiveService>,
 }
 
 impl GraphEngine {
@@ -34,6 +39,7 @@ impl GraphEngine {
         Self {
             graph_service,
             kg_service: None,
+            kg_live_service: None,
         }
     }
 
@@ -43,9 +49,22 @@ impl GraphEngine {
         self
     }
 
+    /// Enables the RC-8 M2 live knowledge graph half (incremental sync,
+    /// semantic edges, analytics, multi-hop context, recommendations).
+    pub fn with_kg_live_service(mut self, kg_live_service: KgLiveService) -> Self {
+        self.kg_live_service = Some(kg_live_service);
+        self
+    }
+
     fn kg(&self) -> Result<&KgService, DatabaseError> {
         self.kg_service.as_ref().ok_or_else(|| {
             DatabaseError::InvalidInput("knowledge graph engine is not configured".to_string())
+        })
+    }
+
+    fn kg_live(&self) -> Result<&KgLiveService, DatabaseError> {
+        self.kg_live_service.as_ref().ok_or_else(|| {
+            DatabaseError::InvalidInput("live knowledge graph engine is not configured".to_string())
         })
     }
 
@@ -157,5 +176,89 @@ impl GraphEngine {
         self.kg()?
             .list_by_type(node_types, workspace_id, limit)
             .await
+    }
+
+    // ------------------------------------------------------------------
+    // RC-8 M2: Live Knowledge Graph operations
+    // ------------------------------------------------------------------
+
+    /// Watermark-driven incremental sync (only aggregates whose source
+    /// rows changed are rebuilt), invalidating the query cache.
+    pub async fn incremental_sync(&self) -> Result<GraphSyncSummary, DatabaseError> {
+        self.kg_live()?.incremental_sync().await
+    }
+
+    /// Syncs one entity into the graph (event-driven update).
+    pub async fn sync_graph_entity(
+        &self,
+        node_type: GraphNodeType,
+        entity_id: Uuid,
+    ) -> Result<EntitySyncResult, DatabaseError> {
+        self.kg_live()?.sync_entity(node_type, entity_id).await
+    }
+
+    /// Rebuilds semantic `related_to` edges from node embeddings.
+    pub async fn rebuild_semantic_edges(
+        &self,
+        max_nodes: Option<usize>,
+    ) -> Result<SemanticEdgeResult, DatabaseError> {
+        self.kg_live()?.rebuild_semantic_edges(max_nodes).await
+    }
+
+    /// Ages semantic edge confidence and prunes below the floor.
+    pub async fn apply_edge_decay(&self) -> Result<EdgeDecaySummary, DatabaseError> {
+        self.kg_live()?.apply_edge_decay().await
+    }
+
+    /// Graph analytics for the dashboard (cached per scope).
+    pub async fn graph_analytics(
+        &self,
+        workspace_id: Option<Uuid>,
+        cached: bool,
+    ) -> Result<GraphAnalytics, DatabaseError> {
+        self.kg_live()?.analytics(workspace_id, cached).await
+    }
+
+    /// Multi-hop context expansion around one entity.
+    pub async fn graph_expand_context(
+        &self,
+        node_type: GraphNodeType,
+        entity_id: Uuid,
+        hops: Option<usize>,
+        limit: Option<usize>,
+        cached: bool,
+    ) -> Result<MultiHopContext, DatabaseError> {
+        self.kg_live()?
+            .expand_context(node_type, entity_id, hops, limit, cached)
+            .await
+    }
+
+    /// Related-work recommendations around one entity.
+    pub async fn graph_recommendations(
+        &self,
+        node_type: GraphNodeType,
+        entity_id: Uuid,
+        limit: Option<usize>,
+        cached: bool,
+    ) -> Result<Vec<GraphRecommendation>, DatabaseError> {
+        self.kg_live()?
+            .recommendations(node_type, entity_id, limit, cached)
+            .await
+    }
+
+    /// The relationship inspector payload for one node.
+    pub async fn graph_relationship_details(
+        &self,
+        node_type: GraphNodeType,
+        entity_id: Uuid,
+    ) -> Result<RelationshipDetails, DatabaseError> {
+        self.kg_live()?
+            .relationship_details(node_type, entity_id)
+            .await
+    }
+
+    /// Query-cache bookkeeping for the dashboard.
+    pub async fn graph_cache_stats(&self) -> Result<QueryCacheStats, DatabaseError> {
+        self.kg_live()?.cache_stats().await
     }
 }

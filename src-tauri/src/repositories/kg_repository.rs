@@ -18,6 +18,7 @@ use crate::models::kg::{
     GraphNodeType, GraphRelationshipType, GraphSource, KgEdge, KgEdgeRow, KgNode, KgNodeRow,
     KgStats, TypeCount,
 };
+use crate::models::kg_live::StructuralLink;
 
 /// Repository for the RC-8 knowledge graph (`graph_nodes` +
 /// `graph_relationships`).
@@ -494,6 +495,299 @@ impl KgRepository {
         .fetch_all(&self.pool)
         .await?;
         Ok(rows)
+    }
+
+    // ------------------------------------------------------------------
+    // Incremental sync primitives (RC-8 M2)
+    // ------------------------------------------------------------------
+
+    /// Single-source extraction: reuses the full aggregate scan and picks
+    /// the matching row, so node-build logic (titles, summaries,
+    /// metadata) exists in exactly one place.
+    pub async fn source_for(
+        &self,
+        node_type: GraphNodeType,
+        entity_id: Uuid,
+    ) -> Result<Option<GraphSource>, DatabaseError> {
+        let sources = match node_type {
+            GraphNodeType::Workspace => self.workspace_sources().await?,
+            GraphNodeType::File => self.file_sources().await?,
+            GraphNodeType::PlannerReport => self.planner_report_sources().await?,
+            GraphNodeType::Execution => self.execution_sources().await?,
+            GraphNodeType::MemoryRecord => self.memory_record_sources().await?,
+            GraphNodeType::AutonomousSession => self.autonomous_session_sources().await?,
+        };
+        Ok(sources.into_iter().find(|s| s.entity_id == entity_id))
+    }
+
+    /// Entity ids of one aggregate whose source row changed after
+    /// `since` — the increment a watermark-based sync processes.
+    pub async fn sources_changed(
+        &self,
+        node_type: GraphNodeType,
+        since: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Vec<Uuid>, DatabaseError> {
+        let since = since.to_rfc3339();
+        let rows: Vec<(Uuid,)> = match node_type {
+            GraphNodeType::Workspace => {
+                sqlx::query_as("SELECT id FROM workspaces WHERE updated_at > ?")
+                    .bind(&since)
+                    .fetch_all(&self.pool)
+                    .await?
+            }
+            GraphNodeType::File => {
+                sqlx::query_as("SELECT id FROM files WHERE updated_at > ?")
+                    .bind(&since)
+                    .fetch_all(&self.pool)
+                    .await?
+            }
+            GraphNodeType::PlannerReport => {
+                sqlx::query_as(
+                    "SELECT execution_id FROM plan_execution_reports WHERE created_at > ?",
+                )
+                .bind(&since)
+                .fetch_all(&self.pool)
+                .await?
+            }
+            GraphNodeType::Execution => {
+                sqlx::query_as("SELECT id FROM plan_executions WHERE updated_at > ?")
+                    .bind(&since)
+                    .fetch_all(&self.pool)
+                    .await?
+            }
+            GraphNodeType::MemoryRecord => {
+                sqlx::query_as(
+                    "SELECT id FROM execution_memory
+                     WHERE kind != 'autonomous_session' AND updated_at > ?",
+                )
+                .bind(&since)
+                .fetch_all(&self.pool)
+                .await?
+            }
+            GraphNodeType::AutonomousSession => {
+                sqlx::query_as(
+                    "SELECT source_id FROM execution_memory
+                     WHERE kind = 'autonomous_session' AND updated_at > ?",
+                )
+                .bind(&since)
+                .fetch_all(&self.pool)
+                .await?
+            }
+        };
+        Ok(rows.into_iter().map(|(id,)| id).collect())
+    }
+
+    /// Structural links for one entity — the incremental analogue of the
+    /// full-sync link queries: a workspace links to all of its files, a
+    /// file links back to its workspace, executions/sessions/memories
+    /// link to their workspace, memories additionally to the execution
+    /// they were learned from, and planner reports to their execution.
+    pub async fn links_for(
+        &self,
+        node_type: GraphNodeType,
+        entity_id: Uuid,
+    ) -> Result<Vec<StructuralLink>, DatabaseError> {
+        let mut links = Vec::new();
+        match node_type {
+            GraphNodeType::Workspace => {
+                let files: Vec<(Uuid,)> =
+                    sqlx::query_as("SELECT id FROM files WHERE workspace_id = ?")
+                        .bind(entity_id)
+                        .fetch_all(&self.pool)
+                        .await?;
+                for (file_id,) in files {
+                    links.push(StructuralLink {
+                        source_type: GraphNodeType::Workspace,
+                        source_id: entity_id,
+                        target_type: GraphNodeType::File,
+                        target_id: file_id,
+                        relationship_type: GraphRelationshipType::Contains,
+                    });
+                }
+            }
+            GraphNodeType::File => {
+                let workspace: Option<(Uuid,)> = sqlx::query_as(
+                    "SELECT workspace_id FROM files WHERE id = ? AND workspace_id IS NOT NULL",
+                )
+                .bind(entity_id)
+                .fetch_optional(&self.pool)
+                .await?;
+                if let Some((workspace_id,)) = workspace {
+                    links.push(StructuralLink {
+                        source_type: GraphNodeType::Workspace,
+                        source_id: workspace_id,
+                        target_type: GraphNodeType::File,
+                        target_id: entity_id,
+                        relationship_type: GraphRelationshipType::Contains,
+                    });
+                }
+            }
+            GraphNodeType::Execution => {
+                let workspace: Option<(Uuid,)> = sqlx::query_as(
+                    "SELECT c.workspace_id
+                     FROM plan_executions pe
+                     JOIN copilot_conversations c ON c.id = pe.conversation_id
+                     WHERE pe.id = ? AND c.workspace_id IS NOT NULL",
+                )
+                .bind(entity_id)
+                .fetch_optional(&self.pool)
+                .await?;
+                if let Some((workspace_id,)) = workspace {
+                    links.push(StructuralLink {
+                        source_type: GraphNodeType::Execution,
+                        source_id: entity_id,
+                        target_type: GraphNodeType::Workspace,
+                        target_id: workspace_id,
+                        relationship_type: GraphRelationshipType::RunsIn,
+                    });
+                }
+            }
+            GraphNodeType::PlannerReport => {
+                let report: Option<(Uuid,)> = sqlx::query_as(
+                    "SELECT execution_id FROM plan_execution_reports WHERE execution_id = ?",
+                )
+                .bind(entity_id)
+                .fetch_optional(&self.pool)
+                .await?;
+                if report.is_some() {
+                    links.push(StructuralLink {
+                        source_type: GraphNodeType::PlannerReport,
+                        source_id: entity_id,
+                        target_type: GraphNodeType::Execution,
+                        target_id: entity_id,
+                        relationship_type: GraphRelationshipType::ReportsOn,
+                    });
+                }
+            }
+            GraphNodeType::MemoryRecord => {
+                let workspace: Option<(Uuid,)> = sqlx::query_as(
+                    "SELECT workspace_id FROM execution_memory
+                     WHERE id = ? AND kind != 'autonomous_session' AND workspace_id IS NOT NULL",
+                )
+                .bind(entity_id)
+                .fetch_optional(&self.pool)
+                .await?;
+                if let Some((workspace_id,)) = workspace {
+                    links.push(StructuralLink {
+                        source_type: GraphNodeType::MemoryRecord,
+                        source_id: entity_id,
+                        target_type: GraphNodeType::Workspace,
+                        target_id: workspace_id,
+                        relationship_type: GraphRelationshipType::RunsIn,
+                    });
+                }
+                let execution: Option<(Uuid,)> = sqlx::query_as(
+                    "SELECT source_id FROM execution_memory
+                     WHERE id = ? AND kind = 'execution' AND source_id IS NOT NULL",
+                )
+                .bind(entity_id)
+                .fetch_optional(&self.pool)
+                .await?;
+                if let Some((execution_id,)) = execution {
+                    links.push(StructuralLink {
+                        source_type: GraphNodeType::MemoryRecord,
+                        source_id: entity_id,
+                        target_type: GraphNodeType::Execution,
+                        target_id: execution_id,
+                        relationship_type: GraphRelationshipType::DerivedFrom,
+                    });
+                }
+            }
+            GraphNodeType::AutonomousSession => {
+                let workspace: Option<(Uuid,)> = sqlx::query_as(
+                    "SELECT workspace_id FROM execution_memory
+                     WHERE source_id = ? AND kind = 'autonomous_session' AND workspace_id IS NOT NULL",
+                )
+                .bind(entity_id)
+                .fetch_optional(&self.pool)
+                .await?;
+                if let Some((workspace_id,)) = workspace {
+                    links.push(StructuralLink {
+                        source_type: GraphNodeType::AutonomousSession,
+                        source_id: entity_id,
+                        target_type: GraphNodeType::Workspace,
+                        target_id: workspace_id,
+                        relationship_type: GraphRelationshipType::RunsIn,
+                    });
+                }
+            }
+        }
+        Ok(links)
+    }
+
+    /// Removes graph nodes whose source aggregate no longer has the row
+    /// (workspace/file/execution/... deleted). Relationships cascade.
+    pub async fn prune_missing_nodes(
+        &self,
+        node_type: GraphNodeType,
+    ) -> Result<u64, DatabaseError> {
+        let sql = match node_type {
+            GraphNodeType::Workspace => {
+                "DELETE FROM graph_nodes WHERE node_type = 'workspace'
+                 AND entity_id NOT IN (SELECT id FROM workspaces)"
+            }
+            GraphNodeType::File => {
+                "DELETE FROM graph_nodes WHERE node_type = 'file'
+                 AND entity_id NOT IN (SELECT id FROM files)"
+            }
+            GraphNodeType::PlannerReport => {
+                "DELETE FROM graph_nodes WHERE node_type = 'planner_report'
+                 AND entity_id NOT IN (SELECT execution_id FROM plan_execution_reports)"
+            }
+            GraphNodeType::Execution => {
+                "DELETE FROM graph_nodes WHERE node_type = 'execution'
+                 AND entity_id NOT IN (SELECT id FROM plan_executions)"
+            }
+            GraphNodeType::MemoryRecord => {
+                "DELETE FROM graph_nodes WHERE node_type = 'memory_record'
+                 AND entity_id NOT IN (SELECT id FROM execution_memory WHERE kind != 'autonomous_session')"
+            }
+            GraphNodeType::AutonomousSession => {
+                "DELETE FROM graph_nodes WHERE node_type = 'autonomous_session'
+                 AND entity_id NOT IN (SELECT source_id FROM execution_memory WHERE kind = 'autonomous_session')"
+            }
+        };
+        let result = sqlx::query(sql).execute(&self.pool).await?;
+        Ok(result.rows_affected())
+    }
+
+    /// Reads the sync watermark for one aggregate (`None` on first run).
+    pub async fn sync_state_get(
+        &self,
+        node_type: GraphNodeType,
+    ) -> Result<Option<chrono::DateTime<chrono::Utc>>, DatabaseError> {
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT last_synced_at FROM graph_sync_state WHERE source_aggregate = ?",
+        )
+        .bind(node_type.as_str())
+        .fetch_optional(&self.pool)
+        .await?;
+        match row {
+            Some((stamp,)) => {
+                let parsed = chrono::DateTime::parse_from_rfc3339(&stamp)
+                    .map_err(|e| DatabaseError::IoError(e.to_string()))?;
+                Ok(Some(parsed.with_timezone(&chrono::Utc)))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Advances the sync watermark for one aggregate.
+    pub async fn sync_state_set(
+        &self,
+        node_type: GraphNodeType,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), DatabaseError> {
+        sqlx::query(
+            "INSERT INTO graph_sync_state (source_aggregate, last_synced_at)
+             VALUES (?, ?)
+             ON CONFLICT(source_aggregate) DO UPDATE SET last_synced_at = excluded.last_synced_at",
+        )
+        .bind(node_type.as_str())
+        .bind(at.to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     // ------------------------------------------------------------------
