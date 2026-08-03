@@ -221,6 +221,46 @@ impl KgLiveRepository {
         Ok(count.max(0) as u64)
     }
 
+    /// Total bytes of cached payloads (sum of `LENGTH(payload)`) — the
+    /// cache's storage footprint for the memory statistics panel.
+    pub async fn cache_size_bytes(&self) -> Result<u64, DatabaseError> {
+        let (bytes,): (i64,) =
+            sqlx::query_as("SELECT COALESCE(SUM(LENGTH(payload)), 0) FROM graph_query_cache")
+                .fetch_one(&self.pool)
+                .await?;
+        Ok(bytes.max(0) as u64)
+    }
+
+    /// Drops the `n` oldest cached entries (smallest `created_at`).
+    /// Returns the number of rows removed.
+    pub async fn cache_trim(&self, n: u64) -> Result<u64, DatabaseError> {
+        let result = sqlx::query(
+            "DELETE FROM graph_query_cache
+             WHERE cache_key IN (
+                 SELECT cache_key FROM graph_query_cache
+                 ORDER BY created_at ASC
+                 LIMIT ?
+             )",
+        )
+        .bind(n as i64)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
+    /// Drops every cached entry older than its own TTL. Returns the
+    /// number of rows removed.
+    pub async fn cache_clear_expired(&self) -> Result<u64, DatabaseError> {
+        let result = sqlx::query(
+            "DELETE FROM graph_query_cache
+             WHERE (julianday(?) - julianday(created_at)) * 86400.0 > ttl_seconds",
+        )
+        .bind(Utc::now().to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
     // ------------------------------------------------------------------
     // Analytics fetches
     // ------------------------------------------------------------------

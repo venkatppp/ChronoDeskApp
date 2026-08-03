@@ -10,8 +10,10 @@
 
 pub mod context_intel_service;
 pub mod context_service;
+pub mod graph_health_service;
 pub mod graph_service;
 pub mod kg_live_service;
+pub mod kg_opt_service;
 pub mod kg_service;
 pub mod ml_service;
 pub mod search_service;
@@ -20,8 +22,10 @@ pub mod workspace_service;
 
 pub use context_intel_service::ContextIntelService;
 pub use context_service::ContextService;
+pub use graph_health_service::GraphHealthService;
 pub use graph_service::GraphService;
 pub use kg_live_service::KgLiveService;
+pub use kg_opt_service::KgOptService;
 pub use kg_service::KgService;
 pub use ml_service::MLService;
 pub use search_service::SearchService;

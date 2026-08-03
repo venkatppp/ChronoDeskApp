@@ -10,6 +10,7 @@ import {
   PlayCircle,
   Bot,
   BrainCircuit,
+  Gauge,
 } from "lucide-react";
 import { NavItem } from "@/components/navigation/NavItem";
 
@@ -18,6 +19,7 @@ const PRIMARY_NAV = [
   { to: "/workspaces", label: "Workspaces", icon: FolderKanban },
   { to: "/timeline", label: "Timeline", icon: History },
   { to: "/graph", label: "Knowledge Graph", icon: Share2 },
+  { to: "/graph/performance", label: "Graph Performance", icon: Gauge },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/learning", label: "Learning", icon: Brain },
   { to: "/copilot", label: "AI Copilot", icon: Sparkles },

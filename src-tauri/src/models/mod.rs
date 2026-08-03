@@ -15,6 +15,7 @@ pub mod graph;
 pub mod kg;
 pub mod kg_context;
 pub mod kg_live;
+pub mod kg_opt;
 pub mod ml;
 pub mod search;
 pub mod timeline;

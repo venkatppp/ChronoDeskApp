@@ -15,6 +15,7 @@ pub mod copilot;
 pub mod duplicates;
 pub mod execution;
 pub mod graph;
+pub mod graph_opt;
 pub mod intelligence;
 pub mod learning;
 pub mod llm;

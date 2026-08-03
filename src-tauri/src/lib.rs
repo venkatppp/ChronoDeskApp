@@ -97,14 +97,14 @@ use predictive::{
     AdaptiveLearning, AutomationEngine, PredictiveEngine, PredictiveRepository, WorkflowEngine,
 };
 use repositories::{
-    ContextIntelRepository, FileRepository, GraphRepository, KgLiveRepository, KgRepository,
-    LLMRepository, MLRepository, SearchRepository, SettingsRepository, TimelineRepository,
-    WorkspaceRepository,
+    ContextIntelRepository, FileRepository, GraphRepository, KgLiveRepository, KgOptRepository,
+    KgRepository, LLMRepository, MLRepository, SearchRepository, SettingsRepository,
+    TimelineRepository, WorkspaceRepository,
 };
 use search::SearchEngine;
 use services::{
-    ContextIntelService, ContextService, GraphService, KgLiveService, KgService, MLService,
-    SearchService, TimelineService, WorkspaceService,
+    ContextIntelService, ContextService, GraphHealthService, GraphService, KgLiveService,
+    KgOptService, KgService, MLService, SearchService, TimelineService, WorkspaceService,
 };
 use session::SessionEngine;
 use timeline::recorder::TimelineRecorder;
@@ -500,6 +500,26 @@ pub fn run() {
             let graph_engine =
                 graph_engine.with_context_intel_service(context_intel_service);
 
+            // --- RC-8 M4: Knowledge Graph Optimization & Scale ---
+            // Paginated/ranked/vector surfaces + parallel traversal and
+            // the health ledger (integrity, repair, consistency,
+            // maintenance, benchmarks, metrics, diagnostics) share the
+            // memory system's embedder for vector-assisted search.
+            let kg_opt_service = KgOptService::new(
+                kg_service.clone(),
+                KgOptRepository::new(pool.clone()),
+                KgLiveRepository::new(pool.clone()),
+            )
+            .with_embedder(Arc::new(memory_engine.vector_system().clone()));
+            let graph_health_service = GraphHealthService::new(
+                kg_opt_service.clone(),
+                KgLiveRepository::new(pool.clone()),
+                KgOptRepository::new(pool.clone()),
+            );
+            let graph_engine = graph_engine
+                .with_kg_opt_service(kg_opt_service.clone())
+                .with_graph_health_service(graph_health_service.clone());
+
             // Advance the incremental-sync watermark to now. The M1 full
             // build above just wrote every node, so this first pass is
             // a cheap idempotent re-sync that leaves future event-driven
@@ -545,6 +565,39 @@ pub fn run() {
                                         "semantic edge decay pass completed"
                                     ),
                                     Err(error) => tracing::warn!(error = %error, "background edge decay failed"),
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // RC-8 M4: background graph maintenance — every hour expired
+            // cache entries are swept; every 6 hours an integrity check
+            // pass records findings (never auto-repairs — that stays a
+            // user-triggered action from the performance page).
+            {
+                let graph_health_service = graph_health_service.clone();
+                tauri::async_runtime::spawn(async move {
+                    let mut sweep_interval =
+                        tokio::time::interval(std::time::Duration::from_secs(60 * 60));
+                    let mut check_interval =
+                        tokio::time::interval(std::time::Duration::from_secs(6 * 60 * 60));
+                    loop {
+                        tokio::select! {
+                            _ = sweep_interval.tick() => {
+                                match graph_health_service.sweep_expired_cache().await {
+                                    Ok(removed) => tracing::debug!(removed, "expired graph cache entries swept"),
+                                    Err(error) => tracing::warn!(error = %error, "cache sweep failed"),
+                                }
+                            }
+                            _ = check_interval.tick() => {
+                                match graph_health_service.integrity_check().await {
+                                    Ok(result) => tracing::info!(
+                                        issues = result.issues.len(),
+                                        "scheduled graph integrity check completed"
+                                    ),
+                                    Err(error) => tracing::warn!(error = %error, "scheduled integrity check failed"),
                                 }
                             }
                         }
@@ -650,6 +703,8 @@ pub fn run() {
             app.manage(planner);
             app.manage(autonomous_runtime);
             app.manage(memory_engine);
+            app.manage(kg_opt_service);
+            app.manage(graph_health_service);
 
             tracing::info!("ChronoDesk backend ready");
 
@@ -711,6 +766,25 @@ pub fn run() {
             commands::graph::graph_fused_context,
             commands::graph::graph_planner_context,
             commands::graph::graph_explain,
+            commands::graph_opt::graph_nodes_page,
+            commands::graph_opt::graph_edges_page,
+            commands::graph_opt::graph_neighbors_page,
+            commands::graph_opt::graph_nodes_total,
+            commands::graph_opt::graph_ranked_search,
+            commands::graph_opt::graph_vector_search,
+            commands::graph_opt::graph_parallel_traverse,
+            commands::graph_opt::graph_cache_trim,
+            commands::graph_opt::graph_clear_expired_cache,
+            commands::graph_opt::graph_memory_stats,
+            commands::graph_opt::graph_recent_metrics,
+            commands::graph_opt::graph_integrity_check,
+            commands::graph_opt::graph_repair,
+            commands::graph_opt::graph_orphan_summary,
+            commands::graph_opt::graph_orphan_cleanup,
+            commands::graph_opt::graph_consistency_report,
+            commands::graph_opt::graph_maintenance_runs,
+            commands::graph_opt::graph_benchmark_suite,
+            commands::graph_opt::graph_diagnostics,
             commands::duplicates::scan_workspace_for_duplicates,
             commands::duplicates::scan_file,
             commands::duplicates::get_duplicate_groups,

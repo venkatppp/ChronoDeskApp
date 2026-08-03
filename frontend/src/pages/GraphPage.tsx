@@ -15,7 +15,7 @@ import type {
   EdgeDecaySummary,
 } from "@/types/graph";
 import { useAppEvents } from "@/hooks/useAppEvents";
-import { Network, RefreshCw, Search, X, Map, ChevronLeft, Sparkles, Hourglass, Activity } from "lucide-react";
+import { Network, RefreshCw, Search, X, Map, ChevronLeft, Sparkles, Hourglass, Activity, Gauge } from "lucide-react";
 
 const NODE_TYPE_FILTERS: { value: GraphNodeType | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -26,6 +26,9 @@ const NODE_TYPE_FILTERS: { value: GraphNodeType | "all"; label: string }[] = [
   { value: "memory_record", label: "Memory" },
   { value: "autonomous_session", label: "Sessions" },
 ];
+
+const INITIAL_LIMIT = 400;
+const MAX_LIMIT = 4000;
 
 const TYPE_COLORS: Record<GraphNodeType, string> = {
   workspace: "var(--color-accent)",
@@ -58,31 +61,39 @@ export function GraphPage() {
 
   const graphRepo = getGraphRepository();
 
-  const fetchAllNodes = useCallback(async (filter: GraphNodeType | "all" = activeFilter) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const [allNodes, graphStats, graphAnalytics] = await Promise.all([
-        graphRepo.graphNodes(
-          filter === "all" ? ["workspace", "file", "planner_report", "execution", "memory_record", "autonomous_session"] : [filter],
-          undefined,
-          400,
-        ),
-        graphRepo.graphKgStats(),
-        graphRepo.graphAnalytics(undefined, true),
-      ]);
-      setNodes(allNodes);
-      setEdges([]);
-      setExploring(false);
-      setStats(graphStats);
-      setAnalytics(graphAnalytics);
-    } catch (err) {
-      console.error("Failed to fetch knowledge graph:", err);
-      setError("Failed to load Knowledge Graph. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [graphRepo, activeFilter]);
+  const fetchAllNodes = useCallback(
+    async (filter: GraphNodeType | "all" = activeFilter, limit: number = INITIAL_LIMIT) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const [allNodes, graphStats, graphAnalytics] = await Promise.all([
+          graphRepo.graphNodes(
+            filter === "all" ? ["workspace", "file", "planner_report", "execution", "memory_record", "autonomous_session"] : [filter],
+            undefined,
+            limit,
+          ),
+          graphRepo.graphKgStats(),
+          graphRepo.graphAnalytics(undefined, true),
+        ]);
+        setNodes(allNodes);
+        setEdges([]);
+        setExploring(false);
+        setStats(graphStats);
+        setAnalytics(graphAnalytics);
+      } catch (err) {
+        console.error("Failed to fetch knowledge graph:", err);
+        setError("Failed to load Knowledge Graph. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [graphRepo, activeFilter],
+  );
+
+  const handleLoadMore = useCallback(() => {
+    const next = Math.min(INITIAL_LIMIT + 400, MAX_LIMIT);
+    fetchAllNodes(activeFilter, next);
+  }, [fetchAllNodes, activeFilter]);
 
   useEffect(() => {
     fetchAllNodes();
@@ -334,6 +345,13 @@ export function GraphPage() {
               </button>
             )}
           </div>
+          <a
+            href="#/graph/performance"
+            className="flex shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface) px-3 py-1.5 text-xs font-medium text-(--color-muted-foreground) transition-colors hover:bg-(--color-surface-hover)"
+          >
+            <Gauge className="h-3.5 w-3.5" strokeWidth={1.75} />
+            Performance
+          </a>
           <button
             onClick={handleSync}
             disabled={isSyncing}
@@ -419,6 +437,8 @@ export function GraphPage() {
               edges={edges}
               onNodeSelect={handleNodeSelect}
               selectedNodeId={selectedNode?.entityId}
+              totalHint={exploring ? nodes.length : stats?.nodeCount}
+              onLoadMore={exploring ? undefined : handleLoadMore}
               emptyMessage={
                 exploring
                   ? "This node has no connections yet."

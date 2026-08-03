@@ -23,17 +23,26 @@ use crate::models::kg_live::{
     EdgeDecaySummary, EntitySyncResult, GraphAnalytics, GraphRecommendation, MultiHopContext,
     QueryCacheStats, RelationshipDetails, SemanticEdgeResult,
 };
+use crate::models::kg_opt::{
+    BenchmarkSuiteResult, ConsistencyReport, EdgePage, GraphDiagnostics, GraphMemoryStats,
+    IntegrityCheckResult, MaintenanceRun, NeighborPage, NodePage, OrphanCleanupResult,
+    OrphanSummary, ParallelWalkResult, QueryMetric, RankedSearchHit, RepairResult,
+};
 use crate::models::search::SearchEntityType;
-use crate::services::{ContextIntelService, GraphService, KgLiveService, KgService};
+use crate::services::{
+    ContextIntelService, GraphHealthService, GraphService, KgLiveService, KgOptService, KgService,
+};
 use uuid::Uuid;
 
 /// Facade for Knowledge Graph operations.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct GraphEngine {
     graph_service: GraphService,
     kg_service: Option<KgService>,
     kg_live_service: Option<KgLiveService>,
     context_intel_service: Option<ContextIntelService>,
+    kg_opt_service: Option<KgOptService>,
+    graph_health_service: Option<GraphHealthService>,
 }
 
 impl GraphEngine {
@@ -46,6 +55,8 @@ impl GraphEngine {
             kg_service: None,
             kg_live_service: None,
             context_intel_service: None,
+            kg_opt_service: None,
+            graph_health_service: None,
         }
     }
 
@@ -73,6 +84,21 @@ impl GraphEngine {
         self
     }
 
+    /// Enables the RC-8 M4 optimization half (paginated loading,
+    /// ranked/vector search, parallel traversal, cache trimming,
+    /// memory statistics).
+    pub fn with_kg_opt_service(mut self, kg_opt_service: KgOptService) -> Self {
+        self.kg_opt_service = Some(kg_opt_service);
+        self
+    }
+
+    /// Enables the RC-8 M4 health half (integrity, repair, orphans,
+    /// consistency, maintenance, benchmarks, diagnostics, metrics).
+    pub fn with_graph_health_service(mut self, graph_health_service: GraphHealthService) -> Self {
+        self.graph_health_service = Some(graph_health_service);
+        self
+    }
+
     fn kg(&self) -> Result<&KgService, DatabaseError> {
         self.kg_service.as_ref().ok_or_else(|| {
             DatabaseError::InvalidInput("knowledge graph engine is not configured".to_string())
@@ -88,6 +114,18 @@ impl GraphEngine {
     fn context_intel(&self) -> Result<&ContextIntelService, DatabaseError> {
         self.context_intel_service.as_ref().ok_or_else(|| {
             DatabaseError::InvalidInput("context intelligence engine is not configured".to_string())
+        })
+    }
+
+    fn kg_opt(&self) -> Result<&KgOptService, DatabaseError> {
+        self.kg_opt_service.as_ref().ok_or_else(|| {
+            DatabaseError::InvalidInput("graph optimization engine is not configured".to_string())
+        })
+    }
+
+    fn graph_health(&self) -> Result<&GraphHealthService, DatabaseError> {
+        self.graph_health_service.as_ref().ok_or_else(|| {
+            DatabaseError::InvalidInput("graph health engine is not configured".to_string())
         })
     }
 
@@ -416,5 +454,156 @@ impl GraphEngine {
         self.context_intel()?
             .explain(source_type, source_id, target_type, target_id)
             .await
+    }
+
+    // ------------------------------------------------------------------
+    // RC-8 M4: Knowledge Graph Optimization & Scale operations
+    // ------------------------------------------------------------------
+
+    /// One page of graph nodes (progressive loading).
+    pub async fn graph_nodes_page(
+        &self,
+        node_types: Option<Vec<GraphNodeType>>,
+        workspace_id: Option<Uuid>,
+        offset: u64,
+        limit: Option<u32>,
+    ) -> Result<NodePage, DatabaseError> {
+        self.kg_opt()?
+            .nodes_page(node_types, workspace_id, offset, limit)
+            .await
+    }
+
+    /// One page of graph edges (progressive loading).
+    pub async fn graph_edges_page(
+        &self,
+        offset: u64,
+        limit: Option<u32>,
+    ) -> Result<EdgePage, DatabaseError> {
+        self.kg_opt()?.edges_page(offset, limit).await
+    }
+
+    /// One page of a node's neighbors (relationship inspector pages).
+    pub async fn graph_neighbors_page(
+        &self,
+        node_type: GraphNodeType,
+        entity_id: Uuid,
+        offset: u64,
+        limit: Option<u32>,
+    ) -> Result<NeighborPage, DatabaseError> {
+        self.kg_opt()?
+            .neighbors_page(node_type, entity_id, offset, limit)
+            .await
+    }
+
+    /// Total node count for the given filters (virtualized list header).
+    pub async fn graph_nodes_total(
+        &self,
+        node_types: Option<Vec<GraphNodeType>>,
+        workspace_id: Option<Uuid>,
+    ) -> Result<u64, DatabaseError> {
+        self.kg_opt()?.nodes_total(node_types, workspace_id).await
+    }
+
+    /// Keyword search re-ranked by match quality and recency.
+    pub async fn graph_ranked_search(
+        &self,
+        query: &str,
+        node_types: Option<Vec<GraphNodeType>>,
+        limit: Option<u32>,
+    ) -> Result<Vec<RankedSearchHit>, DatabaseError> {
+        self.kg_opt()?.ranked_search(query, node_types, limit).await
+    }
+
+    /// Cosine-ranked vector search over node titles.
+    pub async fn graph_vector_search(
+        &self,
+        query: &str,
+        node_types: Option<Vec<GraphNodeType>>,
+        limit: Option<u32>,
+    ) -> Result<Vec<RankedSearchHit>, DatabaseError> {
+        self.kg_opt()?.vector_search(query, node_types, limit).await
+    }
+
+    /// Parallel (rayon) multi-root BFS traversal.
+    pub async fn graph_parallel_traverse(
+        &self,
+        roots: Vec<(GraphNodeType, Uuid)>,
+        max_depth: Option<usize>,
+        budget: Option<usize>,
+    ) -> Result<ParallelWalkResult, DatabaseError> {
+        self.kg_opt()?
+            .parallel_traversal(roots, max_depth, budget)
+            .await
+    }
+
+    /// Drops the `n` oldest cached query entries.
+    pub async fn graph_cache_trim(&self, n: u64) -> Result<u64, DatabaseError> {
+        self.kg_opt()?.trim_cache(n).await
+    }
+
+    /// Drops every cached entry past its TTL.
+    pub async fn graph_clear_expired_cache(&self) -> Result<u64, DatabaseError> {
+        self.kg_opt()?.clear_expired_cache().await
+    }
+
+    /// Graph memory statistics (registry + cache footprint).
+    pub async fn graph_memory_stats(&self) -> Result<GraphMemoryStats, DatabaseError> {
+        self.kg_opt()?.memory_stats().await
+    }
+
+    /// Most recent recorded operation metrics.
+    pub async fn graph_recent_metrics(
+        &self,
+        limit: Option<u32>,
+    ) -> Result<Vec<QueryMetric>, DatabaseError> {
+        self.kg_opt()?.recent_metrics(limit.unwrap_or(20)).await
+    }
+
+    /// Runs the four integrity scans and persists new findings.
+    pub async fn graph_integrity_check(&self) -> Result<IntegrityCheckResult, DatabaseError> {
+        self.graph_health()?.integrity_check().await
+    }
+
+    /// Repairs every detectable graph problem.
+    pub async fn graph_repair(&self) -> Result<RepairResult, DatabaseError> {
+        self.graph_health()?.repair().await
+    }
+
+    /// Read-only orphan bookkeeping.
+    pub async fn graph_orphan_summary(&self) -> Result<OrphanSummary, DatabaseError> {
+        self.graph_health()?.orphan_summary().await
+    }
+
+    /// Removes every orphan edge and dangling workspace node.
+    pub async fn graph_orphan_cleanup(&self) -> Result<OrphanCleanupResult, DatabaseError> {
+        self.graph_health()?.orphan_cleanup().await
+    }
+
+    /// Runs the five consistency probes.
+    pub async fn graph_consistency_report(&self) -> Result<ConsistencyReport, DatabaseError> {
+        self.graph_health()?.consistency_report().await
+    }
+
+    /// Most recent maintenance runs, newest first.
+    pub async fn graph_maintenance_runs(
+        &self,
+        limit: Option<u32>,
+    ) -> Result<Vec<MaintenanceRun>, DatabaseError> {
+        self.graph_health()?
+            .recent_maintenance_runs(limit.unwrap_or(10))
+            .await
+    }
+
+    /// Runs + persists the micro-benchmark suite.
+    pub async fn graph_benchmark_suite(
+        &self,
+        suite_name: Option<String>,
+    ) -> Result<BenchmarkSuiteResult, DatabaseError> {
+        self.graph_health()?.benchmark_suite(suite_name).await
+    }
+
+    /// The full graph performance/health diagnostics bundle.
+    pub async fn graph_diagnostics(&self) -> Result<GraphDiagnostics, DatabaseError> {
+        self.graph_health()?.diagnostics().await
     }
 }

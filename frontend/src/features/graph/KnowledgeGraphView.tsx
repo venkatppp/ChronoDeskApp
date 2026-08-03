@@ -183,6 +183,10 @@ interface KnowledgeGraphViewProps {
   onNodeSelect: (node: KgNode) => void;
   selectedNodeId?: string;
   emptyMessage?: string;
+  /** Total node count for progressive loading (RC-8 M4). */
+  totalHint?: number;
+  /** Fetches the next progressive page (RC-8 M4). */
+  onLoadMore?: () => void;
 }
 
 export function KnowledgeGraphView({
@@ -191,6 +195,8 @@ export function KnowledgeGraphView({
   onNodeSelect,
   selectedNodeId,
   emptyMessage,
+  totalHint,
+  onLoadMore,
 }: KnowledgeGraphViewProps) {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -713,6 +719,18 @@ export function KnowledgeGraphView({
         <span className="text-(--color-border-subtle)">|</span>
         <span>{Math.round(zoom * 100)}%</span>
       </div>
+
+      {onLoadMore && totalHint != null && nodes.length < totalHint && (
+        <div className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2">
+          <button
+            onClick={onLoadMore}
+            className="flex items-center gap-2 rounded-lg border border-(--color-border) bg-(--color-surface-raised) px-3 py-1.5 text-xs font-medium text-(--color-muted-foreground) shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-colors hover:bg-(--color-surface-hover) hover:text-(--color-foreground)"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-(--color-accent)" />
+            {nodes.length} of {totalHint} nodes loaded — load more
+          </button>
+        </div>
+      )}
 
       <div className="absolute left-1/2 top-16 z-20 hidden -translate-x-1/2 items-center gap-1.5 rounded-lg border border-(--color-border-subtle) bg-(--color-surface)/80 px-3 py-1 text-[10px] text-(--color-faint-foreground) backdrop-blur-sm xl:flex">
         <Keyboard className="h-3 w-3" strokeWidth={1.75} />

@@ -87,6 +87,11 @@ parking_lot = "0.12"
 ndarray = "0.16"
 # num_cpus for system info
 num_cpus = "1"
+# --- Phase 8 Stage 4: Knowledge Graph Optimization & Scale ---
+# rayon for parallel multi-root graph traversal in the optimization
+# service (RC-8 M4). The traversal snapshot is loaded once and walked
+# from several roots concurrently via `par_iter`.
+rayon = "1.10"
 keyring = { version = "3.6.3", default-features = false, features = ["apple-native", "windows-native", "sync-secret-service"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 
