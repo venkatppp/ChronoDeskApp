@@ -166,6 +166,15 @@ impl IntelligenceCache {
         self.invalidate_all_recommendations();
         self.invalidate_all_health_scores();
     }
+
+    /// Number of entries currently held across all cache segments
+    /// (RC-10 M1 diagnostics surface).
+    pub fn entry_count(&self) -> usize {
+        let predictions = self.predictions.read().map(|c| c.len()).unwrap_or(0);
+        let recommendations = self.recommendations.read().map(|c| c.len()).unwrap_or(0);
+        let health_scores = self.health_scores.read().map(|c| c.len()).unwrap_or(0);
+        predictions + recommendations + health_scores
+    }
 }
 
 impl Default for IntelligenceCache {

@@ -17,6 +17,7 @@ pub mod kg_context;
 pub mod kg_live;
 pub mod kg_opt;
 pub mod ml;
+pub mod performance;
 pub mod search;
 pub mod timeline;
 pub mod workspace;

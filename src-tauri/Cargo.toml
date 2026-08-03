@@ -92,6 +92,9 @@ num_cpus = "1"
 # service (RC-8 M4). The traversal snapshot is loaded once and walked
 # from several roots concurrently via `par_iter`.
 rayon = "1.10"
+# --- RC-10 M1: Performance & Profiling ---
+# sysinfo for system diagnostics (CPU/RAM usage, thread/process counts).
+sysinfo = "0.33"
 keyring = { version = "3.6.3", default-features = false, features = ["apple-native", "windows-native", "sync-secret-service"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 

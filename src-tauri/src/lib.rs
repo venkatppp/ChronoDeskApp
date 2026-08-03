@@ -71,6 +71,7 @@ pub mod learning;
 pub mod llm;
 pub mod ml;
 pub mod models;
+pub mod performance;
 pub mod predictive;
 pub mod repositories;
 pub mod runtime;
@@ -93,13 +94,16 @@ use duplicates::DuplicateDetectionEngine;
 use graph::GraphEngine;
 use intelligence::health::{HealthService, WorkspaceHealthEngine};
 use intelligence::recommendation::RecommendationEngine;
+use performance::{
+    BenchmarkEngine, Diagnostics, PerformanceEngine, PerformanceProfiler, StartupProfiler,
+};
 use predictive::{
     AdaptiveLearning, AutomationEngine, PredictiveEngine, PredictiveRepository, WorkflowEngine,
 };
 use repositories::{
     ContextIntelRepository, FileRepository, GraphRepository, KgLiveRepository, KgOptRepository,
-    KgRepository, LLMRepository, MLRepository, SearchRepository, SettingsRepository,
-    TimelineRepository, WorkspaceRepository,
+    KgRepository, LLMRepository, MLRepository, PerformanceRepository, SearchRepository,
+    SettingsRepository, TimelineRepository, WorkspaceRepository,
 };
 use search::SearchEngine;
 use services::{
@@ -130,6 +134,12 @@ pub fn run() {
                 "ChronoDesk backend starting"
             );
 
+            // RC-10 M1: the startup profiler is created before anything
+            // else so every initialization stage below can be measured.
+            // Markers are infallible; the run is persisted at the end of
+            // setup once the performance engine exists.
+            let startup_profiler = StartupProfiler::new();
+
             // Database initialization is async (sqlx) but `setup` is sync,
             // and the app must not accept commands before the schema is
             // ready — so this blocks startup on it rather than spawning
@@ -137,6 +147,7 @@ pub fn run() {
             // few milliseconds; not worth deferring command availability
             // for.
             let app_handle = app.handle().clone();
+            startup_profiler.stage_start("database", "Database initialization & repositories");
             let database =
                 tauri::async_runtime::block_on(database::Database::initialize(&app_handle))?;
             let pool = database.pool().clone();
@@ -151,8 +162,10 @@ pub fn run() {
             let ml_repository = MLRepository::new(pool.clone());
             let secret_store = Arc::new(llm::KeyringSecretStore::new());
             let llm_repository = Arc::new(LLMRepository::new(pool.clone(), secret_store));
+            startup_profiler.stage_end();
 
             // --- Services (business logic composing repositories) ---
+            startup_profiler.stage_start("services", "Service construction");
             let workspace_service =
                 WorkspaceService::new(workspace_repository.clone(), timeline_repository.clone());
             let timeline_recorder =
@@ -162,6 +175,7 @@ pub fn run() {
             let search_service = SearchService::new(search_repository.clone());
             let graph_service = GraphService::new(graph_repository.clone());
             let ml_service = MLService::new(ml_repository.clone(), file_repository.clone());
+            startup_profiler.stage_end();
 
             // --- RC-8 M1: Knowledge Graph Foundation ---
             // The RC-8 knowledge graph (typed `graph_nodes` registry +
@@ -181,6 +195,7 @@ pub fn run() {
             // RC-8 M1: build the knowledge graph once at startup (and on
             // every later launch) so the Graph page is populated even
             // before the first manual sync. The pass is idempotent.
+            startup_profiler.stage_start("graph_sync", "Initial knowledge graph sync");
             match tauri::async_runtime::block_on(graph_engine.sync_graph()) {
                 Ok(summary) => tracing::info!(
                     nodes = summary.total_nodes,
@@ -193,8 +208,10 @@ pub fn run() {
                     tracing::error!(error = %error, "initial knowledge graph sync failed")
                 }
             }
+            startup_profiler.stage_end();
 
             // --- Session Engine & Context Service (Phase 5A) ---
+            startup_profiler.stage_start("session_context", "Session & context services");
             let session_engine =
                 SessionEngine::new(timeline_repository.clone(), file_repository.clone());
             let context_service = ContextService::new(
@@ -251,8 +268,10 @@ pub fn run() {
                 .with_event_emitter(
                     Arc::new(app_handle.clone()) as Arc<dyn app_events::AppEventEmitter>
                 );
+            startup_profiler.stage_end();
 
             // --- Predictive Intelligence & Workflow Automation (Phase 5F) ---
+            startup_profiler.stage_start("predictive", "Predictive intelligence engines");
             let predictive_repository = PredictiveRepository::new(pool.clone());
 
             let predictive_engine = PredictiveEngine::new(
@@ -324,8 +343,10 @@ pub fn run() {
 
             // Start background workers
             runtime_workers.clone().start();
+            startup_profiler.stage_end();
 
             // --- AI & Model Management (Phase 6B) ---
+            startup_profiler.stage_start("ai_models", "AI & model management");
             let models_dir = app_handle
                 .path()
                 .app_data_dir()
@@ -348,6 +369,9 @@ pub fn run() {
             // --- Semantic Intelligence Layer (Phase 6A) ---
             let semantic_repository = semantic::SemanticRepository::new(pool.clone());
             tauri::async_runtime::block_on(semantic_repository.initialize())?;
+            startup_profiler.stage_end();
+
+            // RC-6 M2: warm the in-memory k-NN index from the durable
 
             let semantic_engine = semantic::SemanticMemoryEngine::new(
                 semantic_repository.clone(),
@@ -381,8 +405,10 @@ pub fn run() {
             tauri::async_runtime::spawn(learning_worker.start());
             tauri::async_runtime::spawn(preference_worker.start());
             tauri::async_runtime::spawn(calibration_worker.start());
+            startup_profiler.stage_end();
 
             // --- Copilot Engine (Phase 7A) ---
+            startup_profiler.stage_start("copilot", "Copilot engine");
             let copilot_repository = copilot::CopilotRepository::new(pool.clone());
 
             // Initialize LLM service
@@ -429,6 +455,7 @@ pub fn run() {
                 Arc::new(session_engine.clone()),
                 Arc::new(timeline_engine.clone()),
             ));
+            startup_profiler.stage_end();
 
             // --- Proactive AI Engine (Phase 7B) ---
             let proactive_engine = Arc::new(copilot::ProactiveEngine::new(
@@ -446,6 +473,7 @@ pub fn run() {
             // n-gram embedder by default; any `VectorProvider` — e.g. an
             // ONNX adapter — can be swapped in). The semantic layer keeps
             // its own `embedding_provider` above.
+            startup_profiler.stage_start("memory", "Execution memory engine");
             let memory_engine = Arc::new(copilot::MemoryEngine::new(
                 copilot::MemoryRepository::new(pool.clone()),
                 Arc::new(copilot::memory::vector::LocalVectorProvider::default()),
@@ -470,6 +498,7 @@ pub fn run() {
                 let memory_cleanup = memory_cleanup.clone();
                 async move { memory_cleanup.run().await }
             });
+            startup_profiler.stage_end();
 
             // --- RC-8 M2: Live Knowledge Graph (incremental sync, semantic
             // edges, analytics, multi-hop context, recommendations) ---
@@ -477,6 +506,7 @@ pub fn run() {
             // semantic `related_to` edges come from the memory vector
             // system's embedder. The engine handle is reassigned so the
             // managed state below carries the live service.
+            startup_profiler.stage_start("kg_live", "Live knowledge graph services");
             let kg_live_service = KgLiveService::new(
                 kg_service.clone(),
                 KgLiveRepository::new(pool.clone()),
@@ -604,8 +634,10 @@ pub fn run() {
                     }
                 });
             }
+            startup_profiler.stage_end();
 
             // --- Execution Engine (RC-2) ---
+            startup_profiler.stage_start("execution", "Execution, planner & runtime");
             let execution_repository = Arc::new(copilot::ExecutionRepository::new(pool.clone()));
             let execution_engine = Arc::new(
                 copilot::ExecutionEngine::new(execution_repository, tool_executor.clone())
@@ -634,8 +666,10 @@ pub fn run() {
                 )
                 .with_memory(memory_engine.clone()),
             );
+            startup_profiler.stage_end();
 
             // --- File Watcher, wired to a real AppEventEmitter (the AppHandle) ---
+            startup_profiler.stage_start("watcher", "File watcher & path restore");
             let file_watcher = FileWatcher::new(workspace_manager, timeline_engine.clone())
                 .with_event_emitter(
                     Arc::new(app_handle.clone()) as Arc<dyn app_events::AppEventEmitter>
@@ -648,6 +682,41 @@ pub fn run() {
                 &file_watcher,
                 &settings_repository,
             ))?;
+            startup_profiler.stage_end();
+
+            // --- RC-10 M1: Performance & Profiling Engine ---
+            // Composed here — before the handles below are moved into
+            // `app.manage` — so the benchmark engine and diagnostics can
+            // borrow every subsystem. The measured startup run is
+            // persisted once setup completes.
+            let performance_repository = PerformanceRepository::new(pool.clone());
+            let performance_profiler = PerformanceProfiler::new(performance_repository.clone());
+            let benchmark_engine = BenchmarkEngine::new(
+                performance_repository.clone(),
+                Some(planner.clone()),
+                Some(execution_engine.clone()),
+                Some(memory_engine.clone()),
+                Some(graph_engine.clone()),
+                Some(semantic_search.clone()),
+            );
+            let db_path = app_handle
+                .path()
+                .app_data_dir()
+                .map(|dir| dir.join("chronodesk.db").display().to_string())
+                .unwrap_or_else(|_| "unknown".to_string());
+            let performance_diagnostics = Diagnostics::new(performance_repository.clone())
+                .with_graph_engine(graph_engine.clone())
+                .with_runtime_health(health_service.clone())
+                .with_intelligence_cache(cache.clone())
+                .with_db_path(db_path);
+            let performance_engine = PerformanceEngine::new(
+                performance_repository,
+                startup_profiler.clone(),
+                performance_profiler,
+                benchmark_engine,
+                performance_diagnostics,
+            )
+            .with_graph_engine(graph_engine.clone());
 
             // Every service/engine/repository above is managed as Tauri
             // state so command handlers can pull the one they need via
@@ -705,6 +774,17 @@ pub fn run() {
             app.manage(memory_engine);
             app.manage(kg_opt_service);
             app.manage(graph_health_service);
+            app.manage(performance_engine.clone());
+
+            // Persist the measured startup run once every subsystem is up.
+            match tauri::async_runtime::block_on(performance_engine.record_startup()) {
+                Ok(profile) => tracing::info!(
+                    total_ms = profile.total_ms,
+                    stages = profile.stages.len(),
+                    "startup profile recorded"
+                ),
+                Err(error) => tracing::warn!(error = %error, "startup profile could not be recorded"),
+            }
 
             tracing::info!("ChronoDesk backend ready");
 
@@ -928,6 +1008,12 @@ pub fn run() {
             commands::autonomous::autonomous_cancel,
             commands::autonomous::autonomous_approve,
             commands::autonomous::autonomous_reject,
+            commands::performance::performance_profile,
+            commands::performance::performance_startup,
+            commands::performance::performance_benchmark,
+            commands::performance::performance_diagnostics,
+            commands::performance::performance_optimize,
+            commands::performance::performance_history,
             commands::conversation::copilot_rename_conversation,
             commands::conversation::copilot_delete_conversation,
             commands::conversation::copilot_pin_conversation,
