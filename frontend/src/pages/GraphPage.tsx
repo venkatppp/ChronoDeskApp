@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { KnowledgeGraphView } from "@/features/graph/KnowledgeGraphView";
+import { ContextIntelPanel } from "@/features/graph/ContextIntelPanel";
 import { getGraphRepository } from "@/services/graphRepository";
 import type {
   KgNode,
@@ -511,6 +512,10 @@ export function GraphPage() {
                 <div className="rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface-hover) px-3 py-2 font-(family-name:--font-mono) text-[10px] text-(--color-muted-foreground)">
                   <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap">{JSON.stringify(selectedNode.metadata, null, 2)}</pre>
                 </div>
+              </div>
+
+              <div className="border-t border-(--color-border-subtle) pt-4">
+                <ContextIntelPanel node={selectedNode} repository={graphRepo} />
               </div>
             </div>
           ) : analytics ? (

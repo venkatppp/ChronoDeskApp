@@ -55,6 +55,82 @@ const fileNode = makeNode({
   title: "main.rs",
   workspaceId: "ws-1",
 });
+const memoryNode = makeNode({
+  nodeType: "memory_record",
+  entityId: "mem-1",
+  title: "alpha crash fix",
+  workspaceId: "ws-1",
+});
+
+const knowledgeSummary = (node: KgNode) => ({
+  node,
+  points: [
+    { label: "Entity", value: node.title, detail: node.nodeType },
+    { label: "Graph connections", value: "3", detail: "contains: 2, runs_in: 1" },
+    { label: "Workspace", value: node.workspaceId ?? "global", detail: null },
+    { label: "Last updated", value: "just now", detail: null },
+  ],
+  confidence: 0.74,
+  generatedAt: "2026-08-02T09:58:00Z",
+});
+
+const contextInference = (node: KgNode) => ({
+  source: node,
+  related: [
+    { node: fileNode, reason: "Direct file connection", score: 0.9, signal: "structural" },
+    { node: memoryNode, reason: "Similar memory record", score: 0.55, signal: "memory" },
+  ],
+  confidence: { structural: 0.9, semantic: 0, temporal: 0, memory: 0.55, total: 0.5325 },
+  inferredAt: "2026-08-02T09:58:00Z",
+});
+
+const workspaceSimilarity = {
+  sourceWorkspaceId: "ws-1",
+  sourceName: "Alpha WS",
+  related: [
+    {
+      sourceWorkspaceId: "ws-1",
+      targetWorkspaceId: "ws-2",
+      targetName: "Beta WS",
+      similarity: 0.72,
+      confidence: 0.83,
+      signals: [
+        { signal: "goalOverlap", score: 0.8, detail: "goal overlap 0.80" },
+        { signal: "structural", score: 0.3, detail: "cross-workspace graph bridges 0.30" },
+      ],
+      persisted: true,
+    },
+  ],
+  cached: true,
+  computedAt: "2026-08-02T09:58:00Z",
+};
+
+const goalClusters = [
+  {
+    id: 1,
+    workspaceId: "ws-1",
+    name: "fix login",
+    memberCount: 2,
+    members: [
+      { nodeType: "memory_record", entityId: "mem-1", title: "fix login bug", workspaceId: "ws-1", score: 1.0 },
+    ],
+    centroidTerms: ["fix", "login"],
+    confidence: 0.8,
+  },
+];
+
+const snapshots = [
+  {
+    id: 1,
+    workspaceId: "ws-1",
+    snapshotType: "manual",
+    nodeCount: 2,
+    edgeCount: 1,
+    confidence: 0.5,
+    summary: [],
+    createdAt: "2026-08-02T09:58:00Z",
+  },
+];
 
 describe("GraphPage", () => {
   beforeEach(() => {
@@ -128,6 +204,20 @@ describe("GraphPage", () => {
               },
             ],
           });
+        case "graph_knowledge_summary":
+          return Promise.resolve(knowledgeSummary(args?.entityId === "file-1" ? fileNode : workspaceNode));
+        case "graph_infer_context":
+          return Promise.resolve(contextInference(args?.entityId === "file-1" ? fileNode : workspaceNode));
+        case "graph_workspace_similarity":
+          return Promise.resolve(workspaceSimilarity);
+        case "graph_discover_cross_workspace_relationships":
+          return Promise.resolve({ ...workspaceSimilarity, cached: false });
+        case "graph_goal_clusters":
+          return Promise.resolve(goalClusters);
+        case "graph_snapshot_list":
+          return Promise.resolve(snapshots);
+        case "graph_snapshot_create":
+          return Promise.resolve({ ...snapshots[0], id: 2 });
         default:
           return Promise.reject(new Error(`unexpected command ${command}`));
       }
@@ -180,7 +270,7 @@ describe("GraphPage", () => {
       expect(screen.getByText("Related context (1)")).toBeInTheDocument();
     });
     expect(screen.getByText(/File of this workspace/)).toBeInTheDocument();
-    expect(screen.getByText(/contains/)).toBeInTheDocument();
+    expect(screen.getAllByText(/contains/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("100%").length).toBeGreaterThan(0);
   });
 
@@ -271,5 +361,85 @@ describe("GraphPage", () => {
     });
     expect(screen.getByText(/conf 62%/)).toBeInTheDocument();
     expect(screen.getAllByText("80%").length).toBeGreaterThan(0);
+  });
+
+  it("shows knowledge summary and confidence breakdown for a selected node", async () => {
+    const invoke = mockCommands(await setupInvoke());
+    render(<GraphPage />);
+    await findGraphNode("Alpha WS");
+
+    fireEvent.click(screen.getAllByText("Alpha WS")[0]);
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "graph_knowledge_summary",
+        expect.objectContaining({ nodeType: "workspace", entityId: "ws-1" }),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Context intelligence")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Graph connections")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("Confidence breakdown")).toBeInTheDocument();
+    expect(screen.getAllByText("90%").length).toBeGreaterThan(0);
+    expect(screen.getByText("Top inferred hits")).toBeInTheDocument();
+    expect(screen.getAllByText("Structural").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Direct file connection/).length).toBeGreaterThan(0);
+  });
+
+  it("recomputes workspace relationships, shows clusters, and captures snapshots", async () => {
+    const invoke = mockCommands(await setupInvoke());
+    render(<GraphPage />);
+    await findGraphNode("Alpha WS");
+
+    fireEvent.click(screen.getAllByText("Alpha WS")[0]);
+    await waitFor(() => {
+      expect(screen.getByText("Beta WS")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Goal · Structural · persisted/)).toBeInTheDocument();
+    expect(screen.getByText("fix login")).toBeInTheDocument();
+    expect(screen.getByText("2 members")).toBeInTheDocument();
+    expect(screen.getByText("Context snapshots")).toBeInTheDocument();
+    expect(screen.getByText("2 nodes · 1 edges")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /recompute/i }));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "graph_discover_cross_workspace_relationships",
+        expect.objectContaining({ workspaceId: "ws-1" }),
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /capture/i }));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "graph_snapshot_create",
+        expect.objectContaining({ workspaceId: "ws-1", snapshotType: "manual" }),
+      );
+    });
+  });
+
+  it("loads context intelligence for non-workspace nodes too", async () => {
+    const invoke = mockCommands(await setupInvoke());
+    render(<GraphPage />);
+    await findGraphNode("Alpha WS");
+
+    fireEvent.click(screen.getAllByText("Alpha WS")[0]);
+    await waitFor(() => {
+      expect(screen.getByText("Context intelligence")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByText("main.rs")[0]);
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "graph_knowledge_summary",
+        expect.objectContaining({ nodeType: "file", entityId: "file-1" }),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("90%").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText("Related workspaces")).not.toBeInTheDocument();
+    expect(screen.queryByText("Context snapshots")).not.toBeInTheDocument();
   });
 });

@@ -8,6 +8,7 @@
 //! and makes each repository independently testable against a temporary
 //! database (see the `#[cfg(test)]` modules in each file).
 
+pub mod context_intel_repository;
 pub mod file_repository;
 pub mod graph_repository;
 pub mod kg_live_repository;
@@ -19,6 +20,7 @@ pub mod settings_repository;
 pub mod timeline_repository;
 pub mod workspace_repository;
 
+pub use context_intel_repository::ContextIntelRepository;
 pub use file_repository::FileRepository;
 pub use graph_repository::GraphRepository;
 pub use kg_live_repository::KgLiveRepository;

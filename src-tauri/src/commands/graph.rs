@@ -7,6 +7,10 @@ use crate::models::graph::{GraphEdgeType, GraphStats, GraphView, NodeDetails};
 use crate::models::kg::{
     ContextDiscovery, GraphNodeType, GraphPath, GraphSyncSummary, KgNode, KgStats, KgSubgraph,
 };
+use crate::models::kg_context::{
+    ContextExplanation, ContextInference, ContextIntelSnapshot, ContextTimelineEntry, FusedContext,
+    GoalCluster, KnowledgeSummary, PlannerContext, WorkspaceSimilarityResult,
+};
 use crate::models::kg_live::{
     EdgeDecaySummary, EntitySyncResult, GraphAnalytics, GraphRecommendation, MultiHopContext,
     QueryCacheStats, RelationshipDetails, SemanticEdgeResult,
@@ -222,4 +226,146 @@ pub async fn graph_cache_stats(
     engine: State<'_, GraphEngine>,
 ) -> Result<QueryCacheStats, DatabaseError> {
     engine.graph_cache_stats().await
+}
+
+// ----------------------------------------------------------------------
+// RC-8 M3: Context Intelligence commands
+// ----------------------------------------------------------------------
+
+/// Ranks an entity's graph neighbors with a per-signal confidence
+/// breakdown (cached).
+#[tauri::command]
+pub async fn graph_infer_context(
+    engine: State<'_, GraphEngine>,
+    node_type: GraphNodeType,
+    entity_id: Uuid,
+    limit: Option<usize>,
+    cached: Option<bool>,
+) -> Result<ContextInference, DatabaseError> {
+    engine
+        .infer_context(node_type, entity_id, limit, cached.unwrap_or(true))
+        .await
+}
+
+/// Similarity between one workspace and every other active workspace
+/// (cached); strong pairs are persisted.
+#[tauri::command]
+pub async fn graph_workspace_similarity(
+    engine: State<'_, GraphEngine>,
+    workspace_id: Uuid,
+    cached: Option<bool>,
+) -> Result<WorkspaceSimilarityResult, DatabaseError> {
+    engine
+        .workspace_similarity(workspace_id, cached.unwrap_or(true))
+        .await
+}
+
+/// Forced recompute + persistence of cross-workspace relationships.
+#[tauri::command]
+pub async fn graph_discover_cross_workspace_relationships(
+    engine: State<'_, GraphEngine>,
+    workspace_id: Uuid,
+) -> Result<WorkspaceSimilarityResult, DatabaseError> {
+    engine
+        .discover_cross_workspace_relationships(workspace_id)
+        .await
+}
+
+/// Goal-similarity clusters, persisted per scope (cached).
+#[tauri::command]
+pub async fn graph_goal_clusters(
+    engine: State<'_, GraphEngine>,
+    workspace_id: Option<Uuid>,
+    cached: Option<bool>,
+) -> Result<Vec<GoalCluster>, DatabaseError> {
+    engine
+        .goal_clusters(workspace_id, cached.unwrap_or(true))
+        .await
+}
+
+/// Knowledge summary card for one entity (cached).
+#[tauri::command]
+pub async fn graph_knowledge_summary(
+    engine: State<'_, GraphEngine>,
+    node_type: GraphNodeType,
+    entity_id: Uuid,
+    cached: Option<bool>,
+) -> Result<KnowledgeSummary, DatabaseError> {
+    engine
+        .knowledge_summary(node_type, entity_id, cached.unwrap_or(true))
+        .await
+}
+
+/// Persists one graph context snapshot for a workspace.
+#[tauri::command]
+pub async fn graph_snapshot_create(
+    engine: State<'_, GraphEngine>,
+    workspace_id: Uuid,
+    snapshot_type: Option<String>,
+) -> Result<ContextIntelSnapshot, DatabaseError> {
+    engine
+        .context_snapshot_create(workspace_id, snapshot_type.as_deref().unwrap_or("manual"))
+        .await
+}
+
+/// Most recent snapshots for a workspace, newest first.
+#[tauri::command]
+pub async fn graph_snapshot_list(
+    engine: State<'_, GraphEngine>,
+    workspace_id: Uuid,
+    limit: Option<usize>,
+) -> Result<Vec<ContextIntelSnapshot>, DatabaseError> {
+    engine.context_snapshot_list(workspace_id, limit).await
+}
+
+/// Snapshot history with per-entry deltas against the prior snapshot.
+#[tauri::command]
+pub async fn graph_context_timeline(
+    engine: State<'_, GraphEngine>,
+    workspace_id: Uuid,
+    limit: Option<usize>,
+) -> Result<Vec<ContextTimelineEntry>, DatabaseError> {
+    engine.context_timeline(workspace_id, limit).await
+}
+
+/// Fuses knowledge-graph hits with memory-record hits (cached).
+#[tauri::command]
+pub async fn graph_fused_context(
+    engine: State<'_, GraphEngine>,
+    node_type: GraphNodeType,
+    entity_id: Uuid,
+    cached: Option<bool>,
+) -> Result<FusedContext, DatabaseError> {
+    engine
+        .fused_context(node_type, entity_id, cached.unwrap_or(true))
+        .await
+}
+
+/// Graph-assisted planner context retrieval anchored on `goal`.
+#[tauri::command]
+pub async fn graph_planner_context(
+    engine: State<'_, GraphEngine>,
+    goal: String,
+    cached: Option<bool>,
+) -> Result<PlannerContext, DatabaseError> {
+    engine.planner_context(&goal, cached.unwrap_or(true)).await
+}
+
+/// Explains why two nodes are related (shortest path or shared topics).
+#[tauri::command]
+pub async fn graph_explain(
+    engine: State<'_, GraphEngine>,
+    source_node_type: GraphNodeType,
+    source_entity_id: Uuid,
+    target_node_type: GraphNodeType,
+    target_entity_id: Uuid,
+) -> Result<ContextExplanation, DatabaseError> {
+    engine
+        .explain(
+            source_node_type,
+            source_entity_id,
+            target_node_type,
+            target_entity_id,
+        )
+        .await
 }

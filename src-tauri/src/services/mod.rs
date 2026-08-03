@@ -8,6 +8,7 @@
 //! that this kind of cross-cutting rule has one obvious home instead of
 //! leaking into command handlers or being duplicated across repositories.
 
+pub mod context_intel_service;
 pub mod context_service;
 pub mod graph_service;
 pub mod kg_live_service;
@@ -17,6 +18,7 @@ pub mod search_service;
 pub mod timeline_service;
 pub mod workspace_service;
 
+pub use context_intel_service::ContextIntelService;
 pub use context_service::ContextService;
 pub use graph_service::GraphService;
 pub use kg_live_service::KgLiveService;

@@ -20,6 +20,17 @@ import type {
   RelationshipDetails,
   QueryCacheStats,
 } from "@/types/graph";
+import type {
+  ContextExplanation,
+  ContextInference,
+  ContextIntelSnapshot,
+  ContextTimelineEntry,
+  FusedContext,
+  GoalCluster,
+  KnowledgeSummary,
+  PlannerContext,
+  WorkspaceSimilarityResult,
+} from "@/types/contextIntel";
 import type { SearchEntityType } from "@/types/search";
 
 export interface GraphRepository {
@@ -68,6 +79,37 @@ export interface GraphRepository {
   ): Promise<GraphRecommendation[]>;
   graphRelationshipDetails(nodeType: GraphNodeType, entityId: string): Promise<RelationshipDetails>;
   graphCacheStats(): Promise<QueryCacheStats>;
+
+  // RC-8 M3: context intelligence.
+  graphInferContext(
+    nodeType: GraphNodeType,
+    entityId: string,
+    limit?: number,
+    cached?: boolean,
+  ): Promise<ContextInference>;
+  graphWorkspaceSimilarity(workspaceId: string, cached?: boolean): Promise<WorkspaceSimilarityResult>;
+  graphDiscoverCrossWorkspaceRelationships(workspaceId: string): Promise<WorkspaceSimilarityResult>;
+  graphGoalClusters(workspaceId?: string, cached?: boolean): Promise<GoalCluster[]>;
+  graphKnowledgeSummary(
+    nodeType: GraphNodeType,
+    entityId: string,
+    cached?: boolean,
+  ): Promise<KnowledgeSummary>;
+  graphSnapshotCreate(workspaceId: string, snapshotType?: string): Promise<ContextIntelSnapshot>;
+  graphSnapshotList(workspaceId: string, limit?: number): Promise<ContextIntelSnapshot[]>;
+  graphContextTimeline(workspaceId: string, limit?: number): Promise<ContextTimelineEntry[]>;
+  graphFusedContext(
+    nodeType: GraphNodeType,
+    entityId: string,
+    cached?: boolean,
+  ): Promise<FusedContext>;
+  graphPlannerContext(goal: string, cached?: boolean): Promise<PlannerContext>;
+  graphExplain(
+    sourceNodeType: GraphNodeType,
+    sourceEntityId: string,
+    targetNodeType: GraphNodeType,
+    targetEntityId: string,
+  ): Promise<ContextExplanation>;
 }
 
 export class TauriGraphRepository implements GraphRepository {
@@ -179,6 +221,75 @@ export class TauriGraphRepository implements GraphRepository {
 
   async graphCacheStats(): Promise<QueryCacheStats> {
     return invoke<QueryCacheStats>("graph_cache_stats");
+  }
+
+  async graphInferContext(
+    nodeType: GraphNodeType,
+    entityId: string,
+    limit?: number,
+    cached?: boolean,
+  ): Promise<ContextInference> {
+    return invoke<ContextInference>("graph_infer_context", { nodeType, entityId, limit, cached });
+  }
+
+  async graphWorkspaceSimilarity(workspaceId: string, cached?: boolean): Promise<WorkspaceSimilarityResult> {
+    return invoke<WorkspaceSimilarityResult>("graph_workspace_similarity", { workspaceId, cached });
+  }
+
+  async graphDiscoverCrossWorkspaceRelationships(workspaceId: string): Promise<WorkspaceSimilarityResult> {
+    return invoke<WorkspaceSimilarityResult>("graph_discover_cross_workspace_relationships", {
+      workspaceId,
+    });
+  }
+
+  async graphGoalClusters(workspaceId?: string, cached?: boolean): Promise<GoalCluster[]> {
+    return invoke<GoalCluster[]>("graph_goal_clusters", { workspaceId, cached });
+  }
+
+  async graphKnowledgeSummary(
+    nodeType: GraphNodeType,
+    entityId: string,
+    cached?: boolean,
+  ): Promise<KnowledgeSummary> {
+    return invoke<KnowledgeSummary>("graph_knowledge_summary", { nodeType, entityId, cached });
+  }
+
+  async graphSnapshotCreate(workspaceId: string, snapshotType?: string): Promise<ContextIntelSnapshot> {
+    return invoke<ContextIntelSnapshot>("graph_snapshot_create", { workspaceId, snapshotType });
+  }
+
+  async graphSnapshotList(workspaceId: string, limit?: number): Promise<ContextIntelSnapshot[]> {
+    return invoke<ContextIntelSnapshot[]>("graph_snapshot_list", { workspaceId, limit });
+  }
+
+  async graphContextTimeline(workspaceId: string, limit?: number): Promise<ContextTimelineEntry[]> {
+    return invoke<ContextTimelineEntry[]>("graph_context_timeline", { workspaceId, limit });
+  }
+
+  async graphFusedContext(
+    nodeType: GraphNodeType,
+    entityId: string,
+    cached?: boolean,
+  ): Promise<FusedContext> {
+    return invoke<FusedContext>("graph_fused_context", { nodeType, entityId, cached });
+  }
+
+  async graphPlannerContext(goal: string, cached?: boolean): Promise<PlannerContext> {
+    return invoke<PlannerContext>("graph_planner_context", { goal, cached });
+  }
+
+  async graphExplain(
+    sourceNodeType: GraphNodeType,
+    sourceEntityId: string,
+    targetNodeType: GraphNodeType,
+    targetEntityId: string,
+  ): Promise<ContextExplanation> {
+    return invoke<ContextExplanation>("graph_explain", {
+      sourceNodeType,
+      sourceEntityId,
+      targetNodeType,
+      targetEntityId,
+    });
   }
 }
 

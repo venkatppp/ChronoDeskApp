@@ -15,12 +15,16 @@ use crate::models::graph::{GraphEdgeType, GraphStats, GraphView, NodeDetails};
 use crate::models::kg::{
     ContextDiscovery, GraphNodeType, GraphPath, GraphSyncSummary, KgNode, KgStats, KgSubgraph,
 };
+use crate::models::kg_context::{
+    ContextExplanation, ContextInference, ContextIntelSnapshot, ContextTimelineEntry, FusedContext,
+    GoalCluster, KnowledgeSummary, PlannerContext, WorkspaceSimilarityResult,
+};
 use crate::models::kg_live::{
     EdgeDecaySummary, EntitySyncResult, GraphAnalytics, GraphRecommendation, MultiHopContext,
     QueryCacheStats, RelationshipDetails, SemanticEdgeResult,
 };
 use crate::models::search::SearchEntityType;
-use crate::services::{GraphService, KgLiveService, KgService};
+use crate::services::{ContextIntelService, GraphService, KgLiveService, KgService};
 use uuid::Uuid;
 
 /// Facade for Knowledge Graph operations.
@@ -29,6 +33,7 @@ pub struct GraphEngine {
     graph_service: GraphService,
     kg_service: Option<KgService>,
     kg_live_service: Option<KgLiveService>,
+    context_intel_service: Option<ContextIntelService>,
 }
 
 impl GraphEngine {
@@ -40,6 +45,7 @@ impl GraphEngine {
             graph_service,
             kg_service: None,
             kg_live_service: None,
+            context_intel_service: None,
         }
     }
 
@@ -56,6 +62,17 @@ impl GraphEngine {
         self
     }
 
+    /// Enables the RC-8 M3 context intelligence half (inference,
+    /// workspace similarity, goal clusters, summaries, snapshots,
+    /// fusion, planner retrieval, explanations).
+    pub fn with_context_intel_service(
+        mut self,
+        context_intel_service: ContextIntelService,
+    ) -> Self {
+        self.context_intel_service = Some(context_intel_service);
+        self
+    }
+
     fn kg(&self) -> Result<&KgService, DatabaseError> {
         self.kg_service.as_ref().ok_or_else(|| {
             DatabaseError::InvalidInput("knowledge graph engine is not configured".to_string())
@@ -65,6 +82,12 @@ impl GraphEngine {
     fn kg_live(&self) -> Result<&KgLiveService, DatabaseError> {
         self.kg_live_service.as_ref().ok_or_else(|| {
             DatabaseError::InvalidInput("live knowledge graph engine is not configured".to_string())
+        })
+    }
+
+    fn context_intel(&self) -> Result<&ContextIntelService, DatabaseError> {
+        self.context_intel_service.as_ref().ok_or_else(|| {
+            DatabaseError::InvalidInput("context intelligence engine is not configured".to_string())
         })
     }
 
@@ -260,5 +283,138 @@ impl GraphEngine {
     /// Query-cache bookkeeping for the dashboard.
     pub async fn graph_cache_stats(&self) -> Result<QueryCacheStats, DatabaseError> {
         self.kg_live()?.cache_stats().await
+    }
+
+    // ------------------------------------------------------------------
+    // RC-8 M3: Context Intelligence operations
+    // ------------------------------------------------------------------
+
+    /// Ranks an entity's graph neighbors by structural reachability,
+    /// semantic confidence and recency, with a per-signal confidence
+    /// breakdown (cached).
+    pub async fn infer_context(
+        &self,
+        node_type: GraphNodeType,
+        entity_id: Uuid,
+        limit: Option<usize>,
+        cached: bool,
+    ) -> Result<ContextInference, DatabaseError> {
+        self.context_intel()?
+            .infer_context(node_type, entity_id, limit, cached)
+            .await
+    }
+
+    /// Similarity between one workspace and every other active workspace
+    /// (cached); strong pairs are persisted.
+    pub async fn workspace_similarity(
+        &self,
+        workspace_id: Uuid,
+        cached: bool,
+    ) -> Result<WorkspaceSimilarityResult, DatabaseError> {
+        self.context_intel()?
+            .workspace_similarity(workspace_id, cached)
+            .await
+    }
+
+    /// Forced recompute + persistence of cross-workspace relationships.
+    pub async fn discover_cross_workspace_relationships(
+        &self,
+        workspace_id: Uuid,
+    ) -> Result<WorkspaceSimilarityResult, DatabaseError> {
+        self.context_intel()?
+            .discover_cross_workspace_relationships(workspace_id)
+            .await
+    }
+
+    /// Goal-similarity clusters, persisted per scope (cached).
+    pub async fn goal_clusters(
+        &self,
+        workspace_id: Option<Uuid>,
+        cached: bool,
+    ) -> Result<Vec<GoalCluster>, DatabaseError> {
+        self.context_intel()?
+            .goal_clusters(workspace_id, cached)
+            .await
+    }
+
+    /// Knowledge summary card for one entity (cached).
+    pub async fn knowledge_summary(
+        &self,
+        node_type: GraphNodeType,
+        entity_id: Uuid,
+        cached: bool,
+    ) -> Result<KnowledgeSummary, DatabaseError> {
+        self.context_intel()?
+            .knowledge_summary(node_type, entity_id, cached)
+            .await
+    }
+
+    /// Persists one graph context snapshot for a workspace.
+    pub async fn context_snapshot_create(
+        &self,
+        workspace_id: Uuid,
+        snapshot_type: &str,
+    ) -> Result<ContextIntelSnapshot, DatabaseError> {
+        self.context_intel()?
+            .context_snapshot_create(workspace_id, snapshot_type)
+            .await
+    }
+
+    /// Most recent snapshots for a workspace, newest first.
+    pub async fn context_snapshot_list(
+        &self,
+        workspace_id: Uuid,
+        limit: Option<usize>,
+    ) -> Result<Vec<ContextIntelSnapshot>, DatabaseError> {
+        self.context_intel()?
+            .context_snapshot_list(workspace_id, limit)
+            .await
+    }
+
+    /// Snapshot history with per-entry deltas against the prior snapshot.
+    pub async fn context_timeline(
+        &self,
+        workspace_id: Uuid,
+        limit: Option<usize>,
+    ) -> Result<Vec<ContextTimelineEntry>, DatabaseError> {
+        self.context_intel()?
+            .context_timeline(workspace_id, limit)
+            .await
+    }
+
+    /// Fuses knowledge-graph hits with memory-record hits (cached).
+    pub async fn fused_context(
+        &self,
+        node_type: GraphNodeType,
+        entity_id: Uuid,
+        cached: bool,
+    ) -> Result<FusedContext, DatabaseError> {
+        self.context_intel()?
+            .fused_context(node_type, entity_id, cached)
+            .await
+    }
+
+    /// Graph-assisted planner context retrieval anchored on `goal`
+    /// (cached, keyed by goal content).
+    pub async fn planner_context(
+        &self,
+        goal: &str,
+        cached: bool,
+    ) -> Result<PlannerContext, DatabaseError> {
+        self.context_intel()?.planner_context(goal, cached).await
+    }
+
+    /// Explains why two nodes are related: the shortest graph path, or a
+    /// shared-topic fallback when unreachable within the hop cap.
+    pub async fn explain(
+        &self,
+        source_type: GraphNodeType,
+        source_id: Uuid,
+        target_type: GraphNodeType,
+        target_id: Uuid,
+    ) -> Result<ContextExplanation, DatabaseError> {
+        self.context_intel()?
+            .explain(source_type, source_id, target_type, target_id)
+            .await
     }
 }

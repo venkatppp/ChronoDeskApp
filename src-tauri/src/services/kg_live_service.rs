@@ -286,6 +286,22 @@ impl KgLiveService {
         })
     }
 
+    /// Every graph node, optionally scoped to one workspace — the
+    /// context intelligence layer reads the full registry for
+    /// cross-workspace scoring and scoped snapshots.
+    pub async fn graph_nodes(
+        &self,
+        workspace_id: Option<Uuid>,
+    ) -> Result<Vec<KgNode>, DatabaseError> {
+        self.repository.all_nodes(workspace_id).await
+    }
+
+    /// Every relationship in the graph (context intelligence reads the
+    /// full adjacency for cross-workspace scoring and path explanations).
+    pub async fn graph_edges(&self) -> Result<Vec<KgEdge>, DatabaseError> {
+        self.repository.all_edges().await
+    }
+
     // ------------------------------------------------------------------
     // Graph analytics
     // ------------------------------------------------------------------

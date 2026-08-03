@@ -97,13 +97,14 @@ use predictive::{
     AdaptiveLearning, AutomationEngine, PredictiveEngine, PredictiveRepository, WorkflowEngine,
 };
 use repositories::{
-    FileRepository, GraphRepository, KgLiveRepository, KgRepository, LLMRepository, MLRepository,
-    SearchRepository, SettingsRepository, TimelineRepository, WorkspaceRepository,
+    ContextIntelRepository, FileRepository, GraphRepository, KgLiveRepository, KgRepository,
+    LLMRepository, MLRepository, SearchRepository, SettingsRepository, TimelineRepository,
+    WorkspaceRepository,
 };
 use search::SearchEngine;
 use services::{
-    ContextService, GraphService, KgLiveService, KgService, MLService, SearchService,
-    TimelineService, WorkspaceService,
+    ContextIntelService, ContextService, GraphService, KgLiveService, KgService, MLService,
+    SearchService, TimelineService, WorkspaceService,
 };
 use session::SessionEngine;
 use timeline::recorder::TimelineRecorder;
@@ -481,7 +482,23 @@ pub fn run() {
                 KgLiveRepository::new(pool.clone()),
             )
             .with_embedder(Arc::new(memory_engine.vector_system().clone()));
-            let graph_engine = graph_engine.with_kg_live_service(kg_live_service);
+            let graph_engine = graph_engine.with_kg_live_service(kg_live_service.clone());
+
+            // --- RC-8 M3: Context Intelligence (context inference,
+            // workspace similarity, goal clusters, summaries, snapshots,
+            // fusion, planner retrieval, explanations) ---
+            // Composes the M1 graph + M2 live graph with persisted
+            // cross-workspace relations, snapshots and clusters, sharing
+            // the M2 query cache and the memory system's embedder.
+            let context_intel_service = ContextIntelService::new(
+                kg_service.clone(),
+                kg_live_service.clone(),
+                workspace_repository.clone(),
+                ContextIntelRepository::new(pool.clone()),
+            )
+            .with_embedder(Arc::new(memory_engine.vector_system().clone()));
+            let graph_engine =
+                graph_engine.with_context_intel_service(context_intel_service);
 
             // Advance the incremental-sync watermark to now. The M1 full
             // build above just wrote every node, so this first pass is
@@ -683,6 +700,17 @@ pub fn run() {
             commands::graph::graph_recommendations,
             commands::graph::graph_relationship_details,
             commands::graph::graph_cache_stats,
+            commands::graph::graph_infer_context,
+            commands::graph::graph_workspace_similarity,
+            commands::graph::graph_discover_cross_workspace_relationships,
+            commands::graph::graph_goal_clusters,
+            commands::graph::graph_knowledge_summary,
+            commands::graph::graph_snapshot_create,
+            commands::graph::graph_snapshot_list,
+            commands::graph::graph_context_timeline,
+            commands::graph::graph_fused_context,
+            commands::graph::graph_planner_context,
+            commands::graph::graph_explain,
             commands::duplicates::scan_workspace_for_duplicates,
             commands::duplicates::scan_file,
             commands::duplicates::get_duplicate_groups,
