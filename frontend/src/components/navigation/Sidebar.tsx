@@ -12,6 +12,7 @@ import {
   BrainCircuit,
   Gauge,
   ActivitySquare,
+  ShieldCheck,
 } from "lucide-react";
 import { NavItem } from "@/components/navigation/NavItem";
 
@@ -28,6 +29,7 @@ const PRIMARY_NAV = [
   { to: "/autonomous", label: "Autonomous", icon: Bot },
   { to: "/memory", label: "Memory", icon: BrainCircuit },
   { to: "/performance", label: "Performance", icon: ActivitySquare },
+  { to: "/recovery", label: "Recovery", icon: ShieldCheck },
 ] as const;
 
 export function Sidebar() {

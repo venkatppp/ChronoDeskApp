@@ -297,3 +297,7 @@ impl TryFrom<BenchmarkRow> for BenchmarkResult {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "performance_repository_tests.rs"]
+mod tests;

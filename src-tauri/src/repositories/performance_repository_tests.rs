@@ -33,9 +33,14 @@ fn sample_benchmark() -> BenchmarkResult {
 #[tokio::test]
 async fn record_and_recent_profiles_round_trip() {
     let (repo, _pool, _guard) = setup().await;
-    repo.record_profile(ProfileCategory::Command, "performance_diagnostics", 5, &json!({"n": 1}))
-        .await
-        .unwrap();
+    repo.record_profile(
+        ProfileCategory::Command,
+        "performance_diagnostics",
+        5,
+        &json!({"n": 1}),
+    )
+    .await
+    .unwrap();
     repo.record_profile(ProfileCategory::Worker, "learning_worker", 90, &json!({}))
         .await
         .unwrap();
@@ -52,7 +57,9 @@ async fn record_and_recent_profiles_round_trip() {
 async fn recent_profiles_respects_limit() {
     let (repo, _pool, _guard) = setup().await;
     for _ in 0..5 {
-        repo.record_profile(ProfileCategory::Engine, "probe", 1, &json!({})).await.unwrap();
+        repo.record_profile(ProfileCategory::Engine, "probe", 1, &json!({}))
+            .await
+            .unwrap();
     }
     assert_eq!(repo.recent_profiles(3).await.unwrap().len(), 3);
 }
@@ -136,9 +143,14 @@ async fn db_size_is_positive_after_migration() {
 #[tokio::test]
 async fn prune_removes_only_old_rows_and_reports_count() {
     let (repo, _pool, _guard) = setup().await;
-    repo.record_profile(ProfileCategory::Command, "performance_profile", 1, &json!({}))
-        .await
-        .unwrap();
+    repo.record_profile(
+        ProfileCategory::Command,
+        "performance_profile",
+        1,
+        &json!({}),
+    )
+    .await
+    .unwrap();
     let removed = repo.prune_profiles_older_than(0).await.unwrap();
     assert_eq!(removed, 1);
     assert_eq!(repo.profile_count().await.unwrap(), 0);

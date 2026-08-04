@@ -18,6 +18,7 @@ pub mod kg_live;
 pub mod kg_opt;
 pub mod ml;
 pub mod performance;
+pub mod recovery;
 pub mod search;
 pub mod timeline;
 pub mod workspace;

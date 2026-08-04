@@ -14,6 +14,7 @@ pub mod benchmark;
 pub mod diagnostics;
 pub mod optimizer;
 pub mod profiler;
+pub mod recovery;
 pub mod startup;
 
 use chrono::Utc;

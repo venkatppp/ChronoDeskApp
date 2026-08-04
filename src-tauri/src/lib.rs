@@ -94,6 +94,7 @@ use duplicates::DuplicateDetectionEngine;
 use graph::GraphEngine;
 use intelligence::health::{HealthService, WorkspaceHealthEngine};
 use intelligence::recommendation::RecommendationEngine;
+use performance::recovery::RecoveryManager;
 use performance::{
     BenchmarkEngine, Diagnostics, PerformanceEngine, PerformanceProfiler, StartupProfiler,
 };
@@ -102,8 +103,8 @@ use predictive::{
 };
 use repositories::{
     ContextIntelRepository, FileRepository, GraphRepository, KgLiveRepository, KgOptRepository,
-    KgRepository, LLMRepository, MLRepository, PerformanceRepository, SearchRepository,
-    SettingsRepository, TimelineRepository, WorkspaceRepository,
+    KgRepository, LLMRepository, MLRepository, PerformanceRepository, RecoveryRepository,
+    SearchRepository, SettingsRepository, TimelineRepository, WorkspaceRepository,
 };
 use search::SearchEngine;
 use services::{
@@ -718,6 +719,31 @@ pub fn run() {
             )
             .with_graph_engine(graph_engine.clone());
 
+            // --- RC-10 M2: Reliability & Recovery ---
+            // Runs before the window is shown so a crashed previous
+            // session is detected, validated and (where possible)
+            // resumed/rolled back before the user sees the UI. The
+            // watchdog loop keeps monitoring after launch; a clean
+            // shutdown is recorded via the `RunEvent::Exit` hook below.
+            startup_profiler.stage_start("recovery", "Recovery & crash detection");
+            let recovery_manager = RecoveryManager::new(RecoveryRepository::new(pool.clone()));
+            match tauri::async_runtime::block_on(recovery_manager.startup()) {
+                Ok(run) => tracing::info!(
+                    run_id = %run.run_id,
+                    outcome = run.outcome.as_str(),
+                    actions = run.actions.len(),
+                    "startup recovery pass completed"
+                ),
+                Err(error) => {
+                    tracing::error!(error = %error, "startup recovery pass failed")
+                }
+            }
+            tauri::async_runtime::spawn({
+                let recovery_manager = recovery_manager.clone();
+                async move { recovery_manager.watchdog_loop().await }
+            });
+            startup_profiler.stage_end();
+
             // Every service/engine/repository above is managed as Tauri
             // state so command handlers can pull the one they need via
             // `tauri::State<'_, T>`. `Database` itself is managed too,
@@ -775,6 +801,7 @@ pub fn run() {
             app.manage(kg_opt_service);
             app.manage(graph_health_service);
             app.manage(performance_engine.clone());
+            app.manage(recovery_manager.clone());
 
             // Persist the measured startup run once every subsystem is up.
             match tauri::async_runtime::block_on(performance_engine.record_startup()) {
@@ -1014,14 +1041,33 @@ pub fn run() {
             commands::performance::performance_diagnostics,
             commands::performance::performance_optimize,
             commands::performance::performance_history,
+            commands::recovery::recovery_status,
+            commands::recovery::recovery_history,
+            commands::recovery::recovery_crash_reports,
+            commands::recovery::recovery_latest_checkpoint,
+            commands::recovery::recovery_self_heal,
+            commands::recovery::recovery_rollback,
+            commands::recovery::recovery_tick,
             commands::conversation::copilot_rename_conversation,
             commands::conversation::copilot_delete_conversation,
             commands::conversation::copilot_pin_conversation,
             commands::conversation::copilot_export_conversation_json,
             commands::conversation::copilot_export_conversation_markdown,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running ChronoDesk");
+        .build(tauri::generate_context!())
+        .expect("error while building ChronoDesk")
+        .run(|app_handle, event| {
+            // RC-10 M2: record the clean-shutdown checkpoint on exit so
+            // the next launch can distinguish a clean stop from a crash.
+            // Best-effort and non-fatal: an interrupted shutdown simply
+            // leaves the previous `running` checkpoint, which is exactly
+            // the signal crash detection looks for.
+            if let tauri::RunEvent::Exit = event {
+                if let Some(manager) = app_handle.try_state::<RecoveryManager>() {
+                    let _ = tauri::async_runtime::block_on(manager.record_clean_shutdown());
+                }
+            }
+        });
 }
 
 fn log_level() -> log::LevelFilter {

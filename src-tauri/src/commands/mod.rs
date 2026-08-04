@@ -23,6 +23,7 @@ pub mod memory;
 pub mod performance;
 pub mod predictive;
 pub mod proactive;
+pub mod recovery;
 pub mod runtime;
 pub mod search;
 pub mod semantic;

@@ -15,6 +15,7 @@ import { CopilotPage } from "@/pages/CopilotPage";
 import { ExecutionPage } from "@/pages/ExecutionPage";
 import { MemoryPage } from "@/pages/MemoryPage";
 import { PerformancePage } from "@/pages/PerformancePage";
+import { RecoveryPage } from "@/pages/RecoveryPage";
 
 /**
  * `HashRouter` is used rather than `BrowserRouter` because Tauri serves the
@@ -41,6 +42,7 @@ export function App() {
             <Route path="autonomous" element={<AutonomousPage />} />
             <Route path="memory" element={<MemoryPage />} />
             <Route path="performance" element={<PerformancePage />} />
+            <Route path="recovery" element={<RecoveryPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
