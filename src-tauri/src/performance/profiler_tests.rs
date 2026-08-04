@@ -103,7 +103,7 @@ async fn time_measures_and_records_a_sync_closure() {
 
 #[tokio::test]
 async fn prune_older_than_removes_old_ledger_rows() {
-    let (profiler, _pool, _guard) = setup().await;
+    let (profiler, pool, _guard) = setup().await;
     profiler
         .record(
             ProfileCategory::Command,
@@ -113,6 +113,15 @@ async fn prune_older_than_removes_old_ledger_rows() {
         )
         .await
         .unwrap();
+    // Backdate the row so it lands strictly before the prune cutoff.
+    sqlx::query(
+        "UPDATE performance_profiles
+         SET occurred_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-10 days')
+         WHERE name = 'performance_profile'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
     // A negative-day window removes everything older than now.
     let removed = profiler.prune_older_than(0).await.unwrap();
     assert_eq!(removed, 1);

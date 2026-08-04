@@ -21,6 +21,7 @@ pub mod ml;
 pub mod performance;
 pub mod recovery;
 pub mod search;
+pub mod security;
 pub mod timeline;
 pub mod workspace;
 

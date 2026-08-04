@@ -21,6 +21,22 @@ impl std::fmt::Display for LLMProviderType {
     }
 }
 
+/// How the LLM API key is stored on this machine (RC-10 M4 security
+/// validation reads this — the security layer never sees the key value).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApiKeyStorageState {
+    /// No API key configured.
+    None,
+    /// Key lives in the OS secret store (keychain); the database holds the
+    /// `__KEYCHAIN__` marker. The production state.
+    Secure,
+    /// Key is stored as plaintext in the `llm_settings` table — flagged.
+    Plaintext,
+    /// The database holds the keychain marker but the OS secret store is
+    /// currently unreachable, so the key cannot be read.
+    SecretStoreUnavailable,
+}
+
 /// LLM request message
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LLMMessage {

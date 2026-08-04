@@ -27,6 +27,7 @@ pub mod proactive;
 pub mod recovery;
 pub mod runtime;
 pub mod search;
+pub mod security;
 pub mod semantic;
 pub mod session;
 pub mod system;

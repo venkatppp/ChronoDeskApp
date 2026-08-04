@@ -77,6 +77,7 @@ pub mod predictive;
 pub mod repositories;
 pub mod runtime;
 pub mod search;
+pub mod security;
 pub mod semantic;
 pub mod services;
 pub mod session;
@@ -106,10 +107,11 @@ use predictive::{
 use repositories::{
     ContextIntelRepository, FileRepository, GraphRepository, KgLiveRepository, KgOptRepository,
     KgRepository, LLMRepository, MLRepository, MaintenanceRepository, PerformanceRepository,
-    RecoveryRepository, SearchRepository, SettingsRepository, TimelineRepository,
-    WorkspaceRepository,
+    RecoveryRepository, SearchRepository, SecurityRepository, SettingsRepository,
+    TimelineRepository, WorkspaceRepository,
 };
 use search::SearchEngine;
+use security::SecurityEngine;
 use services::{
     ContextIntelService, ContextService, GraphHealthService, GraphService, KgLiveService,
     KgOptService, KgService, MLService, SearchService, TimelineService, WorkspaceService,
@@ -165,7 +167,7 @@ pub fn run() {
             let graph_repository = GraphRepository::new(pool.clone());
             let ml_repository = MLRepository::new(pool.clone());
             let secret_store = Arc::new(llm::KeyringSecretStore::new());
-            let llm_repository = Arc::new(LLMRepository::new(pool.clone(), secret_store));
+            let llm_repository = Arc::new(LLMRepository::new(pool.clone(), secret_store.clone()));
             startup_profiler.stage_end();
 
             // --- Services (business logic composing repositories) ---
@@ -750,18 +752,58 @@ pub fn run() {
             // --- RC-10 M3: Data Integrity & Backup ---
             // Snapshots go to `<app-data>/backups`; the pending-restore
             // marker sits next to the database and is swapped in by
-            // `Database::initialize_at` on the next launch.
+            // `Database::initialize_at` on the next launch. The repository
+            // is shared (via `Arc`) with the M4 security engine, which
+            // verifies backup presence/checksums against the same ledger.
+            let maintenance_repository = Arc::new(MaintenanceRepository::new(pool.clone()));
+            let db_path = app_data_dir
+                .as_ref()
+                .map(|dir| dir.join("chronodesk.db"))
+                .unwrap_or_default();
+            let backup_dir = app_data_dir
+                .as_ref()
+                .map(|dir| dir.join("backups"))
+                .unwrap_or_default();
             let maintenance_engine = MaintenanceEngine::new(
-                MaintenanceRepository::new(pool.clone()),
-                app_data_dir
-                    .as_ref()
-                    .map(|dir| dir.join("chronodesk.db"))
-                    .unwrap_or_default(),
-                app_data_dir
-                    .as_ref()
-                    .map(|dir| dir.join("backups"))
-                    .unwrap_or_default(),
+                (*maintenance_repository).clone(),
+                db_path.clone(),
+                backup_dir.clone(),
             );
+
+            // --- RC-10 M4: Security Hardening ---
+            // Composes the security ledgers (audit, config, findings,
+            // recommendations) with the shared M3 maintenance ledger and
+            // the keyring-backed secret store. Startup validation is
+            // non-fatal — a failing check must never block the app; the
+            // background monitor loop re-runs the full battery on the
+            // policy interval and emits `security:status`.
+            let security_engine = SecurityEngine::new(
+                SecurityRepository::new(pool.clone()),
+                maintenance_repository,
+                llm_repository.clone(),
+                secret_store,
+                db_path,
+                backup_dir,
+            )
+            .with_event_emitter(
+                Arc::new(app_handle.clone()) as Arc<dyn app_events::AppEventEmitter>
+            );
+
+            match tauri::async_runtime::block_on(security_engine.startup_validation()) {
+                Ok(report) => tracing::info!(
+                    ok = report.ok,
+                    score = report.score,
+                    checks = report.total_checks,
+                    "startup security validation completed"
+                ),
+                Err(error) => {
+                    tracing::warn!(error = %error, "startup security validation failed")
+                }
+            }
+            tauri::async_runtime::spawn({
+                let security_engine = security_engine.clone();
+                async move { security_engine.run_monitor_loop().await }
+            });
 
             // Every service/engine/repository above is managed as Tauri
             // state so command handlers can pull the one they need via
@@ -822,6 +864,7 @@ pub fn run() {
             app.manage(performance_engine.clone());
             app.manage(recovery_manager.clone());
             app.manage(maintenance_engine.clone());
+            app.manage(security_engine.clone());
 
             // Persist the measured startup run once every subsystem is up.
             match tauri::async_runtime::block_on(performance_engine.record_startup()) {
@@ -1075,6 +1118,17 @@ pub fn run() {
             commands::maintenance::maintenance_pending_restore,
             commands::maintenance::maintenance_cancel_restore,
             commands::maintenance::maintenance_optimize,
+            commands::security::security_status,
+            commands::security::security_diagnostics,
+            commands::security::security_secrets,
+            commands::security::security_permissions,
+            commands::security::security_history,
+            commands::security::security_audit_log,
+            commands::security::security_config,
+            commands::security::security_set_config,
+            commands::security::security_recommendations,
+            commands::security::security_apply_recommendation,
+            commands::security::security_dismiss_recommendation,
             commands::conversation::copilot_rename_conversation,
             commands::conversation::copilot_delete_conversation,
             commands::conversation::copilot_pin_conversation,

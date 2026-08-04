@@ -36,7 +36,9 @@
 /// 29 = reliability & recovery ledger (RC-10 M2 — `recovery_journal`,
 ///     `crash_reports`, `worker_health`, `recovery_history`).
 /// 30 = data integrity & backup ledger (RC-10 M3 — `backup_runs`).
-pub const CURRENT_SCHEMA_VERSION: i64 = 30;
+/// 31 = security hardening ledgers (RC-10 M4 — `security_audit_log`,
+///     `security_config`, `security_findings`, `security_recommendations`).
+pub const CURRENT_SCHEMA_VERSION: i64 = 31;
 
 /// Table name constants. Repository query strings use literal SQL for
 /// readability (and because `sqlx::query_as` takes a plain `&str`, not a

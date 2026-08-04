@@ -119,7 +119,7 @@ async fn history_groups_profiles_benchmarks_and_startups() {
 
 #[tokio::test]
 async fn prune_action_applies_when_history_exists() {
-    let (engine, _pool, _guard) = setup().await;
+    let (engine, pool, _guard) = setup().await;
     engine
         .record_sample(
             ProfileCategory::Command,
@@ -129,6 +129,15 @@ async fn prune_action_applies_when_history_exists() {
         )
         .await
         .unwrap();
+    // Backdate the row so the prune action deterministically targets it.
+    sqlx::query(
+        "UPDATE performance_profiles
+         SET occurred_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-10 days')
+         WHERE name = 'performance_profile'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
     let applied = engine
         .apply_action(crate::models::performance::OptimizationAction::PruneProfileHistory(0))
         .await

@@ -64,6 +64,9 @@ pub const EVENT_AUTOMATION_REQUEST: &str = "proactive:automation_request";
 // Plan execution events
 pub const EVENT_EXECUTION_PROGRESS: &str = "execution:progress";
 
+// Security events (RC-10 M4)
+pub const EVENT_SECURITY_STATUS: &str = "security:status";
+
 /// Serializes `payload` and emits it. Serialization failure is logged,
 /// not propagated — event emission is always best-effort and must never
 /// fail the operation that triggered it (e.g. a workspace creation

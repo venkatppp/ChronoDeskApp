@@ -6,7 +6,7 @@ use sqlx::{Row, SqlitePool};
 use uuid::Uuid;
 
 use crate::errors::DatabaseError;
-use crate::llm::{LLMProviderType, LLMSettings, SecretStore, TokenUsage};
+use crate::llm::{ApiKeyStorageState, LLMProviderType, LLMSettings, SecretStore, TokenUsage};
 
 const API_KEY_MARKER: &str = "__KEYCHAIN__";
 const SECRET_SERVICE: &str = "ChronoDesk LLM API Key";
@@ -95,6 +95,29 @@ impl LLMRepository {
         .await?;
 
         Ok(())
+    }
+
+    /// How the LLM API key is stored today. Read-only and side-effect
+    /// free — unlike `get_settings`, it never migrates a plaintext key —
+    /// so the RC-10 M4 security validator can inspect storage without
+    /// changing it. The raw key value is never returned.
+    pub async fn api_key_storage_state(&self) -> Result<ApiKeyStorageState, DatabaseError> {
+        let row = sqlx::query("SELECT api_key FROM llm_settings WHERE id = 1")
+            .fetch_one(&self.pool)
+            .await?;
+        let stored_api_key: String = row.get("api_key");
+
+        if stored_api_key.is_empty() {
+            return Ok(ApiKeyStorageState::None);
+        }
+        if stored_api_key != API_KEY_MARKER {
+            return Ok(ApiKeyStorageState::Plaintext);
+        }
+
+        match self.secret_store.get(SECRET_SERVICE, SECRET_ACCOUNT) {
+            Ok(_) => Ok(ApiKeyStorageState::Secure),
+            Err(_) => Ok(ApiKeyStorageState::SecretStoreUnavailable),
+        }
     }
 
     /// Deletes the stored LLM credential and clears the SQLite marker.

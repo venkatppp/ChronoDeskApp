@@ -142,13 +142,22 @@ async fn db_size_is_positive_after_migration() {
 
 #[tokio::test]
 async fn prune_removes_only_old_rows_and_reports_count() {
-    let (repo, _pool, _guard) = setup().await;
+    let (repo, pool, _guard) = setup().await;
     repo.record_profile(
         ProfileCategory::Command,
         "performance_profile",
         1,
         &json!({}),
     )
+    .await
+    .unwrap();
+    // Backdate the row so it lands strictly before the prune cutoff.
+    sqlx::query(
+        "UPDATE performance_profiles
+         SET occurred_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-10 days')
+         WHERE name = 'performance_profile'",
+    )
+    .execute(&pool)
     .await
     .unwrap();
     let removed = repo.prune_profiles_older_than(0).await.unwrap();
