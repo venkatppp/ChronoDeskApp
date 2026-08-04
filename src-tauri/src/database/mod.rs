@@ -24,10 +24,64 @@ use std::path::Path;
 #[cfg(test)]
 use std::path::PathBuf;
 
+use chrono::Utc;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager};
 
 use crate::errors::DatabaseError;
+
+/// Filename (next to `chronodesk.db`) of a validated, staged restore that
+/// is swapped in on the next launch (RC-10 M3). Written by
+/// [`crate::maintenance::RestoreService::stage`]; consumed by
+/// [`apply_pending_restore`] before the pool opens.
+pub const RESTORE_PENDING_FILE: &str = "restore-pending.db";
+
+/// Filename prefix for the pre-restore safety backup written by
+/// [`apply_pending_restore`], so a restored database can always be
+/// reverted manually.
+pub const PRE_RESTORE_BACKUP_PREFIX: &str = "chronodesk-pre-restore-";
+
+/// Applies a staged restore: if a validated `restore-pending.db` marker
+/// sits next to the live database file, the current file is first backed
+/// up as `chronodesk-pre-restore-<timestamp>.db`, the marker is swapped
+/// in, and any stale `-wal` / `-shm` sidecars of either file are
+/// discarded (the old WAL must not survive its database file).
+///
+/// Called by [`Database::initialize_at`] **before** the pool is created,
+/// so no connection can hold the files open — swapping a live WAL
+/// database under an open pool is exactly the hazard this design avoids.
+///
+/// Returns whether a restore was applied.
+async fn apply_pending_restore(db_path: &Path) -> Result<bool, DatabaseError> {
+    let marker = db_path.with_file_name(RESTORE_PENDING_FILE);
+    if !marker.exists() {
+        return Ok(false);
+    }
+
+    let stamp = Utc::now().format("%Y%m%dT%H%M%S%.6fZ");
+    let safety = db_path.with_file_name(format!("{PRE_RESTORE_BACKUP_PREFIX}{stamp}.db"));
+    tokio::fs::copy(db_path, &safety)
+        .await
+        .map_err(|e| DatabaseError::IoError(e.to_string()))?;
+
+    for target in [db_path, &marker] {
+        for suffix in ["-wal", "-shm"] {
+            let sidecar = std::path::PathBuf::from(format!("{}{suffix}", target.display()));
+            let _ = tokio::fs::remove_file(&sidecar).await;
+        }
+    }
+
+    tokio::fs::rename(&marker, db_path)
+        .await
+        .map_err(|e| DatabaseError::IoError(e.to_string()))?;
+
+    tracing::warn!(
+        path = %db_path.display(),
+        safety = %safety.display(),
+        "staged restore applied on launch"
+    );
+    Ok(true)
+}
 
 /// Owns the application's SQLite connection pool.
 ///
@@ -86,6 +140,14 @@ impl Database {
     ///   in an unknown schema state.
     pub async fn initialize_at(db_path: &Path) -> Result<Database, DatabaseError> {
         tracing::info!(path = %db_path.display(), "initializing database");
+
+        // A validated restore staged by a previous session (RC-10 M3) is
+        // swapped in here, before any connection is opened, so the swap is
+        // atomic from SQLite's point of view.
+        let applied = apply_pending_restore(db_path).await?;
+        if applied {
+            tracing::info!("pending restore applied before opening the pool");
+        }
 
         let pool = connection::create_pool(db_path).await?;
         migrations::run(&pool).await?;
@@ -170,6 +232,88 @@ mod tests {
         assert!(
             result.is_err(),
             "expected a foreign key violation when workspace_id doesn't exist"
+        );
+    }
+
+    #[tokio::test]
+    async fn pending_restore_is_applied_before_the_pool_opens() {
+        let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
+        let db_path = temp_dir.path().join("test.db");
+
+        // Live database with one workspace.
+        let live = Database::initialize_at(&db_path).await.expect("live init");
+        sqlx::query(
+            "INSERT INTO workspaces (id, name, created_at, updated_at, last_active_at)
+             VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'live', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+        )
+        .execute(live.pool())
+        .await
+        .expect("insert live workspace");
+        drop(live);
+
+        // A second database (the "restore source") with different content.
+        // Rows are written, then a checkpoint flushes the WAL into the
+        // main file so the renamed file is self-contained (a real restore
+        // goes through `VACUUM INTO`, which produces exactly such a file —
+        // no WAL sidecars).
+        let source_path = temp_dir.path().join("source.db");
+        let source = Database::initialize_at(&source_path)
+            .await
+            .expect("source init");
+        sqlx::query(
+            "INSERT INTO workspaces (id, name, created_at, updated_at, last_active_at)
+             VALUES ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'restored', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+        )
+        .execute(source.pool())
+        .await
+        .expect("insert restored workspace");
+        sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+            .execute(source.pool())
+            .await
+            .expect("checkpoint restored source");
+        drop(source);
+
+        // Stage the source as the pending restore and re-initialize.
+        tokio::fs::rename(&source_path, temp_dir.path().join(RESTORE_PENDING_FILE))
+            .await
+            .expect("stage restore marker");
+
+        let reopened = Database::initialize_at(&db_path)
+            .await
+            .expect("re-open with restore");
+
+        let (names,): (String,) = sqlx::query_as("SELECT name FROM workspaces")
+            .fetch_one(reopened.pool())
+            .await
+            .expect("read restored workspace");
+        assert_eq!(names, "restored", "restored data replaced the live data");
+
+        let safety = std::fs::read_dir(temp_dir.path())
+            .expect("read dir")
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .find(|name| name.starts_with(PRE_RESTORE_BACKUP_PREFIX));
+        assert!(safety.is_some(), "pre-restore safety backup must exist");
+    }
+
+    #[tokio::test]
+    async fn initialize_without_marker_is_unchanged() {
+        let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
+        let db_path = temp_dir.path().join("test.db");
+
+        Database::initialize_at(&db_path).await.expect("first init");
+        Database::initialize_at(&db_path)
+            .await
+            .expect("second init");
+
+        let names = std::fs::read_dir(temp_dir.path())
+            .expect("read dir")
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert!(
+            !names.iter().any(|n| n == RESTORE_PENDING_FILE),
+            "no restore should be applied without a marker"
         );
     }
 }

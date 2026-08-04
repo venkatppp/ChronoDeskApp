@@ -69,6 +69,7 @@ pub mod hashing;
 pub mod intelligence;
 pub mod learning;
 pub mod llm;
+pub mod maintenance;
 pub mod ml;
 pub mod models;
 pub mod performance;
@@ -94,6 +95,7 @@ use duplicates::DuplicateDetectionEngine;
 use graph::GraphEngine;
 use intelligence::health::{HealthService, WorkspaceHealthEngine};
 use intelligence::recommendation::RecommendationEngine;
+use maintenance::MaintenanceEngine;
 use performance::recovery::RecoveryManager;
 use performance::{
     BenchmarkEngine, Diagnostics, PerformanceEngine, PerformanceProfiler, StartupProfiler,
@@ -103,8 +105,9 @@ use predictive::{
 };
 use repositories::{
     ContextIntelRepository, FileRepository, GraphRepository, KgLiveRepository, KgOptRepository,
-    KgRepository, LLMRepository, MLRepository, PerformanceRepository, RecoveryRepository,
-    SearchRepository, SettingsRepository, TimelineRepository, WorkspaceRepository,
+    KgRepository, LLMRepository, MLRepository, MaintenanceRepository, PerformanceRepository,
+    RecoveryRepository, SearchRepository, SettingsRepository, TimelineRepository,
+    WorkspaceRepository,
 };
 use search::SearchEngine;
 use services::{
@@ -700,9 +703,9 @@ pub fn run() {
                 Some(graph_engine.clone()),
                 Some(semantic_search.clone()),
             );
-            let db_path = app_handle
-                .path()
-                .app_data_dir()
+            let app_data_dir = app_handle.path().app_data_dir();
+            let db_path = app_data_dir
+                .as_ref()
                 .map(|dir| dir.join("chronodesk.db").display().to_string())
                 .unwrap_or_else(|_| "unknown".to_string());
             let performance_diagnostics = Diagnostics::new(performance_repository.clone())
@@ -743,6 +746,22 @@ pub fn run() {
                 async move { recovery_manager.watchdog_loop().await }
             });
             startup_profiler.stage_end();
+
+            // --- RC-10 M3: Data Integrity & Backup ---
+            // Snapshots go to `<app-data>/backups`; the pending-restore
+            // marker sits next to the database and is swapped in by
+            // `Database::initialize_at` on the next launch.
+            let maintenance_engine = MaintenanceEngine::new(
+                MaintenanceRepository::new(pool.clone()),
+                app_data_dir
+                    .as_ref()
+                    .map(|dir| dir.join("chronodesk.db"))
+                    .unwrap_or_default(),
+                app_data_dir
+                    .as_ref()
+                    .map(|dir| dir.join("backups"))
+                    .unwrap_or_default(),
+            );
 
             // Every service/engine/repository above is managed as Tauri
             // state so command handlers can pull the one they need via
@@ -802,6 +821,7 @@ pub fn run() {
             app.manage(graph_health_service);
             app.manage(performance_engine.clone());
             app.manage(recovery_manager.clone());
+            app.manage(maintenance_engine.clone());
 
             // Persist the measured startup run once every subsystem is up.
             match tauri::async_runtime::block_on(performance_engine.record_startup()) {
@@ -1048,6 +1068,13 @@ pub fn run() {
             commands::recovery::recovery_self_heal,
             commands::recovery::recovery_rollback,
             commands::recovery::recovery_tick,
+            commands::maintenance::maintenance_integrity,
+            commands::maintenance::maintenance_backup,
+            commands::maintenance::maintenance_backups,
+            commands::maintenance::maintenance_restore,
+            commands::maintenance::maintenance_pending_restore,
+            commands::maintenance::maintenance_cancel_restore,
+            commands::maintenance::maintenance_optimize,
             commands::conversation::copilot_rename_conversation,
             commands::conversation::copilot_delete_conversation,
             commands::conversation::copilot_pin_conversation,

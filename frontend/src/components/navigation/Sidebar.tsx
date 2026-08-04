@@ -13,6 +13,7 @@ import {
   Gauge,
   ActivitySquare,
   ShieldCheck,
+  DatabaseBackup,
 } from "lucide-react";
 import { NavItem } from "@/components/navigation/NavItem";
 
@@ -30,6 +31,7 @@ const PRIMARY_NAV = [
   { to: "/memory", label: "Memory", icon: BrainCircuit },
   { to: "/performance", label: "Performance", icon: ActivitySquare },
   { to: "/recovery", label: "Recovery", icon: ShieldCheck },
+  { to: "/maintenance", label: "Maintenance", icon: DatabaseBackup },
 ] as const;
 
 export function Sidebar() {

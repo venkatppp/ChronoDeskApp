@@ -9,6 +9,7 @@
 //! public API strongly typed without relying on hand-written
 //! `sqlx::Decode`/`Encode` impls for the enums themselves.
 
+pub mod backup;
 pub mod duplicates;
 pub mod file;
 pub mod graph;

@@ -19,6 +19,7 @@ pub mod graph_opt;
 pub mod intelligence;
 pub mod learning;
 pub mod llm;
+pub mod maintenance;
 pub mod memory;
 pub mod performance;
 pub mod predictive;

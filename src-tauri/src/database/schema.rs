@@ -31,7 +31,12 @@
 ///     (RC-6 M2 production vector memory system).
 /// 22 = `memory_acceptance` table (RC-6 M3 adaptive learning: the
 ///     recommendation acceptance ledger that adapts weights + confidence).
-pub const CURRENT_SCHEMA_VERSION: i64 = 22;
+/// 28 = performance profiling tables (RC-10 M1 — `performance_profiles`,
+///     `benchmark_runs`, `startup_profiles`).
+/// 29 = reliability & recovery ledger (RC-10 M2 — `recovery_journal`,
+///     `crash_reports`, `worker_health`, `recovery_history`).
+/// 30 = data integrity & backup ledger (RC-10 M3 — `backup_runs`).
+pub const CURRENT_SCHEMA_VERSION: i64 = 30;
 
 /// Table name constants. Repository query strings use literal SQL for
 /// readability (and because `sqlx::query_as` takes a plain `&str`, not a
