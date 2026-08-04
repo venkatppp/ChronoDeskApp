@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 use std::time::Duration;
+use tauri::async_runtime::JoinHandle;
 use tokio::sync::RwLock;
-use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 use crate::context_memory::ContextMemoryEngine;
@@ -70,7 +70,7 @@ impl RuntimeWorkers {
         {
             let workers = Arc::clone(&self);
             let mut shutdown_rx = workers.shutdown.subscribe();
-            let handle = tokio::spawn(async move {
+            let handle = tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(120));
                 loop {
                     tokio::select! {
@@ -93,7 +93,7 @@ impl RuntimeWorkers {
         {
             let workers = Arc::clone(&self);
             let mut shutdown_rx = workers.shutdown.subscribe();
-            let handle = tokio::spawn(async move {
+            let handle = tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(30));
                 loop {
                     tokio::select! {
@@ -116,7 +116,7 @@ impl RuntimeWorkers {
         {
             let workers = Arc::clone(&self);
             let mut shutdown_rx = workers.shutdown.subscribe();
-            let handle = tokio::spawn(async move {
+            let handle = tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(300));
                 loop {
                     tokio::select! {
@@ -139,7 +139,7 @@ impl RuntimeWorkers {
         {
             let workers = Arc::clone(&self);
             let mut shutdown_rx = workers.shutdown.subscribe();
-            let handle = tokio::spawn(async move {
+            let handle = tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(180));
                 loop {
                     tokio::select! {
@@ -162,7 +162,7 @@ impl RuntimeWorkers {
         {
             let workers = Arc::clone(&self);
             let mut shutdown_rx = workers.shutdown.subscribe();
-            let handle = tokio::spawn(async move {
+            let handle = tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(600));
                 loop {
                     tokio::select! {
@@ -183,7 +183,7 @@ impl RuntimeWorkers {
 
         // Store handles for shutdown
         let handles_lock = self.handles.clone();
-        tokio::spawn(async move {
+        tauri::async_runtime::spawn(async move {
             let mut handles_guard = handles_lock.write().await;
             *handles_guard = handles;
         });
