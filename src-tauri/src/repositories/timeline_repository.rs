@@ -164,9 +164,7 @@ impl TimelineRepository {
         // deferred `BEGIN` sqlx's `begin()` issues), which is what makes
         // the read-then-conditional-insert below atomic across
         // connections rather than merely serialized per connection.
-        sqlx::query("BEGIN IMMEDIATE")
-            .execute(&mut *conn)
-            .await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
 
         let outcome = async {
             let latest: Option<Uuid> = sqlx::query_scalar(

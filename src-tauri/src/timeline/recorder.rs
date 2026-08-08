@@ -49,9 +49,9 @@ impl TimelineRecorder {
         if let Some(path) = activity.file_path() {
             if crate::watcher::event_handler::is_ignored(std::path::Path::new(&path)) {
                 tracing::debug!(path = %path, "skipping ignored path in timeline recorder");
-                return Err(DatabaseError::InvalidInput(
-                    format!("path is inside an excluded directory: {path}"),
-                ));
+                return Err(DatabaseError::InvalidInput(format!(
+                    "path is inside an excluded directory: {path}"
+                )));
             }
         }
 

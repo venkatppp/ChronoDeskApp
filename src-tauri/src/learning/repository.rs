@@ -508,7 +508,7 @@ impl LearningRepository {
                     .map(|d| d.with_timezone(&chrono::Utc))
                     .ok()
             })
-            .unwrap_or_else(|| Utc::now()); // No activity yet: "now" is honest (nothing older exists)
+            .unwrap_or_else(Utc::now); // No activity yet: "now" is honest (nothing older exists)
 
         Ok(LearningStats {
             total_feedback_count: total_feedback,
@@ -529,9 +529,7 @@ impl LearningRepository {
     /// Returns empty per-category data when no feedback exists — the
     /// caller must treat that as "insufficient data", never as a valid
     /// accuracy reading.
-    pub async fn get_feedback_accuracy(
-        &self,
-    ) -> Result<Vec<CategoryAccuracy>, DatabaseError> {
+    pub async fn get_feedback_accuracy(&self) -> Result<Vec<CategoryAccuracy>, DatabaseError> {
         let rows: Vec<(Option<String>, String, i64)> = sqlx::query_as(
             r#"
             SELECT json_extract(context, '$.category'),

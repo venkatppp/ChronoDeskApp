@@ -152,6 +152,28 @@ describe("GraphPage", () => {
             return Promise.resolve([fileNode]);
           }
           return Promise.resolve([workspaceNode, fileNode]);
+        case "graph_edges_page":
+          return Promise.resolve({
+            edges: [
+              {
+                id: "edge-1",
+                sourceNodeType: "workspace",
+                sourceEntityId: "ws-1",
+                targetNodeType: "file",
+                targetEntityId: "file-1",
+                relationshipType: "contains",
+                weight: 1.0,
+                confidence: 1.0,
+                metadata: {},
+                createdAt: "2026-08-02T09:58:00Z",
+                updatedAt: "2026-08-02T09:58:00Z",
+              },
+            ],
+            total: 1,
+            offset: 0,
+            limit: 4000,
+            hasMore: false,
+          });
         case "graph_search":
           return Promise.resolve([fileNode]);
         case "graph_subgraph":
@@ -242,6 +264,11 @@ describe("GraphPage", () => {
       "graph_nodes",
       expect.objectContaining({ nodeTypes: expect.arrayContaining(["workspace", "file", "planner_report", "execution", "memory_record", "autonomous_session"]) }),
     );
+    // The initial graph view must load the real edge list from the
+    // backend rather than a hardcoded empty set: regression for the
+    // disconnected-graph rendering where structure/activity modes showed
+    // zero edges despite real `contains`/`related_to` relationships.
+    expect(invoke).toHaveBeenCalledWith("graph_edges_page", expect.anything());
     await findGraphNode("Alpha WS");
   });
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { KnowledgeGraphView, type GraphMode } from "@/features/graph/KnowledgeGraphView";
 import { ContextIntelPanel } from "@/features/graph/ContextIntelPanel";
 import { getGraphRepository } from "@/services/graphRepository";
+import { getGraphOptimizationRepository } from "@/services/graphOptimizationRepository";
 import type {
   KgNode,
   KgEdge,
@@ -67,23 +68,29 @@ export function GraphPage() {
   const [error, setError] = useState<string | null>(null);
 
   const graphRepo = getGraphRepository();
+  const graphOptRepo = getGraphOptimizationRepository();
 
   const fetchAllNodes = useCallback(
     async (filter: GraphNodeType | "all" = activeFilter, limit: number = INITIAL_LIMIT) => {
       setIsLoading(true);
       setError(null);
       try {
-        const [allNodes, graphStats, graphAnalytics] = await Promise.all([
+        const [allNodes, edgePage, graphStats, graphAnalytics] = await Promise.all([
           graphRepo.graphNodes(
             filter === "all" ? ["workspace", "file", "planner_report", "execution", "memory_record", "autonomous_session"] : [filter],
             undefined,
             limit,
           ),
+          // The full edge list is real backend data (structural `contains`
+          // and semantic `related_to` relationships): render it from the
+          // start instead of a hardcoded empty list so structure/activity
+          // modes actually show the graph's connections.
+          graphOptRepo.graphEdgesPage(0, MAX_LIMIT),
           graphRepo.graphKgStats(),
           graphRepo.graphAnalytics(undefined, true),
         ]);
         setNodes(allNodes);
-        setEdges([]);
+        setEdges(edgePage.edges);
         setExploring(false);
         setStats(graphStats);
         setAnalytics(graphAnalytics);
@@ -94,7 +101,7 @@ export function GraphPage() {
         setIsLoading(false);
       }
     },
-    [graphRepo, activeFilter],
+    [graphRepo, graphOptRepo, activeFilter],
   );
 
   const handleLoadMore = useCallback(() => {

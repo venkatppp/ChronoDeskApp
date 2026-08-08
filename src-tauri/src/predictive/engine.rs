@@ -192,9 +192,7 @@ impl PredictiveEngine {
         // Pattern 1: If many file edits, predict commit
         let edit_count = events
             .iter()
-            .filter(|e| {
-                e.event_type.as_str() == "edit" || e.event_type.as_str() == "create"
-            })
+            .filter(|e| e.event_type.as_str() == "edit" || e.event_type.as_str() == "create")
             .count();
 
         if edit_count > 5 {

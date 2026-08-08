@@ -104,7 +104,12 @@ impl WorkspaceHealthEngine {
         // Persist health history and sync the workspace column so the
         // dashboard/workspaces surfaces read a real, current score.
         self.health_service.save_health(&health).await?;
-        if self.workspace_repository.get_by_id(workspace_id).await.is_ok() {
+        if self
+            .workspace_repository
+            .get_by_id(workspace_id)
+            .await
+            .is_ok()
+        {
             let _ = self
                 .workspace_repository
                 .update(
@@ -182,13 +187,8 @@ impl WorkspaceHealthEngine {
             .with_ideal(24.0),
         )
         .with_metric(
-            HealthMetric::new(
-                "events_7d",
-                "Timeline events (7d)",
-                recent_events,
-                "events",
-            )
-            .with_ideal(50.0),
+            HealthMetric::new("events_7d", "Timeline events (7d)", recent_events, "events")
+                .with_ideal(50.0),
         )
         .with_metric(
             HealthMetric::new(

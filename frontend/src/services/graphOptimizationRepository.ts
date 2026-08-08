@@ -3,6 +3,7 @@ import type { GraphNodeType } from "@/types/graph";
 import type {
   BenchmarkSuiteResult,
   ConsistencyReport,
+  EdgePage,
   GraphDiagnostics,
   IntegrityCheckResult,
   NodePage,
@@ -19,6 +20,8 @@ export interface GraphOptimizationRepository {
     offset?: number,
     limit?: number,
   ): Promise<NodePage>;
+
+  graphEdgesPage(offset?: number, limit?: number): Promise<EdgePage>;
 
   // Cache & memory.
   graphCacheTrim(n: number): Promise<number>;
@@ -42,6 +45,10 @@ export class TauriGraphOptimizationRepository implements GraphOptimizationReposi
     limit?: number,
   ): Promise<NodePage> {
     return invoke<NodePage>("graph_nodes_page", { nodeTypes, workspaceId, offset, limit });
+  }
+
+  async graphEdgesPage(offset?: number, limit?: number): Promise<EdgePage> {
+    return invoke<EdgePage>("graph_edges_page", { offset, limit });
   }
 
   async graphCacheTrim(n: number): Promise<number> {

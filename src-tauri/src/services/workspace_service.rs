@@ -327,8 +327,7 @@ mod tests {
             .count();
 
         assert_eq!(
-            switches,
-            3,
+            switches, 3,
             "two creation switches + one real change (beta -> alpha)"
         );
     }
