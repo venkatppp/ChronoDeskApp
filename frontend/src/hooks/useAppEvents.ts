@@ -26,7 +26,6 @@ export function useAppEvents(eventNames: string[], onEvent: () => void) {
 
     async function subscribe() {
       try {
-        console.log("Subscribing:", eventNames);
         for (const name of eventNames) {
           const unlisten = await listen(name, () => {
             onEventRef.current();

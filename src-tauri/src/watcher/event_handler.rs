@@ -24,15 +24,31 @@ use super::debounce::DebouncedEventKind;
 /// appear in a watched tree — build output and VCS/dependency
 /// directories generate enormous, uninteresting event volume and are
 /// explicitly called out by the blueprint's ignore-list requirement.
+///
+/// This is the single source of truth for generated/build/dependency
+/// exclusions; the timeline recorder applies the same filter
+/// (`crate::watcher::event_handler::is_ignored`) as defense-in-depth so
+/// no layer (timeline, search, knowledge graph, semantic, analytics)
+/// can ingest these paths.
 const IGNORED_DIR_NAMES: &[&str] = &[
     ".git",
     "target",
     "node_modules",
     "dist",
     "build",
+    "out",
+    ".cache",
+    "coverage",
     ".next",
+    ".turbo",
+    ".parcel-cache",
+    ".vite",
+    "vendor",
     "__pycache__",
     ".venv",
+    "venv",
+    ".pytest_cache",
+    ".mypy_cache",
 ];
 
 /// True if `path` should never generate a timeline event: it sits inside

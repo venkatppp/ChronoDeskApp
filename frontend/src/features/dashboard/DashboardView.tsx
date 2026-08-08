@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { Plus, Files, Timeline as TimelineIcon, Activity, Pin, PinOff, ExternalLink, Clock, FileText, LayoutDashboard, Search, Sparkles, ListTree, ArrowRight, FileCode } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ProgressRing } from "@/components/ui/ProgressRing";
+import { Stat } from "@/components/ui/Stat";
 import { useDashboardData } from "@/features/dashboard/hooks/useDashboardData";
 import { BriefingBanner } from "@/features/dashboard/components/BriefingBanner";
 import { SmartResumeBanner } from "@/features/dashboard/components/SmartResumeBanner";
@@ -160,19 +160,89 @@ export function DashboardView() {
     },
   ];
 
+  const handleResume = () => {
+    if (!resumeWorkspace) return;
+    workspaceRepo.switchWorkspace(resumeWorkspace.id).then(() => {
+      localStorage.setItem("activeWorkspaceId", resumeWorkspace.id);
+      navigate("/timeline");
+    }).catch(() => {});
+  };
+
+  const hour = new Date().getHours();
+  const greeting = hour < 5 ? "Working late" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const todayLabel = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  const resumeWorkspace = smartResumeSession
+    ? workspaces.find((w) => w.id === smartResumeSession.workspaceId) ?? mostRecentWorkspace
+    : mostRecentWorkspace;
+
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-(family-name:--font-display) text-xl font-bold">Dashboard</h1>
-          <p className="text-sm text-(--color-muted-foreground)">
-            Everything you were working on, picked up where you left off.
-          </p>
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-8 py-8 lg:px-10">
+      <div className="relative overflow-hidden rounded-[var(--radius-card)] border border-(--color-border-subtle) px-6 py-8 sm:px-8 sm:py-10">
+        <div className="pointer-events-none absolute inset-0 bg-dotgrid opacity-40" aria-hidden="true" />
+        <div className="pointer-events-none absolute -top-40 left-1/2 h-72 w-[46rem] max-w-full -translate-x-1/2 rounded-full bg-(--color-accent)/10 blur-3xl" aria-hidden="true" />
+        <div className="pointer-events-none absolute -bottom-48 -right-24 h-72 w-72 rounded-full bg-[rgba(191,90,242,0.08)] blur-3xl" aria-hidden="true" />
+        <div className="relative flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-xl">
+            <p className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-accent)">
+              <span className="h-1 w-1 rounded-full bg-(--color-accent)" />
+              {todayLabel}
+            </p>
+            <h1 className="font-(family-name:--font-display) text-4xl font-bold tracking-tight text-(--color-foreground)">
+              {greeting}.
+            </h1>
+            <p className="mt-2.5 text-sm leading-relaxed text-(--color-muted-foreground)">
+              {resumeWorkspace
+                ? `Pick up where you left off in ${resumeWorkspace.name}, or start something new.`
+                : "Everything you were working on, picked up where you left off."}
+            </p>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              {resumeWorkspace && (
+                <Button onClick={handleResume} variant="primary">
+                  <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
+                  <span className="max-w-44 truncate">Continue in {resumeWorkspace.name}</span>
+                </Button>
+              )}
+              <Button onClick={() => setShowCreateDialog(true)} variant="outline" disabled={isCreating}>
+                <Plus className="h-4 w-4" strokeWidth={1.75} />
+                New workspace
+              </Button>
+            </div>
+          </div>
+          {todaySummary && !isLoading && (
+            <div className="grid shrink-0 grid-cols-3 gap-2.5">
+              {[
+                {
+                  label: "Focus time",
+                  value: `${Math.floor(todaySummary.totalDurationSeconds / 3600)}h ${Math.floor((todaySummary.totalDurationSeconds % 3600) / 60)}m`,
+                  dot: "bg-(--color-accent)",
+                },
+                {
+                  label: "Files touched",
+                  value: String(todaySummary.fileCount),
+                  dot: "bg-(--color-success)",
+                },
+                {
+                  label: "Edits",
+                  value: String(todaySummary.editCount),
+                  dot: "bg-(--color-warning)",
+                },
+              ].map((chip) => (
+                <div
+                  key={chip.label}
+                  className="glass flex min-w-24 flex-col items-start gap-1 rounded-[var(--radius-control)] border border-(--color-border-subtle) px-3.5 py-2.5"
+                >
+                  <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-(--color-faint-foreground)">
+                    <span className={`h-1.5 w-1.5 rounded-full ${chip.dot}`} />
+                    {chip.label}
+                  </span>
+                  <span className="font-(family-name:--font-display) text-lg font-bold tabular-nums text-(--color-foreground)">
+                    {chip.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <Button onClick={() => setShowCreateDialog(true)} disabled={isCreating}>
-          <Plus className="h-4 w-4" />
-          New workspace
-        </Button>
       </div>
 
       {(error || createError) && (
@@ -272,35 +342,26 @@ export function DashboardView() {
       )}
 
       {mostRecentWorkspace && workspaceStats[mostRecentWorkspace.id] && !isLoading && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Card className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-accent-muted)">
-              <Files className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">Files</p>
-              <p className="text-lg font-bold text-(--color-foreground)">{workspaceStats[mostRecentWorkspace.id].fileCount}</p>
-            </div>
-          </Card>
-          <Card className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-accent-muted)">
-              <Activity className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">Events</p>
-              <p className="text-lg font-bold text-(--color-foreground)">{workspaceStats[mostRecentWorkspace.id].timelineEventCount}</p>
-            </div>
-          </Card>
-          <Card className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-              <ProgressRing value={workspaceStats[mostRecentWorkspace.id].healthScore} size={36} strokeWidth={3} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">Health</p>
-              <div className="flex items-center gap-2">
-                <p className="text-lg font-bold text-(--color-foreground)">{workspaceStats[mostRecentWorkspace.id].healthScore}%</p>
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <Stat
+            label="Files"
+            value={workspaceStats[mostRecentWorkspace.id].fileCount}
+            icon={<Files className="h-4 w-4" strokeWidth={1.75} />}
+            accent="accent"
+          />
+          <Stat
+            label="Events"
+            value={workspaceStats[mostRecentWorkspace.id].timelineEventCount}
+            icon={<Activity className="h-4 w-4" strokeWidth={1.75} />}
+            accent="neutral"
+          />
+          <Stat
+            label="Health"
+            value={
+              <span className="flex items-center gap-2">
+                {workspaceStats[mostRecentWorkspace.id].healthScore}%
                 <span
-                  className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${
+                  className={`text-xs font-semibold ${
                     workspaceStats[mostRecentWorkspace.id].healthScore >= 70
                       ? "text-(--color-success)"
                       : workspaceStats[mostRecentWorkspace.id].healthScore >= 40
@@ -310,25 +371,24 @@ export function DashboardView() {
                 >
                   {workspaceStats[mostRecentWorkspace.id].healthScore >= 70 ? "Good" : workspaceStats[mostRecentWorkspace.id].healthScore >= 40 ? "Fair" : "Low"}
                 </span>
-              </div>
-              <p className="text-xs text-(--color-faint-foreground)">{formatRelativeTime(workspaceStats[mostRecentWorkspace.id].lastActivity)}</p>
-            </div>
-          </Card>
-          <Card className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-warning)/20">
-              <Sparkles className="h-4 w-4 text-(--color-warning)" strokeWidth={1.75} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
-                {recommendations.length > 0 ? "Items pending" : "All clear"}
-              </p>
-              <p className="text-lg font-bold text-(--color-foreground)">
-                {recommendations.length > 0
-                  ? `${recommendations.length} item${recommendations.length > 1 ? "s" : ""}`
-                  : "No issues"}
-              </p>
-            </div>
-          </Card>
+              </span>
+            }
+            icon={<ProgressRing value={workspaceStats[mostRecentWorkspace.id].healthScore} size={36} strokeWidth={3} />}
+            hint={formatRelativeTime(workspaceStats[mostRecentWorkspace.id].lastActivity)}
+            accent={
+              workspaceStats[mostRecentWorkspace.id].healthScore >= 70
+                ? "success"
+                : workspaceStats[mostRecentWorkspace.id].healthScore >= 40
+                  ? "warning"
+                  : "danger"
+            }
+          />
+          <Stat
+            label={recommendations.length > 0 ? "Items pending" : "All clear"}
+            value={recommendations.length > 0 ? `${recommendations.length} item${recommendations.length > 1 ? "s" : ""}` : "No issues"}
+            icon={<Sparkles className="h-4 w-4" strokeWidth={1.75} />}
+            accent="warning"
+          />
         </div>
       )}
 
@@ -344,12 +404,12 @@ export function DashboardView() {
                 <button
                   key={action.label}
                   onClick={action.action}
-                  className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface) px-3.5 py-2 text-sm text-(--color-foreground) transition-all duration-200 ease-[cubic-bezier(0.32,0.08,0.24,1)] hover:border-(--color-accent) hover:bg-(--color-surface-hover) hover:shadow-[0_2px_6px_rgba(0,0,0,0.3)] focus-visible:border-(--color-accent) active:scale-[0.97]"
+                  className="group/action inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface) px-3.5 py-2 text-sm text-(--color-foreground) transition-all duration-200 ease-[var(--ease-premium)] hover:-translate-y-px hover:border-(--color-accent)/50 hover:bg-(--color-surface-hover) hover:shadow-[0_4px_12px_rgba(0,0,0,0.35)] focus-visible:border-(--color-accent) active:scale-[0.97]"
                 >
                   {action.icon}
                   <span>{action.label}</span>
                   {action.shortcut && (
-                    <kbd className="ml-1 rounded border border-(--color-border-subtle) bg-(--color-background) px-1.5 py-0.5 text-[10px] font-medium text-(--color-faint-foreground)">
+                    <kbd className="ml-1 rounded border border-(--color-border-subtle) bg-(--color-background) px-1.5 py-0.5 text-[10px] font-medium text-(--color-faint-foreground) transition-colors group-hover/action:text-(--color-muted-foreground)">
                       {action.shortcut}
                     </kbd>
                   )}

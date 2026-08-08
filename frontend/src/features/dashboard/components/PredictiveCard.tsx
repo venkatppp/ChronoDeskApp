@@ -48,7 +48,13 @@ export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) 
     );
   }
 
-  if (!predictions) {
+  if (!predictions || (
+    !predictions.currentWorkflow &&
+    !predictions.nextWorkspace &&
+    predictions.nextFiles.length === 0 &&
+    predictions.nextActions.length === 0 &&
+    !predictions.sessionContinuation
+  )) {
     return (
       <Card className="p-4">
         <div className="flex items-start gap-3">
@@ -59,7 +65,10 @@ export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) 
             <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
               Predictive Intelligence
             </p>
-            <p className="mt-1 text-sm text-(--color-muted-foreground)">Learning from your workflow...</p>
+            <p className="mt-1 text-sm text-(--color-muted-foreground)">
+              No predictions yet — ChronoDesk needs more recorded activity before it can forecast
+              your next workspace, files, or actions.
+            </p>
           </div>
         </div>
       </Card>
@@ -73,11 +82,14 @@ export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) 
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-accent-muted)">
             <Brain className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
-              Predictive Intelligence
-            </p>
-          </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
+                Predictive Intelligence
+              </p>
+              <p className="mt-0.5 text-[11px] leading-snug text-(--color-faint-foreground)">
+                Model estimates from your recorded activity — not measured facts.
+              </p>
+            </div>
         </div>
 
         <div className="space-y-3">

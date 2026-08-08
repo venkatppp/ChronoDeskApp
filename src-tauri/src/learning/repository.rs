@@ -475,6 +475,41 @@ impl LearningRepository {
             .await
             .unwrap_or(0);
 
+        // Average adjustment factor across real confidence adjustments —
+        // not a constant; 0.0 (with no rows) means "no adjustments yet".
+        let avg_confidence_adjustment: f64 = sqlx::query_scalar(
+            "SELECT COALESCE(AVG(adjustment_factor), 0.0)
+             FROM learning_confidence_adjustments",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(0.0);
+
+        // Most recent learning-relevant event (feedback, preference
+        // update, pattern observation, or confidence adjustment).
+        let last_learning_update: Option<String> = sqlx::query_scalar(
+            "SELECT MAX(latest) FROM (
+                SELECT MAX(created_at) AS latest FROM learning_feedback
+                UNION ALL
+                SELECT MAX(last_updated) AS latest FROM learning_preferences
+                UNION ALL
+                SELECT MAX(last_seen) AS latest FROM learning_patterns
+                UNION ALL
+                SELECT MAX(applied_at) AS latest FROM learning_confidence_adjustments
+             )",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(None);
+
+        let last_learning_update = last_learning_update
+            .and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .map(|d| d.with_timezone(&chrono::Utc))
+                    .ok()
+            })
+            .unwrap_or_else(|| Utc::now()); // No activity yet: "now" is honest (nothing older exists)
+
         Ok(LearningStats {
             total_feedback_count: total_feedback,
             accepted_count: accepted,
@@ -482,9 +517,59 @@ impl LearningRepository {
             acceptance_rate,
             total_preferences,
             total_patterns,
-            avg_confidence_adjustment: 1.0,
-            last_learning_update: Utc::now(),
+            avg_confidence_adjustment,
+            last_learning_update,
         })
+    }
+
+    /// Computes recommendation accuracy from real accepted/rejected
+    /// feedback, grouped by the `category` field of the feedback context
+    /// (defaulting to the target type when no category was recorded).
+    ///
+    /// Returns empty per-category data when no feedback exists — the
+    /// caller must treat that as "insufficient data", never as a valid
+    /// accuracy reading.
+    pub async fn get_feedback_accuracy(
+        &self,
+    ) -> Result<Vec<CategoryAccuracy>, DatabaseError> {
+        let rows: Vec<(Option<String>, String, i64)> = sqlx::query_as(
+            r#"
+            SELECT json_extract(context, '$.category'),
+                   action,
+                   COUNT(*)
+            FROM learning_feedback
+            WHERE action IN ('accepted', 'rejected', 'helpful', 'not_helpful')
+            GROUP BY json_extract(context, '$.category'), action
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        use std::collections::BTreeMap;
+        let mut by_category: BTreeMap<String, (i64, i64)> = BTreeMap::new();
+        for (category, action, count) in rows {
+            let key = category.unwrap_or_else(|| "General".to_string());
+            let entry = by_category.entry(key).or_insert((0, 0));
+            if matches!(action.as_str(), "accepted" | "helpful") {
+                entry.0 += count;
+            } else {
+                entry.1 += count;
+            }
+        }
+
+        Ok(by_category
+            .into_iter()
+            .map(|(category, (accepted, rejected))| CategoryAccuracy {
+                category,
+                total: accepted + rejected,
+                accepted,
+                accuracy: if accepted + rejected > 0 {
+                    accepted as f64 / (accepted + rejected) as f64
+                } else {
+                    0.0
+                },
+            })
+            .collect())
     }
 
     /// Gets recent confidence trends.

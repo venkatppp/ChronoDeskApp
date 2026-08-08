@@ -138,6 +138,44 @@ impl TimelineRepository {
 
         rows.into_iter().map(TimelineEvent::try_from).collect()
     }
+
+    /// Returns the most recent `workspace_switch` event across all
+    /// workspaces, if any. Used by [`WorkspaceService::open_workspace`]
+    /// to avoid recording a switch event for every file-system touch —
+    /// a switch event should only be appended when the active workspace
+    /// actually changed, otherwise the Timeline is drowned in noise.
+    pub async fn latest_workspace_switch(
+        &self,
+    ) -> Result<Option<TimelineEvent>, DatabaseError> {
+        let row: Option<TimelineEventRow> = sqlx::query_as(&format!(
+            "SELECT {SELECT_COLUMNS} FROM timeline_events
+             WHERE event_type = 'workspace_switch'
+             ORDER BY occurred_at DESC LIMIT 1"
+        ))
+        .fetch_optional(&self.pool)
+        .await?;
+
+        row.map(TimelineEvent::try_from).transpose()
+    }
+
+    /// Counts timeline events for a workspace since `since` (inclusive).
+    /// Feeds the workspace health engine's activity factor.
+    pub async fn count_since(
+        &self,
+        workspace_id: Uuid,
+        since: chrono::DateTime<chrono::Utc>,
+    ) -> Result<i64, DatabaseError> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM timeline_events
+             WHERE workspace_id = ? AND occurred_at >= ?",
+        )
+        .bind(workspace_id)
+        .bind(since)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count)
+    }
 }
 
 #[cfg(test)]

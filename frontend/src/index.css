@@ -13,45 +13,69 @@
 
 /* ------------------------------------------------------------------------
  * Design tokens
- * ChronoDesk is dark-mode-first. The palette is a cool graphite base with
- * a single "chrono blue" signal accent (kept out of the violet/red space
- * that Linear and Raycast already own) and an amber "deadline" accent used
- * only for time-pressure states — a deliberate nod to the product's core
- * idea: time and context are the organizing signal, not decoration.
+ * ChronoDesk is dark-mode-first, built on TRUE BLACK (#000000) like
+ * Arc / Linear / Raycast: pure black chrome with very dark charcoal
+ * panels, a single vivid "chrono blue" signal accent, and restrained
+ * amber/green/red status colors. One easing curve drives every motion.
  * ---------------------------------------------------------------------- */
 @theme {
   --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --color-background: hsl(220 16% 7%);
-  --color-surface: hsl(220 14% 10%);
-  --color-surface-hover: hsl(220 13% 14%);
-  --color-surface-raised: hsl(220 13% 12%);
-  --color-border: hsl(220 11% 20%);
-  --color-border-subtle: hsl(220 12% 15%);
+  /* Surfaces: true black background, charcoal panels layered in 3 steps. */
+  --color-background: #000000;
+  --color-surface: #0d0d11;
+  --color-surface-hover: #17171d;
+  --color-surface-raised: #121218;
+  --color-overlay: rgba(4, 4, 6, 0.72);
 
-  --color-foreground: hsl(210 25% 94%);
-  --color-muted-foreground: hsl(215 12% 60%);
-  --color-faint-foreground: hsl(215 10% 42%);
+  --color-border: #20202a;
+  --color-border-subtle: #17171f;
 
-  --color-accent: hsl(199 89% 58%);
-  --color-accent-foreground: hsl(220 25% 8%);
-  --color-accent-muted: hsl(199 60% 20%);
+  /* Text: Apple-grade contrast scale. */
+  --color-foreground: #f4f4f6;
+  --color-muted-foreground: #a3a3ad;
+  --color-faint-foreground: #67676f;
 
-  --color-warning: hsl(38 92% 55%);
-  --color-warning-foreground: hsl(220 25% 8%);
-  --color-success: hsl(152 55% 45%);
-  --color-danger: hsl(0 72% 58%);
+  /* Accent: vivid system blue — the single signal color. */
+  --color-accent: #0a84ff;
+  --color-accent-foreground: #ffffff;
+  --color-accent-muted: rgba(10, 132, 255, 0.14);
 
-  --radius-card: 0.875rem;
-  --radius-control: 0.5rem;
+  /* Status colors, kept for meaning not decoration. */
+  --color-warning: #ffb454;
+  --color-warning-foreground: #1a1408;
+  --color-success: #32d74b;
+  --color-success-foreground: #05130a;
+  --color-danger: #ff453a;
+  --color-danger-foreground: #ffffff;
+
+  /* Geometry. */
+  --radius-card: 1rem;
+  --radius-control: 0.625rem;
+  --radius-pill: 999px;
+
+  /* Elevation. */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.02);
+  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.6), 0 1px 4px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 0 1px rgba(10, 132, 255, 0.35), 0 4px 24px rgba(10, 132, 255, 0.25);
+
+  /* The one easing curve used everywhere. */
+  --ease-premium: cubic-bezier(0.32, 0.08, 0.24, 1);
 
   --animate-pulse-line: pulse-line 3.2s ease-in-out infinite;
-  --animate-fade-in: fade-in 0.28s cubic-bezier(0.32, 0.08, 0.24, 1);
+  --animate-fade-in: fade-in 0.28s var(--ease-premium);
   --animate-scale-in: scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-  --animate-slide-up: slide-up 0.3s cubic-bezier(0.32, 0.08, 0.24, 1);
-  --animate-slide-down: slide-down 0.2s cubic-bezier(0.32, 0.08, 0.24, 1);
+  --animate-slide-up: slide-up 0.3s var(--ease-premium);
+  --animate-slide-down: slide-down 0.2s var(--ease-premium);
+  --animate-grow-bar: grow-bar 0.6s var(--ease-premium);
+  --animate-breathe: breathe 2.4s ease-in-out infinite;
+  --animate-shimmer: shimmer 2.2s linear infinite;
+  --animate-edge-flow: edge-flow 1.4s linear infinite;
+  --animate-pulse-ring: pulse-ring 2.4s var(--ease-premium) infinite;
+  --animate-float: float 5s ease-in-out infinite;
 
   @keyframes pulse-line {
     0%,
@@ -106,27 +130,81 @@
       transform: translateY(0);
     }
   }
+
+  @keyframes grow-bar {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes breathe {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.06);
+    }
+  }
+
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  @keyframes edge-flow {
+    to {
+      stroke-dashoffset: -20;
+    }
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(1);
+      opacity: 0.7;
+    }
+    100% {
+      transform: scale(1.55);
+      opacity: 0;
+    }
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-5px);
+    }
+  }
 }
 
-/* Light theme override. Dark is the default (see :root has no class needed);
-   applying `.light` on <html> swaps every token in one place. */
+/* Light theme override — kept for accessibility; dark is the default. */
 .light {
-  --color-background: hsl(210 20% 98%);
-  --color-surface: hsl(0 0% 100%);
-  --color-surface-hover: hsl(210 20% 95%);
-  --color-surface-raised: hsl(0 0% 100%);
-  --color-border: hsl(214 16% 88%);
-  --color-border-subtle: hsl(214 18% 92%);
+  --color-background: #f5f5f7;
+  --color-surface: #ffffff;
+  --color-surface-hover: #ececf0;
+  --color-surface-raised: #ffffff;
+  --color-border: #d9d9e0;
+  --color-border-subtle: #e4e4ea;
 
-  --color-foreground: hsl(220 20% 12%);
-  --color-muted-foreground: hsl(215 12% 40%);
-  --color-faint-foreground: hsl(215 10% 55%);
+  --color-foreground: #1d1d1f;
+  --color-muted-foreground: #55555c;
+  --color-faint-foreground: #8a8a92;
 
-  --color-accent: hsl(201 89% 45%);
-  --color-accent-foreground: hsl(0 0% 100%);
-  --color-accent-muted: hsl(201 70% 92%);
-
-  --color-warning-foreground: hsl(0 0% 100%);
+  --color-accent: #0071e3;
+  --color-accent-muted: rgba(0, 113, 227, 0.12);
+  --color-warning-foreground: #1a1408;
   color-scheme: light;
 }
 
@@ -187,4 +265,37 @@
       scroll-behavior: auto !important;
     }
   }
+}
+
+/* ------------------------------------------------------------------------
+ * Shared component utilities — one vocabulary for every page.
+ * ---------------------------------------------------------------------- */
+
+/* Subtle dot-grid backdrop for the graph canvas and hero sections. */
+@utility bg-dotgrid {
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.045) 1px, transparent 0);
+  background-size: 22px 22px;
+}
+
+/* Frosted panel — used for floating toolbars over the graph. */
+@utility glass {
+  background: var(--color-overlay);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+}
+
+/* Skeleton shimmer line. */
+@utility shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--color-surface) 30%,
+    var(--color-surface-hover) 50%,
+    var(--color-surface) 70%
+  );
+  background-size: 200% 100%;
+}
+
+/* Scrollable list panel with inset fade. */
+@utility scroll-fade-y {
+  mask-image: linear-gradient(to bottom, transparent 0, black 12px, black calc(100% - 12px), transparent 100%);
 }

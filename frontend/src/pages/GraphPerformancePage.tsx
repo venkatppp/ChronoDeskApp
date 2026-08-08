@@ -162,7 +162,7 @@ export function GraphPerformancePage() {
 
   return (
     <div className="mx-auto h-[calc(100vh-64px)] overflow-y-auto">
-      <div className="mx-auto max-w-6xl px-6 py-5">
+      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-8 py-8 lg:px-10">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="font-(family-name:--font-display) text-xl font-bold">

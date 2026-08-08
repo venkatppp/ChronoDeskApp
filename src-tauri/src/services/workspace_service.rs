@@ -123,9 +123,13 @@ impl WorkspaceService {
     /// knows how to write the columns it's told to, has no basis for that
     /// decision; it belongs here, one level up.
     ///
-    /// Also records a `workspace_switch` timeline event, giving the
-    /// Timeline screen a trail of when each workspace was actually
-    /// worked on, not just when its files changed.
+    /// Also records a `workspace_switch` timeline event — but only when
+    /// the workspace actually changed from the previously active one
+    /// (i.e. the latest recorded switch targeted a different workspace).
+    /// The file-watcher pipeline calls `open_workspace` on every file
+    /// touch, so unconditionally recording a switch there would drown the
+    /// Timeline in duplicate "Switched workspace" rows for one continuous
+    /// working session.
     pub async fn open_workspace(&self, id: Uuid) -> Result<Workspace, DatabaseError> {
         let current = self.workspace_repository.get_by_id(id).await?;
 
@@ -143,15 +147,22 @@ impl WorkspaceService {
 
         let workspace = self.workspace_repository.touch_last_active(id).await?;
 
-        self.timeline_repository
-            .create(NewTimelineEvent {
-                workspace_id: id,
-                file_id: None,
-                event_type: TimelineEventType::WorkspaceSwitch,
-                occurred_at: workspace.last_active_at,
-                metadata: None,
-            })
-            .await?;
+        let record_switch = match self.timeline_repository.latest_workspace_switch().await? {
+            Some(latest) => latest.workspace_id != id,
+            None => true,
+        };
+
+        if record_switch {
+            self.timeline_repository
+                .create(NewTimelineEvent {
+                    workspace_id: id,
+                    file_id: None,
+                    event_type: TimelineEventType::WorkspaceSwitch,
+                    occurred_at: workspace.last_active_at,
+                    metadata: None,
+                })
+                .await?;
+        }
 
         Ok(workspace)
     }
@@ -227,12 +238,14 @@ mod tests {
 
         assert_eq!(reopened.status, WorkspaceStatus::Active);
 
-        // create_workspace (1) + open_workspace (1) = 2 timeline events.
+        // create_workspace recorded the first switch; re-opening the same
+        // workspace must NOT append a duplicate switch event — the
+        // workspace didn't change, so the timeline stays noise-free.
         let events = timeline_repository
             .list_by_workspace(workspace.id, None)
             .await
             .unwrap();
-        assert_eq!(events.len(), 2);
+        assert_eq!(events.len(), 1);
     }
 
     #[tokio::test]

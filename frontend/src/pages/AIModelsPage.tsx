@@ -177,7 +177,7 @@ const AIModelsPage: React.FC = () => {
       case 'error':
         return 'bg-red-100 text-red-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-(--color-surface-hover) text-(--color-foreground)';
     }
   };
 
@@ -188,7 +188,7 @@ const AIModelsPage: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gray-500">Loading AI models...</div>
+        <div className="text-(--color-muted-foreground)">Loading AI models...</div>
       </div>
     );
   }
@@ -196,8 +196,8 @@ const AIModelsPage: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">AI Models</h1>
-        <p className="text-gray-600 mt-1">Manage local AI models for embeddings and reranking</p>
+        <h1 className="text-2xl font-bold text-(--color-foreground)">AI Models</h1>
+        <p className="text-(--color-muted-foreground) mt-1">Manage local AI models for embeddings and reranking</p>
       </div>
 
       {error && (
@@ -208,31 +208,31 @@ const AIModelsPage: React.FC = () => {
 
       {/* System Diagnostics */}
       {diagnostics && (
-        <div className="bg-white rounded-lg shadow p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">System Diagnostics</h2>
+        <div className="bg-(--color-surface) rounded-lg shadow p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-(--color-foreground)">System Diagnostics</h2>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <div className="text-sm text-gray-500">Total Memory Usage</div>
-              <div className="text-xl font-semibold text-gray-900">
+              <div className="text-sm text-(--color-muted-foreground)">Total Memory Usage</div>
+              <div className="text-xl font-semibold text-(--color-foreground)">
                 {formatBytes(diagnostics.totalMemoryUsageBytes)}
               </div>
             </div>
             <div>
-              <div className="text-sm text-gray-500">Available Memory</div>
-              <div className="text-xl font-semibold text-gray-900">
+              <div className="text-sm text-(--color-muted-foreground)">Available Memory</div>
+              <div className="text-xl font-semibold text-(--color-foreground)">
                 {formatBytes(diagnostics.systemInfo.availableMemoryBytes)}
               </div>
             </div>
             <div>
-              <div className="text-sm text-gray-500">CPU Cores</div>
-              <div className="text-xl font-semibold text-gray-900">
+              <div className="text-sm text-(--color-muted-foreground)">CPU Cores</div>
+              <div className="text-xl font-semibold text-(--color-foreground)">
                 {diagnostics.systemInfo.cpuCores}
               </div>
             </div>
           </div>
           <div className="pt-4 border-t">
-            <div className="text-sm text-gray-500">ONNX Runtime Version</div>
-            <div className="text-sm font-medium text-gray-900">
+            <div className="text-sm text-(--color-muted-foreground)">ONNX Runtime Version</div>
+            <div className="text-sm font-medium text-(--color-foreground)">
               {diagnostics.systemInfo.onnxRuntimeVersion}
             </div>
           </div>
@@ -240,18 +240,18 @@ const AIModelsPage: React.FC = () => {
       )}
 
       {/* Active Models */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-3">
-        <h2 className="text-lg font-semibold text-gray-900">Active Models</h2>
+      <div className="bg-(--color-surface) rounded-lg shadow p-6 space-y-3">
+        <h2 className="text-lg font-semibold text-(--color-foreground)">Active Models</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <div className="text-sm text-gray-500">Active Embedding Model</div>
-            <div className="text-sm font-medium text-gray-900">
+            <div className="text-sm text-(--color-muted-foreground)">Active Embedding Model</div>
+            <div className="text-sm font-medium text-(--color-foreground)">
               {activeEmbeddingModel || 'None (using local fallback)'}
             </div>
           </div>
           <div>
-            <div className="text-sm text-gray-500">Active Reranker Model</div>
-            <div className="text-sm font-medium text-gray-900">
+            <div className="text-sm text-(--color-muted-foreground)">Active Reranker Model</div>
+            <div className="text-sm font-medium text-(--color-foreground)">
               {activeRerankerModel || 'None'}
             </div>
           </div>
@@ -260,13 +260,13 @@ const AIModelsPage: React.FC = () => {
 
       {/* Model List */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900">Available Models</h2>
+        <h2 className="text-lg font-semibold text-(--color-foreground)">Available Models</h2>
         {models.map((model) => (
-          <div key={model.metadata.id} className="bg-white rounded-lg shadow p-6">
+          <div key={model.metadata.id} className="bg-(--color-surface) rounded-lg shadow p-6">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-semibold text-gray-900">
+                  <h3 className="text-lg font-semibold text-(--color-foreground)">
                     {model.metadata.name}
                   </h3>
                   <span
@@ -280,43 +280,43 @@ const AIModelsPage: React.FC = () => {
                     {model.metadata.modelType}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 mt-1">{model.metadata.description}</p>
+                <p className="text-sm text-(--color-muted-foreground) mt-1">{model.metadata.description}</p>
                 <div className="grid grid-cols-3 gap-4 mt-3 text-sm">
                   <div>
-                    <span className="text-gray-500">Version:</span>{' '}
-                    <span className="text-gray-900">{model.metadata.version}</span>
+                    <span className="text-(--color-muted-foreground)">Version:</span>{' '}
+                    <span className="text-(--color-foreground)">{model.metadata.version}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Dimensions:</span>{' '}
-                    <span className="text-gray-900">{model.metadata.dimensions}</span>
+                    <span className="text-(--color-muted-foreground)">Dimensions:</span>{' '}
+                    <span className="text-(--color-foreground)">{model.metadata.dimensions}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Size:</span>{' '}
-                    <span className="text-gray-900">
+                    <span className="text-(--color-muted-foreground)">Size:</span>{' '}
+                    <span className="text-(--color-foreground)">
                       {formatBytes(model.metadata.fileSizeBytes)}
                     </span>
                   </div>
                 </div>
                 {model.memoryUsageBytes && (
                   <div className="mt-2 text-sm">
-                    <span className="text-gray-500">Memory Usage:</span>{' '}
-                    <span className="text-gray-900">{formatBytes(model.memoryUsageBytes)}</span>
+                    <span className="text-(--color-muted-foreground)">Memory Usage:</span>{' '}
+                    <span className="text-(--color-foreground)">{formatBytes(model.memoryUsageBytes)}</span>
                   </div>
                 )}
                 {model.errorMessage && (
-                  <div className="mt-2 text-sm text-red-600">{model.errorMessage}</div>
+                  <div className="mt-2 text-sm text-(--color-danger)">{model.errorMessage}</div>
                 )}
                 {downloadProgress[model.metadata.id] && (
                   <div className="mt-3">
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-600">Downloading...</span>
-                      <span className="text-gray-900">
+                      <span className="text-(--color-muted-foreground)">Downloading...</span>
+                      <span className="text-(--color-foreground)">
                         {downloadProgress[model.metadata.id].progressPercent.toFixed(1)}%
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-(--color-surface-hover) rounded-full h-2">
                       <div
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        className="bg-(--color-accent) h-2 rounded-full transition-all duration-300"
                         style={{
                           width: `${downloadProgress[model.metadata.id].progressPercent}%`,
                         }}
@@ -329,7 +329,7 @@ const AIModelsPage: React.FC = () => {
                 {model.status === 'not_downloaded' && (
                   <button
                     onClick={() => handleDownload(model.metadata.id)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                    className="px-4 py-2 bg-(--color-accent) text-white rounded hover:bg-(--color-accent) transition"
                   >
                     Download
                   </button>
@@ -337,7 +337,7 @@ const AIModelsPage: React.FC = () => {
                 {model.status === 'downloaded' && (
                   <button
                     onClick={() => handleLoad(model.metadata.id)}
-                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                    className="px-4 py-2 bg-(--color-success) text-white rounded hover:bg-green-700 transition"
                   >
                     Load
                   </button>
@@ -345,7 +345,7 @@ const AIModelsPage: React.FC = () => {
                 {model.status === 'loaded' && (
                   <button
                     onClick={() => handleUnload(model.metadata.id)}
-                    className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition"
+                    className="px-4 py-2 rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-hover) text-(--color-muted-foreground) transition hover:text-(--color-foreground)"
                   >
                     Unload
                   </button>
@@ -358,29 +358,29 @@ const AIModelsPage: React.FC = () => {
 
       {/* Inference Statistics */}
       {diagnostics && Object.keys(diagnostics.inferenceStats).length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Inference Statistics</h2>
+        <div className="bg-(--color-surface) rounded-lg shadow p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-(--color-foreground)">Inference Statistics</h2>
           {Object.values(diagnostics.inferenceStats).map((stats) => (
             <div key={stats.modelId} className="border-t pt-4 first:border-t-0 first:pt-0">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">{stats.modelId}</h3>
+              <h3 className="text-sm font-semibold text-(--color-foreground) mb-3">{stats.modelId}</h3>
               <div className="grid grid-cols-4 gap-4 text-sm">
                 <div>
-                  <div className="text-gray-500">Total Inferences</div>
-                  <div className="text-gray-900 font-medium">{stats.totalInferences}</div>
+                  <div className="text-(--color-muted-foreground)">Total Inferences</div>
+                  <div className="text-(--color-foreground) font-medium">{stats.totalInferences}</div>
                 </div>
                 <div>
-                  <div className="text-gray-500">Cache Hit Rate</div>
-                  <div className="text-gray-900 font-medium">
+                  <div className="text-(--color-muted-foreground)">Cache Hit Rate</div>
+                  <div className="text-(--color-foreground) font-medium">
                     {(stats.cacheHitRate * 100).toFixed(1)}%
                   </div>
                 </div>
                 <div>
-                  <div className="text-gray-500">Avg Latency</div>
-                  <div className="text-gray-900 font-medium">{stats.avgLatencyMs.toFixed(2)} ms</div>
+                  <div className="text-(--color-muted-foreground)">Avg Latency</div>
+                  <div className="text-(--color-foreground) font-medium">{stats.avgLatencyMs.toFixed(2)} ms</div>
                 </div>
                 <div>
-                  <div className="text-gray-500">P95 Latency</div>
-                  <div className="text-gray-900 font-medium">{stats.p95LatencyMs.toFixed(2)} ms</div>
+                  <div className="text-(--color-muted-foreground)">P95 Latency</div>
+                  <div className="text-(--color-foreground) font-medium">{stats.p95LatencyMs.toFixed(2)} ms</div>
                 </div>
               </div>
             </div>

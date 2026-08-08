@@ -18,8 +18,7 @@ export const BACKEND_EVENTS = {
   recommendationUpdated: "recommendation:updated",
   healthUpdated: "health:updated",
   snapshotCreated: "snapshot:created",
-  searchIndexed: "search:indexed",
-  graphEdgeAdded: "graph:edge_added",
+  graphUpdated: "graph:updated",
 } as const;
 
 /** Every event that should trigger a dashboard refresh. */

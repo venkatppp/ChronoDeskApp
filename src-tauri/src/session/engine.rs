@@ -166,7 +166,23 @@ impl SessionEngine {
             .map(|s| s.factors.clone())
             .unwrap_or_default();
 
-        // Create mini-timeline: show up to 10 most recent events
+        // Create mini-timeline: show up to 10 most recent events with
+        // real file names resolved from the files table.
+        let file_ids: Vec<Uuid> = session.events.iter().filter_map(|e| e.file_id).collect();
+        let files = self.fetch_files(&file_ids).await?;
+        let name_by_id: std::collections::HashMap<Uuid, String> = files
+            .into_iter()
+            .map(|f| {
+                let name = f
+                    .path_or_url
+                    .split(['/', '\\'])
+                    .next_back()
+                    .unwrap_or(&f.path_or_url)
+                    .to_string();
+                (f.id, name)
+            })
+            .collect();
+
         let recent_events = session
             .events
             .iter()
@@ -175,7 +191,7 @@ impl SessionEngine {
             .map(|e| SessionEventSummary {
                 occurred_at: e.occurred_at,
                 event_type: e.event_type.as_str().to_string(),
-                file_name: e.file_id.map(|_| "file".to_string()),
+                file_name: e.file_id.and_then(|id| name_by_id.get(&id).cloned()),
                 description: format!("{}", e.event_type),
             })
             .collect();

@@ -16,8 +16,8 @@ export function SavedSearches({
   if (savedSearches.length === 0) return null;
 
   return (
-    <div className="py-6 border-t border-border">
-      <div className="flex items-center gap-2 text-foreground font-semibold mb-4">
+    <div className="py-6 border-t border-(--color-border)">
+      <div className="flex items-center gap-2 text-(--color-foreground) font-semibold mb-4">
         <Bookmark className="h-4 w-4" />
         Saved Searches
       </div>
@@ -25,14 +25,14 @@ export function SavedSearches({
         {savedSearches.map((search) => (
           <div
             key={search.id}
-            className="flex items-center justify-between p-4 bg-background-secondary border border-border rounded-xl hover:border-accent/50 transition-all cursor-pointer group"
+            className="flex items-center justify-between p-4 bg-(--color-background)-secondary border border-(--color-border) rounded-xl hover:border-(--color-accent)/50 transition-all cursor-pointer group"
             onClick={() => onSelect(search.query)}
           >
             <div>
-              <div className="font-medium text-foreground group-hover:text-accent transition-colors">
+              <div className="font-medium text-(--color-foreground) group-hover:text-(--color-accent) transition-colors">
                 {search.query}
               </div>
-              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-1">
+              <div className="flex items-center gap-1.5 text-[10px] text-(--color-muted-foreground) mt-1">
                 <Calendar className="h-3 w-3" />
                 {formatRelativeTime(search.createdAt)}
               </div>
@@ -42,7 +42,7 @@ export function SavedSearches({
                 e.stopPropagation();
                 onDelete(search.id);
               }}
-              className="p-2 rounded-lg text-muted-foreground hover:bg-danger/10 hover:text-danger transition-colors opacity-0 group-hover:opacity-100"
+              className="p-2 rounded-lg text-(--color-muted-foreground) hover:bg-(--color-danger)/10 hover:text-(--color-danger) transition-colors opacity-0 group-hover:opacity-100"
             >
               <Trash2 className="h-4 w-4" />
             </button>

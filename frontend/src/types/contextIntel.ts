@@ -3,7 +3,7 @@
 // Kept separate from `types/graph.ts` because the M3 `ContextHit` shape
 // differs from the M1 context-discovery hit of the same name.
 
-import type { GraphNodeType, GraphRelationshipType, KgNode } from "./graph";
+import type { GraphNodeType, KgNode } from "./graph";
 
 export type ContextSignalType =
   | "structural"
@@ -120,67 +120,4 @@ export interface ContextIntelSnapshot {
   confidence: number;
   summary: SummaryPoint[];
   createdAt: string;
-}
-
-/** One entry of the context timeline: snapshot plus deltas vs. prior. */
-export interface ContextTimelineEntry {
-  snapshot: ContextIntelSnapshot;
-  nodesDelta: number;
-  edgesDelta: number;
-  confidenceDelta: number;
-}
-
-export type FusedHitSource = "knowledgeGraph" | "memory";
-
-/** One fused hit — memory + knowledge graph context combined. */
-export interface FusedHit {
-  node: KgNode;
-  source: FusedHitSource;
-  reason: string;
-  score: number;
-  /** Combined confidence across both channels. */
-  confidence: number;
-}
-
-/** Memory + knowledge-graph context fused for one entity. */
-export interface FusedContext {
-  source: KgNode;
-  kgHits: ContextHit[];
-  memoryHits: ContextHit[];
-  fused: FusedHit[];
-  confidence: ConfidenceBreakdown;
-  fusedAt: string;
-}
-
-/** Graph-assisted planner context retrieval around a goal anchor. */
-export interface PlannerContext {
-  goal: string;
-  /** Best graph anchor for the goal, if any. */
-  anchor: KgNode | null;
-  /** Fused context around the anchor; null when no anchor matched. */
-  context: FusedContext | null;
-  /** One-line retrieval summary shown to the planner. */
-  summary: string;
-  retrievedAt: string;
-}
-
-/** One step of an explanation chain between two nodes. */
-export interface ExplanationLink {
-  from: KgNode;
-  to: KgNode;
-  relationshipType: GraphRelationshipType;
-  reason: string;
-  score: number;
-  confidence: number;
-}
-
-/** Why-nodes-are-related explanation payload. */
-export interface ContextExplanation {
-  source: KgNode;
-  target: KgNode;
-  /** The traversal chain; empty when only heuristic overlap explains it. */
-  chain: ExplanationLink[];
-  /** One-line human summary. */
-  summary: string;
-  confidence: number;
 }

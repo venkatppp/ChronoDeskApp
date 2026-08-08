@@ -32,7 +32,7 @@ export function ProgressRing({ value, size = 44, strokeWidth = 4, className, lab
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="var(--color-border)"
+          stroke="var(--color-border-subtle)"
           strokeWidth={strokeWidth}
         />
         <circle

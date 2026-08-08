@@ -265,6 +265,10 @@ describe("GraphPage", () => {
     render(<GraphPage />);
     await findGraphNode("Alpha WS");
 
+    fireEvent.click(screen.getByRole("button", { name: /activity/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /activity/i })).toHaveClass("bg-(--color-surface-hover)");
+    });
     fireEvent.click(screen.getAllByText("Alpha WS")[0]);
     await waitFor(() => {
       expect(screen.getByText("Related context (1)")).toBeInTheDocument();
@@ -325,10 +329,10 @@ describe("GraphPage", () => {
     });
     await screen.findByText("+1 nodes · +1 edges");
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /semantic/i })).not.toBeDisabled();
+      expect(screen.getByRole("button", { name: /rescore/i })).not.toBeDisabled();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /semantic/i }));
+    fireEvent.click(screen.getByRole("button", { name: /rescore/i }));
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith("graph_rebuild_semantic_edges", expect.anything());
     });
@@ -349,6 +353,10 @@ describe("GraphPage", () => {
     render(<GraphPage />);
     await findGraphNode("Alpha WS");
 
+    fireEvent.click(screen.getByRole("button", { name: /activity/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /activity/i })).toHaveClass("bg-(--color-surface-hover)");
+    });
     fireEvent.click(screen.getAllByText("Alpha WS")[0]);
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith(
@@ -368,6 +376,10 @@ describe("GraphPage", () => {
     render(<GraphPage />);
     await findGraphNode("Alpha WS");
 
+    fireEvent.click(screen.getByRole("button", { name: /activity/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /activity/i })).toHaveClass("bg-(--color-surface-hover)");
+    });
     fireEvent.click(screen.getAllByText("Alpha WS")[0]);
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith(
@@ -392,6 +404,10 @@ describe("GraphPage", () => {
     render(<GraphPage />);
     await findGraphNode("Alpha WS");
 
+    fireEvent.click(screen.getByRole("button", { name: /activity/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /activity/i })).toHaveClass("bg-(--color-surface-hover)");
+    });
     fireEvent.click(screen.getAllByText("Alpha WS")[0]);
     await waitFor(() => {
       expect(screen.getByText("Beta WS")).toBeInTheDocument();
@@ -424,6 +440,7 @@ describe("GraphPage", () => {
     render(<GraphPage />);
     await findGraphNode("Alpha WS");
 
+    fireEvent.click(screen.getByRole("button", { name: /activity/i }));
     fireEvent.click(screen.getAllByText("Alpha WS")[0]);
     await waitFor(() => {
       expect(screen.getByText("Context intelligence")).toBeInTheDocument();

@@ -43,6 +43,18 @@ impl TimelineRecorder {
         activity: TimelineActivity,
         occurred_at: DateTime<Utc>,
     ) -> Result<TimelineEvent, DatabaseError> {
+        // Defense-in-depth: never ingest generated/dependency/build
+        // paths, even if a caller bypasses the watcher's ignore filter.
+        // `is_ignored` is the shared exclusion source of truth.
+        if let Some(path) = activity.file_path() {
+            if crate::watcher::event_handler::is_ignored(std::path::Path::new(&path)) {
+                tracing::debug!(path = %path, "skipping ignored path in timeline recorder");
+                return Err(DatabaseError::InvalidInput(
+                    format!("path is inside an excluded directory: {path}"),
+                ));
+            }
+        }
+
         let file_id = match activity.file_path() {
             Some(path) => Some(self.resolve_file(workspace_id, path).await?),
             None => None,

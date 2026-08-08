@@ -6,6 +6,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Bot } from "lucide-react";
 import { autonomousRepository } from "@/services/autonomousRepository";
 import { AutonomousDashboard } from "@/features/autonomous/AutonomousDashboard";
+import { PageContainer } from "@/components/ui/PageContainer";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
 import type { AutonomousSessionProgress } from "@/types/autonomous";
 
 export function AutonomousPage() {
@@ -30,34 +33,29 @@ export function AutonomousPage() {
   }, [loadRecent]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4 p-6">
-      <header>
-        <div className="flex items-center gap-2 mb-2">
-          <Bot className="h-5 w-5 text-(--color-accent)" />
-          <h1 className="font-(family-name:--font-display) text-lg font-semibold text-(--color-foreground)">
-            Autonomous Sessions
-          </h1>
-        </div>
-        <p className="text-sm text-(--color-muted-foreground)">
-          Live status of autonomous agent runs — budgets, reasoning, approvals, and controls.
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Runs"
+        title="Autonomous Sessions"
+        description="Live status of autonomous agent runs — budgets, reasoning, approvals, and controls."
+      />
 
       {recent.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs uppercase tracking-wider text-(--color-faint-foreground)">
-            Recent:
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-(--color-faint-foreground)">
+            Recent
           </span>
+          <span className="h-3 w-px bg-(--color-border)" />
           {recent.map((session) => (
             <button
               key={session.session_id}
               onClick={() => setSelectedId(session.session_id)}
               data-selected={session.session_id === selectedId}
               className={
-                "rounded-md border px-2.5 py-1 text-xs transition-colors " +
+                "rounded-full border px-3 py-1.5 text-xs transition-all duration-200 " +
                 (session.session_id === selectedId
-                  ? "border-(--color-accent) bg-(--color-accent-muted) text-(--color-accent)"
-                  : "border-(--color-border) bg-(--color-surface-raised) text-(--color-muted-foreground) hover:text-(--color-foreground)")
+                  ? "border-(--color-accent)/50 bg-(--color-accent)/10 text-(--color-accent)"
+                  : "border-(--color-border) bg-(--color-surface) text-(--color-muted-foreground) hover:border-(--color-border-subtle) hover:text-(--color-foreground)")
               }
             >
               {session.goal.slice(0, 40)} · {session.status}
@@ -67,16 +65,21 @@ export function AutonomousPage() {
       )}
 
       {loading && (
-        <p className="text-sm text-(--color-muted-foreground)">Loading recent sessions…</p>
+        <div className="space-y-4">
+          <div className="h-16 animate-pulse rounded-[var(--radius-card)] bg-(--color-surface)" />
+          <div className="h-72 animate-pulse rounded-[var(--radius-card)] bg-(--color-surface)" />
+        </div>
       )}
 
       {!loading && recent.length === 0 && (
-        <p className="rounded-lg border border-(--color-border) bg-(--color-surface-raised) p-4 text-sm text-(--color-muted-foreground)">
-          No autonomous sessions yet. Start one from the AI Copilot or via API.
-        </p>
+        <EmptyState
+          icon={<Bot className="h-4 w-4" strokeWidth={1.75} />}
+          title="No autonomous sessions yet"
+          description="Start one from the AI Copilot or via API — its live progress, budget, and reasoning will appear here."
+        />
       )}
 
       {selectedId && <AutonomousDashboard sessionId={selectedId} />}
-    </div>
+    </PageContainer>
   );
 }

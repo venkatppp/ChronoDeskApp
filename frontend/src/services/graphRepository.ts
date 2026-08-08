@@ -1,9 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
-  GraphView,
-  GraphEdgeType,
-  NodeDetails,
-  GraphStats,
   KgNode,
   KgSubgraph,
   GraphPath,
@@ -11,34 +7,20 @@ import type {
   GraphSyncSummary,
   KgStats,
   GraphNodeType,
-  EntitySyncResult,
   SemanticEdgeResult,
   EdgeDecaySummary,
   GraphAnalytics,
-  MultiHopContext,
-  GraphRecommendation,
   RelationshipDetails,
-  QueryCacheStats,
 } from "@/types/graph";
 import type {
-  ContextExplanation,
   ContextInference,
   ContextIntelSnapshot,
-  ContextTimelineEntry,
-  FusedContext,
   GoalCluster,
   KnowledgeSummary,
-  PlannerContext,
   WorkspaceSimilarityResult,
 } from "@/types/contextIntel";
-import type { SearchEntityType } from "@/types/search";
 
 export interface GraphRepository {
-  // Legacy (Phase 4) graph_edges view.
-  getGraph(workspaceId?: string, edgeTypes?: GraphEdgeType[]): Promise<GraphView>;
-  getNodeDetails(entityId: string, entityType: SearchEntityType): Promise<NodeDetails>;
-  getGraphStats(workspaceId?: string): Promise<GraphStats>;
-
   // RC-8 knowledge graph.
   syncGraph(): Promise<GraphSyncSummary>;
   searchGraphNodes(query: string, nodeTypes?: GraphNodeType[], limit?: number): Promise<KgNode[]>;
@@ -60,25 +42,10 @@ export interface GraphRepository {
 
   // RC-8 M2: live knowledge graph.
   graphIncrementalSync(): Promise<GraphSyncSummary>;
-  graphSyncEntity(nodeType: GraphNodeType, entityId: string): Promise<EntitySyncResult>;
   graphRebuildSemanticEdges(maxNodes?: number): Promise<SemanticEdgeResult>;
   graphApplyEdgeDecay(): Promise<EdgeDecaySummary>;
   graphAnalytics(workspaceId?: string, cached?: boolean): Promise<GraphAnalytics>;
-  graphExpandContext(
-    nodeType: GraphNodeType,
-    entityId: string,
-    hops?: number,
-    limit?: number,
-    cached?: boolean,
-  ): Promise<MultiHopContext>;
-  graphRecommendations(
-    nodeType: GraphNodeType,
-    entityId: string,
-    limit?: number,
-    cached?: boolean,
-  ): Promise<GraphRecommendation[]>;
   graphRelationshipDetails(nodeType: GraphNodeType, entityId: string): Promise<RelationshipDetails>;
-  graphCacheStats(): Promise<QueryCacheStats>;
 
   // RC-8 M3: context intelligence.
   graphInferContext(
@@ -97,34 +64,9 @@ export interface GraphRepository {
   ): Promise<KnowledgeSummary>;
   graphSnapshotCreate(workspaceId: string, snapshotType?: string): Promise<ContextIntelSnapshot>;
   graphSnapshotList(workspaceId: string, limit?: number): Promise<ContextIntelSnapshot[]>;
-  graphContextTimeline(workspaceId: string, limit?: number): Promise<ContextTimelineEntry[]>;
-  graphFusedContext(
-    nodeType: GraphNodeType,
-    entityId: string,
-    cached?: boolean,
-  ): Promise<FusedContext>;
-  graphPlannerContext(goal: string, cached?: boolean): Promise<PlannerContext>;
-  graphExplain(
-    sourceNodeType: GraphNodeType,
-    sourceEntityId: string,
-    targetNodeType: GraphNodeType,
-    targetEntityId: string,
-  ): Promise<ContextExplanation>;
 }
 
 export class TauriGraphRepository implements GraphRepository {
-  async getGraph(workspaceId?: string, edgeTypes?: GraphEdgeType[]): Promise<GraphView> {
-    return invoke<GraphView>("get_graph", { workspaceId, edgeTypes });
-  }
-
-  async getNodeDetails(entityId: string, entityType: SearchEntityType): Promise<NodeDetails> {
-    return invoke<NodeDetails>("get_node_details", { entityId, entityType });
-  }
-
-  async getGraphStats(workspaceId?: string): Promise<GraphStats> {
-    return invoke<GraphStats>("get_graph_stats", { workspaceId });
-  }
-
   async syncGraph(): Promise<GraphSyncSummary> {
     return invoke<GraphSyncSummary>("graph_sync");
   }
@@ -169,10 +111,6 @@ export class TauriGraphRepository implements GraphRepository {
     return invoke<GraphSyncSummary>("graph_incremental_sync");
   }
 
-  async graphSyncEntity(nodeType: GraphNodeType, entityId: string): Promise<EntitySyncResult> {
-    return invoke<EntitySyncResult>("graph_sync_entity", { nodeType, entityId });
-  }
-
   async graphRebuildSemanticEdges(maxNodes?: number): Promise<SemanticEdgeResult> {
     return invoke<SemanticEdgeResult>("graph_rebuild_semantic_edges", { maxNodes });
   }
@@ -185,42 +123,8 @@ export class TauriGraphRepository implements GraphRepository {
     return invoke<GraphAnalytics>("graph_analytics", { workspaceId, cached });
   }
 
-  async graphExpandContext(
-    nodeType: GraphNodeType,
-    entityId: string,
-    hops?: number,
-    limit?: number,
-    cached?: boolean,
-  ): Promise<MultiHopContext> {
-    return invoke<MultiHopContext>("graph_expand_context", {
-      nodeType,
-      entityId,
-      hops,
-      limit,
-      cached,
-    });
-  }
-
-  async graphRecommendations(
-    nodeType: GraphNodeType,
-    entityId: string,
-    limit?: number,
-    cached?: boolean,
-  ): Promise<GraphRecommendation[]> {
-    return invoke<GraphRecommendation[]>("graph_recommendations", {
-      nodeType,
-      entityId,
-      limit,
-      cached,
-    });
-  }
-
   async graphRelationshipDetails(nodeType: GraphNodeType, entityId: string): Promise<RelationshipDetails> {
     return invoke<RelationshipDetails>("graph_relationship_details", { nodeType, entityId });
-  }
-
-  async graphCacheStats(): Promise<QueryCacheStats> {
-    return invoke<QueryCacheStats>("graph_cache_stats");
   }
 
   async graphInferContext(
@@ -260,36 +164,6 @@ export class TauriGraphRepository implements GraphRepository {
 
   async graphSnapshotList(workspaceId: string, limit?: number): Promise<ContextIntelSnapshot[]> {
     return invoke<ContextIntelSnapshot[]>("graph_snapshot_list", { workspaceId, limit });
-  }
-
-  async graphContextTimeline(workspaceId: string, limit?: number): Promise<ContextTimelineEntry[]> {
-    return invoke<ContextTimelineEntry[]>("graph_context_timeline", { workspaceId, limit });
-  }
-
-  async graphFusedContext(
-    nodeType: GraphNodeType,
-    entityId: string,
-    cached?: boolean,
-  ): Promise<FusedContext> {
-    return invoke<FusedContext>("graph_fused_context", { nodeType, entityId, cached });
-  }
-
-  async graphPlannerContext(goal: string, cached?: boolean): Promise<PlannerContext> {
-    return invoke<PlannerContext>("graph_planner_context", { goal, cached });
-  }
-
-  async graphExplain(
-    sourceNodeType: GraphNodeType,
-    sourceEntityId: string,
-    targetNodeType: GraphNodeType,
-    targetEntityId: string,
-  ): Promise<ContextExplanation> {
-    return invoke<ContextExplanation>("graph_explain", {
-      sourceNodeType,
-      sourceEntityId,
-      targetNodeType,
-      targetEntityId,
-    });
   }
 }
 

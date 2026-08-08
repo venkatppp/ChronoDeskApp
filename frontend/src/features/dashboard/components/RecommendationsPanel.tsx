@@ -123,7 +123,7 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
           <button
             onClick={() => handleUndo(rec)}
             disabled={isExecuting}
-            className="flex items-center gap-1 rounded bg-(--color-warning)/10 px-2.5 py-1 text-xs font-medium text-(--color-warning) transition-colors hover:bg-(--color-warning)/20 disabled:opacity-50"
+            className="flex items-center gap-1 rounded-[var(--radius-control)] border border-(--color-warning)/30 bg-(--color-warning)/10 px-2.5 py-1 text-xs font-medium text-(--color-warning) transition-colors hover:bg-(--color-warning)/20 disabled:opacity-50"
             title="Undo action"
           >
             {isExecuting ? (
@@ -147,7 +147,7 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
         <button
           onClick={() => handleExecuteAction(rec, "archive_workspace")}
           disabled={isExecuting}
-          className="flex items-center gap-1 rounded bg-(--color-accent)/10 px-2.5 py-1 text-xs font-medium text-(--color-accent) transition-colors hover:bg-(--color-accent)/20 disabled:opacity-50"
+          className="flex items-center gap-1 rounded-[var(--radius-control)] border border-(--color-accent)/25 bg-(--color-accent)/10 px-2.5 py-1 text-xs font-medium text-(--color-accent) transition-colors hover:bg-(--color-accent)/20 disabled:opacity-50"
         >
           {isExecuting ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} /> : <Archive className="h-3 w-3" strokeWidth={2} />}
           Archive
@@ -160,7 +160,7 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
         <button
           onClick={() => handleExecuteAction(rec, "resume_previous_session")}
           disabled={isExecuting}
-          className="flex items-center gap-1 rounded bg-(--color-success)/10 px-2.5 py-1 text-xs font-medium text-(--color-success) transition-colors hover:bg-(--color-success)/20 disabled:opacity-50"
+          className="flex items-center gap-1 rounded-[var(--radius-control)] border border-(--color-success)/30 bg-(--color-success)/10 px-2.5 py-1 text-xs font-medium text-(--color-success) transition-colors hover:bg-(--color-success)/20 disabled:opacity-50"
         >
           {isExecuting ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} /> : <PlayCircle className="h-3 w-3" strokeWidth={2} />}
           Resume
@@ -173,7 +173,7 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
         <button
           onClick={() => handleExecuteAction(rec, "clean_duplicate_files")}
           disabled={isExecuting}
-          className="flex items-center gap-1 rounded bg-(--color-accent)/10 px-2.5 py-1 text-xs font-medium text-(--color-accent) transition-colors hover:bg-(--color-accent)/20 disabled:opacity-50"
+          className="flex items-center gap-1 rounded-[var(--radius-control)] border border-(--color-accent)/25 bg-(--color-accent)/10 px-2.5 py-1 text-xs font-medium text-(--color-accent) transition-colors hover:bg-(--color-accent)/20 disabled:opacity-50"
         >
           {isExecuting ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} /> : null}
           Clean
@@ -257,40 +257,19 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
           return (
             <div
               key={rec.id}
-              className={`rounded-[var(--radius-control)] border ${priority.border} ${priority.bg} p-3 transition-colors hover:bg-(--color-surface-hover)`}
+              className={`flex flex-col gap-3 rounded-[var(--radius-card)] border ${priority.border} bg-(--color-surface) p-4 shadow-[var(--shadow-card)] transition-colors hover:bg-(--color-surface-hover)`}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2.5">
-                  <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${priority.color}`} strokeWidth={2} />
-                  <div className="min-w-0">
-                    <p className={`text-xs font-semibold uppercase tracking-wide ${priority.color}`}>
-                      {priority.label}
-                    </p>
-                    <p className="mt-0.5 text-sm font-medium text-(--color-foreground)">{rec.title}</p>
-                    <p className="mt-0.5 text-xs text-(--color-muted-foreground)">{rec.description}</p>
-                    {actionResults.get(rec.id) && (
-                      <p className={`mt-1 text-xs font-medium ${actionResults.get(rec.id)?.success ? "text-(--color-success)" : "text-(--color-danger)"}`}>
-                        {actionResults.get(rec.id)?.message}
-                      </p>
-                    )}
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <span className={`inline-flex items-center gap-0.5 text-[9px] font-medium uppercase tracking-wider ${CATEGORY_COLORS[rec.category] ?? "text-(--color-faint-foreground)"}`}>
-                        {rec.category}
-                      </span>
-                      <span className="inline-flex items-center gap-0.5 text-[9px] text-(--color-faint-foreground)">
-                        <Zap className="h-2.5 w-2.5" strokeWidth={2} />
-                        Effort: {Math.round(rec.effort * 100)}%
-                      </span>
-                      <span className="inline-flex items-center gap-0.5 text-[9px] text-(--color-faint-foreground)">
-                        Impact: {Math.round(rec.impact * 100)}%
-                      </span>
-                      <span className="inline-flex items-center gap-0.5 text-[9px] text-(--color-faint-foreground)">
-                        Confidence: {Math.round(rec.confidence * 100)}%
-                      </span>
-                    </div>
-                  </div>
+              <div className="flex flex-wrap items-start justify-between gap-2.5">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border ${priority.border} ${priority.bg} px-2.5 py-1 text-[11px] font-semibold ${priority.color}`}
+                  >
+                    <Icon className="h-3 w-3" strokeWidth={2} />
+                    {priority.label}
+                  </span>
+                  <h3 className="min-w-0 truncate text-sm font-medium text-(--color-foreground)">{rec.title}</h3>
                 </div>
-                <div className="flex shrink-0 gap-1">
+                <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                   {getActionButton(rec)}
                   {rec.action.type === "open_view" && (
                     <button
@@ -298,7 +277,7 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
                         const action = rec.action as { type: "open_view"; view: string };
                         navigate(`/${action.view}`);
                       }}
-                      className="flex items-center gap-1 rounded bg-(--color-accent)/10 px-2.5 py-1 text-xs font-medium text-(--color-accent) transition-colors hover:bg-(--color-accent)/20"
+                      className="flex items-center gap-1 rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-raised) px-2.5 py-1 text-xs font-medium text-(--color-accent) transition-colors hover:border-(--color-accent)/40 hover:bg-(--color-accent)/10"
                     >
                       View
                       <ArrowRight className="h-3 w-3" strokeWidth={2} />
@@ -306,12 +285,34 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
                   )}
                   <button
                     onClick={() => setDismissed((prev) => new Set(prev).add(rec.id))}
-                    className="rounded bg-(--color-surface-hover) px-1.5 py-1 text-[10px] font-medium text-(--color-faint-foreground) transition-colors hover:text-(--color-muted-foreground)"
+                    className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-hover) text-sm text-(--color-faint-foreground) transition-colors hover:text-(--color-muted-foreground)"
                     title="Dismiss"
+                    aria-label="Dismiss recommendation"
                   >
                     &times;
                   </button>
                 </div>
+              </div>
+              <p className="text-xs leading-relaxed text-(--color-muted-foreground)">{rec.description}</p>
+              {actionResults.get(rec.id) && (
+                <p className={`text-xs font-medium ${actionResults.get(rec.id)?.success ? "text-(--color-success)" : "text-(--color-danger)"}`}>
+                  {actionResults.get(rec.id)?.message}
+                </p>
+              )}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-(--color-border-subtle) pt-3">
+                <span className={`inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider ${CATEGORY_COLORS[rec.category] ?? "text-(--color-faint-foreground)"}`}>
+                  {rec.category}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] text-(--color-faint-foreground)">
+                  <Zap className="h-2.5 w-2.5" strokeWidth={2} />
+                  Effort: {Math.round(rec.effort * 100)}%
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] text-(--color-faint-foreground)">
+                  Impact: {Math.round(rec.impact * 100)}%
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] text-(--color-faint-foreground)">
+                  Confidence: {Math.round(rec.confidence * 100)}%
+                </span>
               </div>
             </div>
           );

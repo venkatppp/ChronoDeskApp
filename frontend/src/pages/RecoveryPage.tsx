@@ -6,6 +6,9 @@ import { HistoryPanel } from "@/components/recovery/HistoryPanel";
 import { JournalPanel } from "@/components/recovery/JournalPanel";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { PageContainer } from "@/components/ui/PageContainer";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { getRecoveryRepository } from "@/services/recoveryRepository";
 import type {
   CrashReport,
@@ -113,31 +116,20 @@ export function RecoveryPage() {
   }, [refreshHealth, refreshHistory]);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-(family-name:--font-display) text-xl font-bold tracking-tight">Recovery</h1>
-        <p className="text-sm text-(--color-muted-foreground)">
-          Crash detection, checkpoint validation, watchdog monitoring, and self-healing for the ChronoDesk runtime.
-        </p>
-      </div>
-
-      <div className="flex gap-1 border-b border-(--color-border-subtle)">
-        {TABS.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => setTab(item.value)}
-            className={
-              tab === item.value
-                ? "flex items-center gap-2 border-b-2 border-(--color-accent) px-3 pb-2 text-sm font-medium text-(--color-foreground)"
-                : "flex items-center gap-2 border-b-2 border-transparent px-3 pb-2 text-sm text-(--color-muted-foreground) transition-colors hover:text-(--color-foreground)"
-            }
-          >
-            <item.icon className="h-4 w-4" />
-            {item.label}
-          </button>
-        ))}
-      </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="System"
+        title="Recovery"
+        description="Crash detection, checkpoint validation, watchdog monitoring, and self-healing for the ChronoDesk runtime."
+        actions={
+          <SegmentedControl
+            ariaLabel="Recovery views"
+            value={tab}
+            onChange={setTab}
+            options={TABS.map((t) => ({ value: t.value, label: t.label }))}
+          />
+        }
+      />
 
       <Card>
         <CardHeader className="flex-row items-start justify-between">
@@ -194,6 +186,6 @@ export function RecoveryPage() {
       {tab === "journal" && (
         <JournalPanel entries={history?.journal ?? []} loading={historyLoading} error={historyError} />
       )}
-    </div>
+    </PageContainer>
   );
 }

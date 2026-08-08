@@ -7,9 +7,20 @@ import type {
   CreateAutomationRuleRequest,
 } from "@/types/predictive";
 
+function normalizePredictionsSummary(payload: Partial<PredictionsSummary>): PredictionsSummary {
+  return {
+    nextWorkspace: payload.nextWorkspace ?? null,
+    nextFiles: Array.isArray(payload.nextFiles) ? payload.nextFiles : [],
+    nextActions: Array.isArray(payload.nextActions) ? payload.nextActions : [],
+    sessionContinuation: payload.sessionContinuation ?? null,
+    currentWorkflow: payload.currentWorkflow ?? null,
+  };
+}
+
 class PredictiveRepository {
   async getPredictionsSummary(): Promise<PredictionsSummary> {
-    return invoke("get_predictions_summary");
+    const payload = await invoke<PredictionsSummary>("get_predictions_summary");
+    return normalizePredictionsSummary(payload);
   }
 
   async getCurrentWorkflow(workspaceId: string): Promise<WorkflowState | null> {

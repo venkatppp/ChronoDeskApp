@@ -4,6 +4,9 @@ import { BenchmarkPanel } from "@/components/performance/BenchmarkPanel";
 import { DiagnosticsPanel } from "@/components/performance/DiagnosticsPanel";
 import { PerformanceDashboard } from "@/components/performance/PerformanceDashboard";
 import { getPerformanceRepository } from "@/services/performanceRepository";
+import { PageContainer } from "@/components/ui/PageContainer";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type {
   BenchmarkCategory,
   BenchmarkSuiteResult,
@@ -94,33 +97,20 @@ export function PerformancePage() {
   }, [tab, diagnostics, diagnosticsLoading, refreshDiagnostics]);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-(family-name:--font-display) text-xl font-bold tracking-tight">
-          Performance
-        </h1>
-        <p className="text-sm text-(--color-muted-foreground)">
-          Live profiling, benchmarks, startup timeline, diagnostics, and optimization for the ChronoDesk runtime.
-        </p>
-      </div>
-
-      <div className="flex gap-1 border-b border-(--color-border-subtle)">
-        {TABS.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => setTab(item.value)}
-            className={
-              tab === item.value
-                ? "flex items-center gap-2 border-b-2 border-(--color-accent) px-3 pb-2 text-sm font-medium text-(--color-foreground)"
-                : "flex items-center gap-2 border-b-2 border-transparent px-3 pb-2 text-sm text-(--color-muted-foreground) transition-colors hover:text-(--color-foreground)"
-            }
-          >
-            <item.icon className="h-4 w-4" />
-            {item.label}
-          </button>
-        ))}
-      </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="System"
+        title="Performance"
+        description="Live profiling, benchmarks, startup timeline, diagnostics, and optimization for the ChronoDesk runtime."
+        actions={
+          <SegmentedControl
+            ariaLabel="Performance views"
+            value={tab}
+            onChange={setTab}
+            options={TABS.map((t) => ({ value: t.value, label: t.label }))}
+          />
+        }
+      />
 
       {tab === "dashboard" && <PerformanceDashboard />}
       {tab === "benchmarks" && (
@@ -142,6 +132,6 @@ export function PerformancePage() {
           onOptimize={runOptimizer}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }

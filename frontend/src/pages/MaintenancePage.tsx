@@ -3,6 +3,9 @@ import { DatabaseBackup, Gauge, ShieldCheck } from "lucide-react";
 import { BackupPanel } from "@/components/maintenance/BackupPanel";
 import { IntegrityPanel } from "@/components/maintenance/IntegrityPanel";
 import { MaintenancePanel } from "@/components/maintenance/MaintenancePanel";
+import { PageContainer } from "@/components/ui/PageContainer";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { getMaintenanceRepository } from "@/services/maintenanceRepository";
 import type { BackupRun, IntegrityReport, MaintenanceReport, RestoreResult } from "@/types/backup";
 
@@ -103,36 +106,31 @@ export function MaintenancePage() {
   }, [refreshLedger]);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-(family-name:--font-display) text-xl font-bold tracking-tight">Maintenance</h1>
-        <p className="text-sm text-(--color-muted-foreground)">
-          Data integrity & backup: snapshots, staged restores, integrity checks, and the maintenance pass.
-        </p>
-      </div>
-
-      <div className="flex gap-1 border-b border-(--color-border-subtle)">
-        {TABS.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => setTab(item.value)}
-            className={
-              tab === item.value
-                ? "flex items-center gap-2 border-b-2 border-(--color-accent) px-3 pb-2 text-sm font-medium text-(--color-foreground)"
-                : "flex items-center gap-2 border-b-2 border-transparent px-3 pb-2 text-sm text-(--color-muted-foreground) transition-colors hover:text-(--color-foreground)"
-            }
-          >
-            <item.icon className="h-4 w-4" />
-            {item.label}
-          </button>
-        ))}
-      </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="System"
+        title="Maintenance"
+        description="Data integrity & backup: snapshots, staged restores, integrity checks, and the maintenance pass."
+        actions={
+          <SegmentedControl
+            ariaLabel="Maintenance views"
+            value={tab}
+            onChange={setTab}
+            options={TABS.map((t) => ({ value: t.value, label: t.label }))}
+          />
+        }
+      />
 
       {(actionMessage || actionError) && (
-        <p className={actionError ? "text-sm text-(--color-danger)" : "text-sm text-(--color-success)"}>
+        <div
+          className={`flex items-center gap-2 rounded-[var(--radius-control)] border px-4 py-2.5 text-sm ${
+            actionError
+              ? "border-(--color-danger)/25 bg-(--color-danger)/10 text-(--color-danger)"
+              : "border-(--color-success)/25 bg-(--color-success)/10 text-(--color-success)"
+          }`}
+        >
           {actionError ?? actionMessage}
-        </p>
+        </div>
       )}
 
       {tab === "backups" && (
@@ -165,6 +163,6 @@ export function MaintenancePage() {
           onRun={() => runAction("maintenance")}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }

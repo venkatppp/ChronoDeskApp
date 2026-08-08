@@ -27,7 +27,7 @@ const LANG_STYLES: Record<string, { label: string; style: React.CSSProperties }>
   git: { label: "Git", style: { color: "var(--color-warning)" } },
 };
 
-function detectLanguage(rootPath: string | null): { label: string; style: React.CSSProperties } | null {
+export function detectLanguage(rootPath: string | null): { label: string; style: React.CSSProperties } | null {
   if (!rootPath) return null;
   const lower = rootPath.toLowerCase();
   if (/cargo\.toml/.test(lower)) return LANG_STYLES.rust;

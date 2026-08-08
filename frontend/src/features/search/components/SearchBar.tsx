@@ -33,7 +33,7 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
 
   return (
     <div className="relative group w-full">
-      <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-muted-foreground group-focus-within:text-foreground transition-colors">
+      <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-(--color-muted-foreground) group-focus-within:text-(--color-foreground) transition-colors">
         {isLoading ? (
           <Loader2 className="h-5 w-5 animate-spin" />
         ) : (
@@ -47,12 +47,12 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search files, workspaces... (Cmd+K)"
         aria-label="Search files and workspaces"
-        className="w-full h-12 pl-12 pr-12 bg-surface-hover border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all text-foreground"
+        className="w-full h-12 pl-12 pr-12 bg-(--color-surface-hover) border border-(--color-border) rounded-xl focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all text-(--color-foreground)"
       />
       {query && (
         <button
           onClick={handleClear}
-          className="absolute inset-y-0 right-4 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+          className="absolute inset-y-0 right-4 flex items-center text-(--color-muted-foreground) hover:text-(--color-foreground) transition-colors"
           aria-label="Clear search"
         >
           <X className="h-5 w-5" />

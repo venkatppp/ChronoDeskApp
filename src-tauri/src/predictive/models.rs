@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 /// Prediction for the next workspace the user will switch to.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkspacePrediction {
     pub workspace_id: String,
     pub workspace_name: String,
@@ -15,6 +16,7 @@ pub struct WorkspacePrediction {
 
 /// Prediction for the next files the user will open.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FilePrediction {
     pub file_path: String,
     pub workspace_id: String,
@@ -24,6 +26,7 @@ pub struct FilePrediction {
 
 /// Prediction for the next action.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ActionPrediction {
     pub action_type: String,
     pub description: String,
@@ -33,6 +36,7 @@ pub struct ActionPrediction {
 
 /// Prediction for session continuation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionContinuationPrediction {
     pub will_continue: bool,
     pub confidence: f64,
@@ -67,6 +71,7 @@ impl WorkflowType {
 
 /// Current workflow state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowState {
     pub workflow_type: WorkflowType,
     pub started_at: DateTime<Utc>,
@@ -86,6 +91,7 @@ pub struct WorkflowTransition {
 
 /// Adaptive learning profile (aggregated only, no personal content).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LearningProfile {
     pub user_id: String,
     pub preferred_work_hours: Vec<i32>, // Hours 0-23
@@ -98,6 +104,7 @@ pub struct LearningProfile {
 
 /// Technology preference.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TechPreference {
     pub technology: String,
     pub usage_percentage: f64,
@@ -105,6 +112,7 @@ pub struct TechPreference {
 
 /// Focus pattern analysis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FocusPattern {
     pub peak_focus_hours: Vec<i32>,
     pub avg_focus_duration_minutes: i32,
@@ -113,6 +121,7 @@ pub struct FocusPattern {
 
 /// Automation rule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AutomationRule {
     pub id: i64,
     pub name: String,
@@ -186,6 +195,7 @@ pub struct AutomationExecution {
 
 /// Request to create an automation rule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateAutomationRuleRequest {
     pub name: String,
     pub enabled: bool,
@@ -197,10 +207,61 @@ pub struct CreateAutomationRuleRequest {
 
 /// Predictions summary for dashboard.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PredictionsSummary {
     pub next_workspace: Option<WorkspacePrediction>,
     pub next_files: Vec<FilePrediction>,
     pub next_actions: Vec<ActionPrediction>,
     pub session_continuation: Option<SessionContinuationPrediction>,
     pub current_workflow: Option<WorkflowState>,
+}
+
+#[cfg(test)]
+mod serialization_tests {
+    use super::*;
+
+    #[test]
+    fn predictions_summary_serializes_camel_case() {
+        let summary = PredictionsSummary {
+            next_workspace: Some(WorkspacePrediction {
+                workspace_id: "ws-1".into(),
+                workspace_name: "Main".into(),
+                confidence: 0.9,
+                reason: "frequent use".into(),
+                predicted_at: chrono::Utc::now(),
+            }),
+            next_files: vec![FilePrediction {
+                file_path: "/src/main.rs".into(),
+                workspace_id: "ws-1".into(),
+                confidence: 0.8,
+                reason: "open".into(),
+            }],
+            next_actions: vec![ActionPrediction {
+                action_type: "restore_context".into(),
+                description: "Restore".into(),
+                confidence: 0.7,
+                reason: "habit".into(),
+            }],
+            session_continuation: Some(SessionContinuationPrediction {
+                will_continue: true,
+                confidence: 0.6,
+                estimated_duration_seconds: 1200,
+                reason: "active".into(),
+            }),
+            current_workflow: Some(WorkflowState {
+                workflow_type: WorkflowType::Coding,
+                started_at: chrono::Utc::now(),
+                workspace_id: "ws-1".into(),
+                confidence: 0.5,
+                active_files: vec!["/src/main.rs".into()],
+            }),
+        };
+        let json = serde_json::to_value(&summary).unwrap();
+        assert!(json.get("nextWorkspace").is_some());
+        assert!(json.get("nextFiles").is_some());
+        assert!(json.get("nextActions").is_some());
+        assert!(json.get("sessionContinuation").is_some());
+        assert!(json.get("currentWorkflow").is_some());
+        assert!(json.get("next_files").is_none());
+    }
 }

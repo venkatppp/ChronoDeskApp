@@ -122,20 +122,20 @@ export function SearchView() {
     <div className="max-w-5xl mx-auto px-6 py-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Search</h1>
-          <p className="text-muted-foreground">Find anything across your workspaces and files.</p>
+          <h1 className="text-3xl font-bold text-(--color-foreground) mb-2">Search</h1>
+          <p className="text-(--color-muted-foreground)">Find anything across your workspaces and files.</p>
         </div>
         {query && (
           <button
             onClick={handleSaveSearch}
-            className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent hover:bg-accent/20 rounded-lg font-medium transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-(--color-accent)/10 text-(--color-accent) hover:bg-(--color-accent)/20 rounded-lg font-medium transition-all"
           >
             Save Query
           </button>
         )}
       </div>
 
-      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md pb-4">
+      <div className="sticky top-0 z-10 bg-(--color-background)/80 backdrop-blur-md pb-4">
         <SearchBar onSearch={handleSearch} isLoading={isLoading} />
         <FilterPanel
           entityTypes={entityTypes}
@@ -147,7 +147,7 @@ export function SearchView() {
       </div>
 
       {error && (
-        <div className="my-6 p-4 bg-danger/10 border border-danger/20 rounded-xl text-danger text-sm">
+        <div className="my-6 p-4 bg-(--color-danger)/10 border border-(--color-danger)/20 rounded-xl text-(--color-danger) text-sm">
           {error}
         </div>
       )}
@@ -168,7 +168,7 @@ export function SearchView() {
           
           {history.length === 0 && savedSearches.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center opacity-50">
-              <Search className="h-16 w-16 mb-4 text-muted-foreground" />
+              <Search className="h-16 w-16 mb-4 text-(--color-muted-foreground)" />
               <p className="text-lg font-medium">Start typing to search...</p>
             </div>
           )}

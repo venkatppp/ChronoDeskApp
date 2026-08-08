@@ -3,8 +3,12 @@
 // re-attach (reconnect) to the last in-flight run.
 
 import { useCallback, useEffect, useState } from "react";
+import { ListChecks } from "lucide-react";
 import { executionRepository } from "@/services/executionRepository";
 import { ExecutionDashboard } from "@/features/execution/ExecutionDashboard";
+import { PageContainer } from "@/components/ui/PageContainer";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
 import type { ExecutionProgress } from "@/types/execution";
 
 export function ExecutionPage() {
@@ -29,31 +33,29 @@ export function ExecutionPage() {
   }, [loadRecent]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4 p-6">
-      <header>
-        <h1 className="font-(family-name:--font-display) text-lg font-semibold text-(--color-foreground)">
-          Executions
-        </h1>
-        <p className="text-sm text-(--color-muted-foreground)">
-          Live status of approved plan runs — DAG progress, controls, and planner reports.
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Runs"
+        title="Executions"
+        description="Live status of approved plan runs — DAG progress, controls, and planner reports."
+      />
 
       {recent.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs uppercase tracking-wider text-(--color-faint-foreground)">
-            Recent:
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-(--color-faint-foreground)">
+            Recent
           </span>
+          <span className="h-3 w-px bg-(--color-border)" />
           {recent.map((execution) => (
             <button
               key={execution.execution_id}
               onClick={() => setSelectedId(execution.execution_id)}
               data-selected={execution.execution_id === selectedId}
               className={
-                "rounded-md border px-2.5 py-1 text-xs transition-colors " +
+                "rounded-full border px-3 py-1.5 text-xs transition-all duration-200 " +
                 (execution.execution_id === selectedId
-                  ? "border-(--color-accent) bg-(--color-accent-muted) text-(--color-accent)"
-                  : "border-(--color-border) bg-(--color-surface-raised) text-(--color-muted-foreground) hover:text-(--color-foreground)")
+                  ? "border-(--color-accent)/50 bg-(--color-accent)/10 text-(--color-accent)"
+                  : "border-(--color-border) bg-(--color-surface) text-(--color-muted-foreground) hover:border-(--color-border-subtle) hover:text-(--color-foreground)")
               }
             >
               {execution.plan?.goal ?? execution.execution_id.slice(0, 8)} · {execution.status}
@@ -63,16 +65,21 @@ export function ExecutionPage() {
       )}
 
       {loading && (
-        <p className="text-sm text-(--color-muted-foreground)">Loading recent executions…</p>
+        <div className="space-y-4">
+          <div className="h-16 animate-pulse rounded-[var(--radius-card)] bg-(--color-surface)" />
+          <div className="h-72 animate-pulse rounded-[var(--radius-card)] bg-(--color-surface)" />
+        </div>
       )}
 
       {!loading && recent.length === 0 && (
-        <p className="rounded-lg border border-(--color-border) bg-(--color-surface-raised) p-4 text-sm text-(--color-muted-foreground)">
-          No executions yet. Approve a plan in the AI Copilot to start one.
-        </p>
+        <EmptyState
+          icon={<ListChecks className="h-4 w-4" strokeWidth={1.75} />}
+          title="No executions yet"
+          description="Approve a plan in the AI Copilot to start one — its DAG progress and planner reports will appear here."
+        />
       )}
 
       {selectedId && <ExecutionDashboard executionId={selectedId} />}
-    </div>
+    </PageContainer>
   );
 }

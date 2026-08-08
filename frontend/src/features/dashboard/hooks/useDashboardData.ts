@@ -101,9 +101,21 @@ export function useDashboardData(): DashboardData {
         mostRecentWorkspace
           ? contextMemoryRepository.getLatestSnapshot(mostRecentWorkspace.id).catch(() => null)
           : Promise.resolve(null),
-        mostRecentWorkspace
-          ? contextMemoryRepository.getRelatedWorkspaces(mostRecentWorkspace.id, 0.2, 5).catch(() => [])
-          : Promise.resolve([]),
+        (async () => {
+          if (!mostRecentWorkspace) return [] as RelatedWorkspace[];
+          // Relationship detection is what makes "Related Work" real:
+          // run it before reading so the card reflects actual shared
+          // files/folders rather than an always-empty table.
+          try {
+            await contextMemoryRepository.detectWorkspaceRelationships(mostRecentWorkspace.id);
+          } catch {
+            // Detection failing must not break the dashboard; the read
+            // below will simply return whatever relationships exist.
+          }
+          return contextMemoryRepository
+            .getRelatedWorkspaces(mostRecentWorkspace.id, 0.2, 5)
+            .catch(() => [] as RelatedWorkspace[]);
+        })(),
         predictiveRepository.getPredictionsSummary().catch(() => null),
       ]);
 

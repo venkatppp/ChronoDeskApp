@@ -4,15 +4,15 @@ import { cn } from "@/utils/cn";
 import type { ReasoningEvent } from "@/types/autonomous";
 
 const PHASE_STYLE: Record<string, string> = {
-  planning: "text-blue-500",
-  executing: "text-green-500",
+  planning: "text-(--color-accent)",
+  executing: "text-(--color-success)",
   observed: "text-cyan-500",
-  replanning: "text-amber-500",
+  replanning: "text-(--color-warning)",
   awaiting_approval: "text-yellow-500",
   approval_resolved: "text-lime-500",
   budget_update: "text-purple-500",
-  pause: "text-gray-500",
-  terminal: "text-red-500",
+  pause: "text-(--color-muted-foreground)",
+  terminal: "text-(--color-danger)",
 };
 
 const PHASE_LABEL: Record<string, string> = {

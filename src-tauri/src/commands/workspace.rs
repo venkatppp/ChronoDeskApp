@@ -27,6 +27,7 @@ use crate::app_events::{
 };
 use crate::context_memory::ContextMemoryEngine;
 use crate::errors::DatabaseError;
+use crate::intelligence::health::WorkspaceHealthEngine;
 use crate::models::{CreateWorkspaceInput, UpdateWorkspaceInput, Workspace, WorkspaceStats};
 use crate::repositories::FileRepository;
 use crate::runtime::RuntimeWorkers;
@@ -66,6 +67,11 @@ pub async fn get_workspace(
 /// Aggregated statistics for a workspace — file count, timeline event
 /// count, recency, and health score — in a single round-trip.
 ///
+/// The health score is computed live from measurable signals by the
+/// workspace health engine whenever the stored score is stale (0.0 =
+/// never calculated, or older than 15 minutes), so the UI never shows
+/// a fabricated or placeholder health value.
+///
 /// Named `get_workspace_statistics` (not `get_workspace_stats`, which
 /// would collide with `commands::search::get_workspace_stats`).
 ///
@@ -74,9 +80,28 @@ pub async fn get_workspace(
 #[tauri::command]
 pub async fn get_workspace_statistics(
     service: State<'_, WorkspaceService>,
+    health_engine: State<'_, WorkspaceHealthEngine>,
     workspace_id: Uuid,
 ) -> Result<WorkspaceStats, DatabaseError> {
-    service.get_workspace_stats(workspace_id).await
+    let mut stats = service.get_workspace_stats(workspace_id).await?;
+
+    // Stale or missing health score? Recalculate from real data.
+    let fresh = health_engine.get_latest_health(workspace_id).await?;
+    let stale = match &fresh {
+        Some(health) => {
+            (chrono::Utc::now() - health.calculated_at).num_minutes() > 15
+                || stats.health_score == 0.0
+        }
+        None => true,
+    };
+    if stale {
+        let health = health_engine.calculate_health(workspace_id).await?;
+        stats.health_score = health.overall_score * 100.0;
+    } else if let Some(health) = &fresh {
+        stats.health_score = health.overall_score * 100.0;
+    }
+
+    Ok(stats)
 }
 
 /// Creates a new workspace and emits [`EVENT_WORKSPACE_CREATED`] so every

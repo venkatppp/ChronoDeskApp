@@ -1,53 +1,3 @@
-import type { SearchEntityType } from "./search";
-
-export type GraphEntityType = SearchEntityType | "folder" | "language" | "project";
-
-export type GraphEdgeType =
-  | "co_occurrence"
-  | "semantic_similarity"
-  | "explicit_reference"
-  | "derivation";
-
-export interface GraphNode {
-  entityType: GraphEntityType;
-  entityId: string;
-  title: string;
-  workspaceId: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface GraphEdge {
-  id: string;
-  sourceEntityType: GraphEntityType;
-  sourceEntityId: string;
-  targetEntityType: GraphEntityType;
-  targetEntityId: string;
-  edgeType: GraphEdgeType;
-  weight: number;
-  workspaceId: string;
-  metadata: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface GraphView {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}
-
-export interface GraphStats {
-  nodeCount: number;
-  edgeCount: number;
-  avgWeight: number;
-  maxWeight: number;
-  density: number;
-}
-
-export interface NodeDetails {
-  node: GraphNode;
-  edges: GraphEdge[];
-}
-
 // ----------------------------------------------------------------------
 // RC-8 Knowledge Graph (typed node registry + relationships)
 // ----------------------------------------------------------------------
@@ -153,16 +103,8 @@ export interface KgStats {
 
 // ----------------------------------------------------------------------
 // RC-8 M2: Live knowledge graph (incremental sync, semantic edges,
-// analytics, multi-hop context, recommendations, relationship inspector)
+// analytics, relationship inspector)
 // ----------------------------------------------------------------------
-
-/** Accounting for one entity sync (`graph_sync_entity`). */
-export interface EntitySyncResult {
-  nodeCreated: boolean;
-  nodeUpdated: boolean;
-  edgesCreated: number;
-  edgesUpdated: number;
-}
 
 /** Accounting for one semantic edge build pass. */
 export interface SemanticEdgeResult {
@@ -249,35 +191,7 @@ export interface GraphAnalytics {
   computedAt: string;
 }
 
-/** One multi-hop context hit: a node reached at `hop` edges from the source. */
-export interface MultiHopHit {
-  node: KgNode;
-  relationshipType: GraphRelationshipType | null;
-  reason: string;
-  /** Accumulated path score (edge weight × confidence × hop decay). */
-  weight: number;
-  hop: number;
-}
-
-/** Multi-hop context expansion around one entity. */
-export interface MultiHopContext {
-  source: KgNode;
-  related: MultiHopHit[];
-}
-
-/** One recommendation for related work around a node. */
-export interface GraphRecommendation {
-  node: KgNode;
-  /** Combined score: best path score plus semantic similarity. */
-  score: number;
-  reason: string;
-  /** Number of edges from the source to this node. */
-  hop: number;
-  /** The intermediate node on the best path (2-hop hits), if any. */
-  via: KgNode | null;
-}
-
-/** One relationship in the inspector: the edge plus its resolved neighbor. */
+/** The relationship inspector payload for one node. */
 export interface RelationshipDetail {
   edge: KgEdge;
   neighbor: KgNode;
@@ -287,9 +201,4 @@ export interface RelationshipDetail {
 export interface RelationshipDetails {
   node: KgNode;
   relationships: RelationshipDetail[];
-}
-
-/** Cache bookkeeping for the graph dashboard. */
-export interface QueryCacheStats {
-  cachedQueries: number;
 }

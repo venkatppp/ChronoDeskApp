@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { CreateWorkspaceInput, UpdateWorkspaceInput, Workspace, WorkspaceStats, ProductivityBrief } from "@/types/workspace";
 import type { Recommendation } from "@/types/intelligence";
-import type { TimelineEvent } from "@/types/timeline";
 import { formatRelativeTime } from "@/utils/formatRelativeTime";
 
 /**
@@ -107,40 +106,26 @@ export class TauriWorkspaceRepository implements WorkspaceRepository {
     const healthy = workspaces.filter((w) => w.healthScore >= 70);
     const attention = workspaces.filter((w) => w.healthScore < 50);
 
+    // Real measured activity for today comes from the analytics engine
+    // (session durations summed from the timeline, distinct files,
+    // edit/commit counts) — never approximated from event counts.
     let hoursWorked = 0;
     let filesEdited = 0;
-    let mostEditedFile: string | null = null;
     let mostActiveLanguage: string | null = null;
 
     try {
-      const today = now.toISOString().slice(0, 10);
-      const timeline = await invoke<TimelineEvent[]>("list_workspace_timeline", {
-        workspaceId: mostRecent.id,
-        limit: 200,
-      });
-      const todayEvents = timeline.filter((e) => e.occurredAt.slice(0, 10) === today);
-      const edits = todayEvents.filter((e) => e.eventType === "edit");
-      filesEdited = edits.length;
-
-      const editFiles = edits
-        .map((e) => e.fileId)
-        .filter(Boolean) as string[];
-      if (editFiles.length > 0) {
-        const freq: Record<string, number> = {};
-        for (const f of editFiles) freq[f] = (freq[f] || 0) + 1;
-        mostEditedFile = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      const today = await invoke<{
+        totalDurationSeconds?: number;
+        fileCount?: number;
+        editCount?: number;
+        languages?: { language: string; percentage: number }[];
+      }>("get_today_summary");
+      hoursWorked = Math.round((today.totalDurationSeconds ?? 0) / 3600);
+      filesEdited = today.editCount ?? today.fileCount ?? 0;
+      const langs = today.languages ?? [];
+      if (langs.length > 0) {
+        mostActiveLanguage = langs[0].language;
       }
-
-      const early = new Date(now);
-      early.setHours(0, 0, 0, 0);
-      let totalMs = 0;
-      for (const e of todayEvents) {
-        const ts = new Date(e.occurredAt).getTime();
-        if (ts >= early.getTime()) {
-          totalMs += 60000;
-        }
-      }
-      hoursWorked = Math.round(totalMs / 3600000);
     } catch {
       // Non-critical: default values will be used
     }
@@ -158,7 +143,7 @@ export class TauriWorkspaceRepository implements WorkspaceRepository {
       hoursWorked,
       filesEdited,
       mostActiveLanguage,
-      mostEditedFile,
+      mostEditedFile: null,
     };
   }
 

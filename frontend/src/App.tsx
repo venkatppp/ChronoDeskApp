@@ -7,7 +7,6 @@ import { TimelinePage } from "@/pages/TimelinePage";
 import { GraphPage } from "@/pages/GraphPage";
 import { GraphPerformancePage } from "@/pages/GraphPerformancePage";
 import { SearchPage } from "@/pages/SearchPage";
-import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import LearningPage from "@/pages/LearningPage";
 import { AutonomousPage } from "@/pages/AutonomousPage";
@@ -36,7 +35,6 @@ export function App() {
             <Route path="graph" element={<GraphPage />} />
             <Route path="graph/performance" element={<GraphPerformancePage />} />
             <Route path="search" element={<SearchPage />} />
-            <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="learning" element={<LearningPage />} />
             <Route path="copilot" element={<CopilotPage />} />
             <Route path="executions" element={<ExecutionPage />} />

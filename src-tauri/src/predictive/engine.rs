@@ -193,7 +193,7 @@ impl PredictiveEngine {
         let edit_count = events
             .iter()
             .filter(|e| {
-                e.event_type.as_str() == "file_modified" || e.event_type.as_str() == "file_created"
+                e.event_type.as_str() == "edit" || e.event_type.as_str() == "create"
             })
             .count();
 

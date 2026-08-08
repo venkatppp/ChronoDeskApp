@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { KnowledgeGraphView } from "@/features/graph/KnowledgeGraphView";
+import { KnowledgeGraphView, type GraphMode } from "@/features/graph/KnowledgeGraphView";
 import { ContextIntelPanel } from "@/features/graph/ContextIntelPanel";
 import { getGraphRepository } from "@/services/graphRepository";
 import type {
@@ -15,7 +15,13 @@ import type {
   EdgeDecaySummary,
 } from "@/types/graph";
 import { useAppEvents } from "@/hooks/useAppEvents";
-import { Network, RefreshCw, Search, X, Map, ChevronLeft, Sparkles, Hourglass, Activity, Gauge } from "lucide-react";
+import { Network, RefreshCw, Search, X, Map, ChevronLeft, Sparkles, Hourglass, Activity, Gauge, Boxes } from "lucide-react";
+
+const GRAPH_MODES: { value: GraphMode; label: string; icon: typeof Network }[] = [
+  { value: "structure", label: "Structure", icon: Boxes },
+  { value: "activity", label: "Activity", icon: Activity },
+  { value: "semantic", label: "Semantic", icon: Sparkles },
+];
 
 const NODE_TYPE_FILTERS: { value: GraphNodeType | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -51,6 +57,7 @@ export function GraphPage() {
   const [semanticResult, setSemanticResult] = useState<SemanticEdgeResult | null>(null);
   const [decayResult, setDecayResult] = useState<EdgeDecaySummary | null>(null);
   const [activeFilter, setActiveFilter] = useState<GraphNodeType | "all">("all");
+  const [mode, setMode] = useState<GraphMode>("structure");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<KgNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -99,7 +106,7 @@ export function GraphPage() {
     fetchAllNodes();
   }, [fetchAllNodes]);
 
-  useAppEvents(["graph:edge_added", "workspace:indexed", "graph:updated"], () => {
+  useAppEvents(["graph:updated"], () => {
     fetchAllNodes();
   });
 
@@ -287,6 +294,23 @@ export function GraphPage() {
       </div>
 
       <div className="flex shrink-0 items-center gap-3 border-b border-(--color-border-subtle) px-6 py-2.5">
+        <div className="flex shrink-0 items-center gap-0.5 rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface) p-0.5">
+          {GRAPH_MODES.map((m) => (
+            <button
+              key={m.value}
+              onClick={() => setMode(m.value)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] px-2.5 py-1 text-xs font-medium transition-colors ${
+                mode === m.value
+                  ? "bg-(--color-surface-hover) text-(--color-foreground) shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
+                  : "text-(--color-muted-foreground) hover:text-(--color-foreground)"
+              }`}
+            >
+              <m.icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <span className="h-4 w-px shrink-0 bg-(--color-border-subtle)" />
         <div className="flex items-center gap-1 overflow-x-auto">
           {NODE_TYPE_FILTERS.map((filter) => (
             <button
@@ -375,7 +399,7 @@ export function GraphPage() {
             className="flex shrink-0 items-center gap-1 rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface) px-2.5 py-1.5 text-xs font-medium text-(--color-muted-foreground) transition-colors hover:bg-(--color-surface-hover) disabled:opacity-50"
           >
             <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />
-            Semantic
+            Rescore
           </button>
           <button
             onClick={handleApplyEdgeDecay}
@@ -435,6 +459,7 @@ export function GraphPage() {
             <KnowledgeGraphView
               nodes={nodes}
               edges={edges}
+              mode={mode}
               onNodeSelect={handleNodeSelect}
               selectedNodeId={selectedNode?.entityId}
               totalHint={exploring ? nodes.length : stats?.nodeCount}

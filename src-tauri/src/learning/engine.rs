@@ -352,29 +352,28 @@ impl AdaptiveLearningEngine {
         })
     }
 
-    /// Calculates recommendation accuracy by category.
+    /// Calculates recommendation accuracy by category, from real
+    /// accepted/rejected feedback records. With zero feedback the result
+    /// is an empty dataset (`overall_accuracy: 0.0`,
+    /// `total_recommendations: 0`) — the UI must render "insufficient
+    /// data" instead of presenting an accuracy reading that no feedback
+    /// supports.
     async fn calculate_recommendation_accuracy(
         &self,
     ) -> Result<RecommendationAccuracy, DatabaseError> {
-        // This would analyze feedback grouped by category
-        // For now, return mock data
+        let category_accuracy = self.repository.get_feedback_accuracy().await?;
+        let total: i64 = category_accuracy.iter().map(|c| c.total).sum();
+
+        let overall_accuracy = if total > 0 {
+            category_accuracy.iter().map(|c| c.accepted).sum::<i64>() as f64 / total as f64
+        } else {
+            0.0
+        };
+
         Ok(RecommendationAccuracy {
-            category_accuracy: vec![
-                CategoryAccuracy {
-                    category: "Organization".to_string(),
-                    accuracy: 0.85,
-                    total: 20,
-                    accepted: 17,
-                },
-                CategoryAccuracy {
-                    category: "Productivity".to_string(),
-                    accuracy: 0.75,
-                    total: 16,
-                    accepted: 12,
-                },
-            ],
-            overall_accuracy: 0.80,
-            total_recommendations: 36,
+            category_accuracy,
+            overall_accuracy,
+            total_recommendations: total,
         })
     }
 
