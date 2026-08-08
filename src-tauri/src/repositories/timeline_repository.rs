@@ -139,23 +139,82 @@ impl TimelineRepository {
         rows.into_iter().map(TimelineEvent::try_from).collect()
     }
 
-    /// Returns the most recent `workspace_switch` event across all
-    /// workspaces, if any. Used by [`WorkspaceService::open_workspace`]
-    /// to avoid recording a switch event for every file-system touch —
-    /// a switch event should only be appended when the active workspace
-    /// actually changed, otherwise the Timeline is drowned in noise.
-    pub async fn latest_workspace_switch(
+    /// Atomically appends a `workspace_switch` event — but only when the
+    /// workspace it targets differs from the most recently recorded
+    /// switch. Returns `true` if a switch was recorded, `false` if it
+    /// was skipped as redundant.
+    ///
+    /// The check and the insert run inside a single `BEGIN IMMEDIATE`
+    /// transaction on one connection, so concurrent callers (the watcher
+    /// pipeline, the `switch_workspace` command, the copilot tool
+    /// executor) serialize at SQLite's write lock: whoever commits first
+    /// decides, and every later caller sees that committed switch and
+    /// skips. Without the transaction this was a check-then-insert race
+    /// that recorded duplicate "Switched workspace" rows for one
+    /// continuous working session.
+    pub async fn record_switch_if_latest_different(
         &self,
-    ) -> Result<Option<TimelineEvent>, DatabaseError> {
-        let row: Option<TimelineEventRow> = sqlx::query_as(&format!(
-            "SELECT {SELECT_COLUMNS} FROM timeline_events
-             WHERE event_type = 'workspace_switch'
-             ORDER BY occurred_at DESC LIMIT 1"
-        ))
-        .fetch_optional(&self.pool)
-        .await?;
+        workspace_id: Uuid,
+        occurred_at: chrono::DateTime<chrono::Utc>,
+        metadata: Option<serde_json::Value>,
+    ) -> Result<bool, DatabaseError> {
+        let mut conn = self.pool.acquire().await?;
 
-        row.map(TimelineEvent::try_from).transpose()
+        // `BEGIN IMMEDIATE` takes the write lock up front (unlike the
+        // deferred `BEGIN` sqlx's `begin()` issues), which is what makes
+        // the read-then-conditional-insert below atomic across
+        // connections rather than merely serialized per connection.
+        sqlx::query("BEGIN IMMEDIATE")
+            .execute(&mut *conn)
+            .await?;
+
+        let outcome = async {
+            let latest: Option<Uuid> = sqlx::query_scalar(
+                "SELECT workspace_id FROM timeline_events
+                 WHERE event_type = 'workspace_switch'
+                 ORDER BY occurred_at DESC, created_at DESC LIMIT 1",
+            )
+            .fetch_optional(&mut *conn)
+            .await?;
+
+            if latest.is_some_and(|latest| latest == workspace_id) {
+                return Ok::<bool, DatabaseError>(false);
+            }
+
+            let metadata_json = metadata
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(|e| {
+                    DatabaseError::InvalidInput(format!("invalid timeline event metadata: {e}"))
+                })?;
+
+            sqlx::query(
+                "INSERT INTO timeline_events (id, workspace_id, file_id, event_type, occurred_at, metadata, created_at)
+                 VALUES (?, ?, NULL, 'workspace_switch', ?, ?, ?)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(workspace_id)
+            .bind(occurred_at)
+            .bind(&metadata_json)
+            .bind(Utc::now())
+            .execute(&mut *conn)
+            .await?;
+
+            Ok::<bool, DatabaseError>(true)
+        }
+        .await;
+
+        match outcome {
+            Ok(recorded) => {
+                sqlx::query("COMMIT").execute(&mut *conn).await?;
+                Ok(recorded)
+            }
+            Err(err) => {
+                let _ = sqlx::query("ROLLBACK").execute(&mut *conn).await;
+                Err(err)
+            }
+        }
     }
 
     /// Counts timeline events for a workspace since `since` (inclusive).
@@ -266,5 +325,122 @@ mod tests {
         // Newest first: each event's occurred_at should be >= the next one's.
         assert!(events[0].occurred_at >= events[1].occurred_at);
         assert!(events[1].occurred_at >= events[2].occurred_at);
+    }
+
+    #[tokio::test]
+    async fn record_switch_if_latest_different_dedupes_across_workspaces() {
+        let (database, _guard) = test_database().await;
+        let repo = TimelineRepository::new(database.pool().clone());
+        let workspace_repo = WorkspaceRepository::new(database.pool().clone());
+        let alpha = workspace_repo
+            .create(CreateWorkspaceInput {
+                name: "Alpha".to_string(),
+                description: None,
+                root_path: None,
+            })
+            .await
+            .unwrap();
+        let beta = workspace_repo
+            .create(CreateWorkspaceInput {
+                name: "Beta".to_string(),
+                description: None,
+                root_path: None,
+            })
+            .await
+            .unwrap();
+
+        // First-ever switch for alpha: recorded.
+        assert!(repo
+            .record_switch_if_latest_different(alpha.id, Utc::now(), None)
+            .await
+            .unwrap());
+        // Same workspace again: skipped, no row appended.
+        assert!(!repo
+            .record_switch_if_latest_different(
+                alpha.id,
+                Utc::now(),
+                Some(serde_json::json!({ "reason": "workspace_created" }))
+            )
+            .await
+            .unwrap());
+        // A different workspace: recorded.
+        assert!(repo
+            .record_switch_if_latest_different(beta.id, Utc::now(), None)
+            .await
+            .unwrap());
+        // Back to alpha: recorded again (the active workspace changed).
+        assert!(repo
+            .record_switch_if_latest_different(alpha.id, Utc::now(), None)
+            .await
+            .unwrap());
+        // And once more: skipped.
+        assert!(!repo
+            .record_switch_if_latest_different(alpha.id, Utc::now(), None)
+            .await
+            .unwrap());
+
+        let switches = repo.list_recent(100).await.unwrap();
+        let switch_count = switches
+            .iter()
+            .filter(|e| e.event_type == TimelineEventType::WorkspaceSwitch)
+            .count();
+        assert_eq!(switch_count, 3);
+    }
+
+    #[tokio::test]
+    async fn concurrent_switch_recording_never_duplicates() {
+        let (database, _guard) = test_database().await;
+        let repo = TimelineRepository::new(database.pool().clone());
+        let workspace_repo = WorkspaceRepository::new(database.pool().clone());
+        let target = workspace_repo
+            .create(CreateWorkspaceInput {
+                name: "Race Target".to_string(),
+                description: None,
+                root_path: None,
+            })
+            .await
+            .unwrap();
+        let other = workspace_repo
+            .create(CreateWorkspaceInput {
+                name: "Other".to_string(),
+                description: None,
+                root_path: None,
+            })
+            .await
+            .unwrap();
+
+        // Prime the timeline with a switch for a different workspace, so
+        // every concurrent call would *want* to record a switch — the
+        // atomicity of the check-then-insert is what must hold them back.
+        repo.record_switch_if_latest_different(other.id, Utc::now(), None)
+            .await
+            .unwrap();
+
+        let mut set = tokio::task::JoinSet::new();
+        for _ in 0..8 {
+            let repo = repo.clone();
+            let id = target.id;
+            set.spawn(async move {
+                repo.record_switch_if_latest_different(id, Utc::now(), None)
+                    .await
+                    .unwrap()
+            });
+        }
+
+        let mut recorded = 0usize;
+        while let Some(result) = set.join_next().await {
+            recorded += usize::from(result.unwrap());
+        }
+
+        assert_eq!(
+            recorded, 1,
+            "exactly one of the concurrent calls may record a switch"
+        );
+        let switches = repo.list_recent(100).await.unwrap();
+        let switch_count = switches
+            .iter()
+            .filter(|e| e.event_type == TimelineEventType::WorkspaceSwitch)
+            .count();
+        assert_eq!(switch_count, 2, "priming switch + exactly one winner");
     }
 }

@@ -54,10 +54,14 @@ impl WorkspaceManager {
 
     /// Finds the existing workspace for an already-detected root, or
     /// creates one. Either way, the returned workspace has just been
-    /// "opened" (`last_active_at` bumped, a `workspace_switch` timeline
-    /// event recorded — see [`WorkspaceService::open_workspace`]): any
-    /// file activity within a workspace's root is evidence the workspace
-    /// is currently being worked on.
+    /// "opened" (`last_active_at` bumped — see
+    /// [`WorkspaceService::open_workspace`]): any file activity within a
+    /// workspace's root is evidence the workspace is currently being
+    /// worked on. Only the first detection of a brand-new root appends a
+    /// timeline `workspace_switch` (its creation event); every later file
+    /// touch records a file event, not a switch — switches are
+    /// user-driven, so only [`WorkspaceService::switch_workspace`] records
+    /// them.
     pub async fn find_or_create_workspace(
         &self,
         detected: &DetectedWorkspaceRoot,

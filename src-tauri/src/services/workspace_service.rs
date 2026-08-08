@@ -123,13 +123,11 @@ impl WorkspaceService {
     /// knows how to write the columns it's told to, has no basis for that
     /// decision; it belongs here, one level up.
     ///
-    /// Also records a `workspace_switch` timeline event — but only when
-    /// the workspace actually changed from the previously active one
-    /// (i.e. the latest recorded switch targeted a different workspace).
-    /// The file-watcher pipeline calls `open_workspace` on every file
-    /// touch, so unconditionally recording a switch there would drown the
-    /// Timeline in duplicate "Switched workspace" rows for one continuous
-    /// working session.
+    /// Does **not** record a `workspace_switch` timeline event: the
+    /// file-watcher pipeline calls `open_workspace` on every file touch,
+    /// and a switch event is only meaningful when the active workspace
+    /// actually changed. That decision is [`WorkspaceService::switch_workspace`]'s
+    /// job — the one path that records switches, atomically.
     pub async fn open_workspace(&self, id: Uuid) -> Result<Workspace, DatabaseError> {
         let current = self.workspace_repository.get_by_id(id).await?;
 
@@ -145,30 +143,26 @@ impl WorkspaceService {
                 .await?;
         }
 
-        let workspace = self.workspace_repository.touch_last_active(id).await?;
-
-        let record_switch = match self.timeline_repository.latest_workspace_switch().await? {
-            Some(latest) => latest.workspace_id != id,
-            None => true,
-        };
-
-        if record_switch {
-            self.timeline_repository
-                .create(NewTimelineEvent {
-                    workspace_id: id,
-                    file_id: None,
-                    event_type: TimelineEventType::WorkspaceSwitch,
-                    occurred_at: workspace.last_active_at,
-                    metadata: None,
-                })
-                .await?;
-        }
-
-        Ok(workspace)
+        self.workspace_repository.touch_last_active(id).await
     }
 
+    /// Switches the active workspace to `id`, recording a
+    /// `workspace_switch` timeline event only when the active workspace
+    /// actually changed (i.e. the latest recorded switch targeted a
+    /// different workspace).
+    ///
+    /// The change check and the insert are atomic (see
+    /// [`TimelineRepository::record_switch_if_latest_different`]), so
+    /// concurrent callers — the frontend command, the copilot tool
+    /// executor, or a rapid double-click — can never append duplicate
+    /// switch rows for one continuous working session.
     pub async fn switch_workspace(&self, id: Uuid) -> Result<(), DatabaseError> {
-        self.open_workspace(id).await?;
+        let workspace = self.open_workspace(id).await?;
+
+        self.timeline_repository
+            .record_switch_if_latest_different(id, workspace.last_active_at, None)
+            .await?;
+
         Ok(())
     }
 }
@@ -263,5 +257,79 @@ mod tests {
 
         let reopened = service.open_workspace(workspace.id).await.unwrap();
         assert_eq!(reopened.status, WorkspaceStatus::Active);
+    }
+
+    #[tokio::test]
+    async fn open_workspace_does_not_record_a_switch_event() {
+        let (service, timeline_repository, _guard) = service().await;
+
+        let workspace = service
+            .create_workspace(CreateWorkspaceInput {
+                name: "Quiet Workspace".to_string(),
+                description: None,
+                root_path: None,
+            })
+            .await
+            .unwrap();
+
+        // The watcher pipeline calls open_workspace on every file touch;
+        // none of those calls may append a switch event.
+        service.open_workspace(workspace.id).await.unwrap();
+        service.open_workspace(workspace.id).await.unwrap();
+        service.open_workspace(workspace.id).await.unwrap();
+
+        let events = timeline_repository
+            .list_by_workspace(workspace.id, None)
+            .await
+            .unwrap();
+        assert_eq!(
+            events.len(),
+            1,
+            "only the creation switch may exist after repeated opens"
+        );
+    }
+
+    #[tokio::test]
+    async fn switch_workspace_records_a_switch_only_when_the_workspace_changes() {
+        let (service, timeline_repository, _guard) = service().await;
+
+        let alpha = service
+            .create_workspace(CreateWorkspaceInput {
+                name: "Alpha".to_string(),
+                description: None,
+                root_path: None,
+            })
+            .await
+            .unwrap();
+        let beta = service
+            .create_workspace(CreateWorkspaceInput {
+                name: "Beta".to_string(),
+                description: None,
+                root_path: None,
+            })
+            .await
+            .unwrap();
+
+        // Switching to a workspace that is already active per the
+        // timeline must not append a duplicate switch.
+        service.switch_workspace(beta.id).await.unwrap();
+        service.switch_workspace(beta.id).await.unwrap();
+        // A genuine change records exactly one switch...
+        service.switch_workspace(alpha.id).await.unwrap();
+        service.switch_workspace(alpha.id).await.unwrap();
+
+        let switches = timeline_repository
+            .list_recent(100)
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|e| e.event_type == TimelineEventType::WorkspaceSwitch)
+            .count();
+
+        assert_eq!(
+            switches,
+            3,
+            "two creation switches + one real change (beta -> alpha)"
+        );
     }
 }
