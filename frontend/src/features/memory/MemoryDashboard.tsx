@@ -308,7 +308,7 @@ export function MemoryDashboard() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-8 py-8 lg:px-10">
+    <div className="flex w-full flex-col gap-8 px-8 py-8 lg:px-10">
       <PageHeader
         eyebrow="Intelligence"
         title="Execution Memory"

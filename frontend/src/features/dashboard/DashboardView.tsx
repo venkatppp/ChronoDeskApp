@@ -176,7 +176,7 @@ export function DashboardView() {
     : mostRecentWorkspace;
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-8 py-8 lg:px-10">
+    <div className="flex w-full flex-col gap-6 px-8 py-8 lg:px-10">
       <div className="relative overflow-hidden rounded-[var(--radius-card)] border border-(--color-border-subtle) px-6 py-8 sm:px-8 sm:py-10">
         <div className="pointer-events-none absolute inset-0 bg-dotgrid opacity-40" aria-hidden="true" />
         <div className="pointer-events-none absolute -top-40 left-1/2 h-72 w-[46rem] max-w-full -translate-x-1/2 rounded-full bg-(--color-accent)/10 blur-3xl" aria-hidden="true" />

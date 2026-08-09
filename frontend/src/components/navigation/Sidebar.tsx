@@ -5,9 +5,6 @@ import {
   Share2,
   Gauge,
   Brain,
-  Sparkles,
-  PlayCircle,
-  Bot,
   BrainCircuit,
   ActivitySquare,
   ShieldCheck,
@@ -36,15 +33,7 @@ const NAV_GROUPS: { label: string; scopes: { to: string; label: string; icon: ty
     scopes: [
       { to: "/search", label: "Search", icon: Search },
       { to: "/learning", label: "Learning", icon: Brain },
-      { to: "/copilot", label: "AI Copilot", icon: Sparkles, end: true },
       { to: "/memory", label: "Memory", icon: BrainCircuit },
-    ],
-  },
-  {
-    label: "Runs",
-    scopes: [
-      { to: "/executions", label: "Executions", icon: PlayCircle },
-      { to: "/autonomous", label: "Autonomous", icon: Bot },
     ],
   },
   {
@@ -93,9 +82,9 @@ export function Sidebar() {
         : { dot: "bg-(--color-success)", label: "System nominal" };
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-(--color-border-subtle) bg-(--color-background) px-3 py-4">
+    <aside className="glass relative z-10 flex h-full w-60 shrink-0 flex-col border-r border-(--color-border-subtle) px-3 py-4">
       <div className="mb-6 flex items-center gap-2.5 px-2">
-        <div className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl border border-(--color-border-subtle) bg-gradient-to-br from-(--color-accent)/25 to-(--color-surface-raised)">
+        <div className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl border border-(--color-accent)/30 bg-gradient-to-br from-(--color-accent)/30 to-(--color-violet)/20 shadow-[0_0_16px_rgba(56,189,248,0.25)]">
           <span className="font-(family-name:--font-display) text-sm font-bold text-(--color-accent)">C</span>
           <span
             className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] animate-(--animate-pulse-line) bg-[linear-gradient(90deg,transparent,var(--color-accent),transparent)] bg-size-[200%_100%]"
@@ -127,7 +116,7 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-4">
-        <div className="flex items-center gap-2 rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface) px-3 py-2">
+        <div className="glass-panel flex items-center gap-2 rounded-[var(--radius-control)] border border-(--color-border-subtle) px-3 py-2 shadow-[var(--shadow-card)]">
           <span className="relative flex h-2 w-2 shrink-0">
             <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-40 ${statusTone.dot}`} />
             <span className={`relative inline-flex h-2 w-2 rounded-full ${statusTone.dot}`} />

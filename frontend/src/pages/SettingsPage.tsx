@@ -4,7 +4,6 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useTheme } from "@/hooks/useTheme";
 import type { ThemePreference } from "@/contexts/ThemeContext";
 import { Folder, Plus, Trash2, Moon, Sun, Monitor, Info, Shield, GitBranch } from "lucide-react";
-import { AISettingsPanel } from "@/components/settings/AISettingsPanel";
 
 export function SettingsPage() {
   const { preference: theme, setPreference: setTheme } = useTheme();
@@ -61,7 +60,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-10">
+    <div className="w-full px-6 py-10">
       <div className="mb-10">
         <h1 className="text-4xl font-bold text-(--color-foreground) mb-2">Settings</h1>
         <p className="text-(--color-muted-foreground) text-lg">Configure your workspace preferences and watched directories.</p>
@@ -74,9 +73,6 @@ export function SettingsPage() {
       )}
 
       <div className="space-y-8">
-        {/* AI Settings */}
-        <AISettingsPanel />
-
         {/* Watched Folders */}
         <section className="bg-(--color-surface-hover) border border-(--color-border) rounded-3xl overflow-hidden">
           <div className="p-8 border-b border-(--color-border) bg-(--color-background)-tertiary/30">
@@ -149,8 +145,8 @@ export function SettingsPage() {
           <div className="p-8">
             <div className="grid grid-cols-3 gap-4">
               {[
-                { id: "", icon: Sun, label: "Light" },
-                { id: "", icon: Moon, label: "Dark" },
+                { id: "light", icon: Sun, label: "Light" },
+                { id: "dark", icon: Moon, label: "Dark" },
                 { id: "system", icon: Monitor, label: "System" },
               ].map((item) => (
                 <button

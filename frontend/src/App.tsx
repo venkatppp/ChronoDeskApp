@@ -9,9 +9,6 @@ import { GraphPerformancePage } from "@/pages/GraphPerformancePage";
 import { SearchPage } from "@/pages/SearchPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import LearningPage from "@/pages/LearningPage";
-import { AutonomousPage } from "@/pages/AutonomousPage";
-import { CopilotPage } from "@/pages/CopilotPage";
-import { ExecutionPage } from "@/pages/ExecutionPage";
 import { MemoryPage } from "@/pages/MemoryPage";
 import { PerformancePage } from "@/pages/PerformancePage";
 import { RecoveryPage } from "@/pages/RecoveryPage";
@@ -36,9 +33,6 @@ export function App() {
             <Route path="graph/performance" element={<GraphPerformancePage />} />
             <Route path="search" element={<SearchPage />} />
             <Route path="learning" element={<LearningPage />} />
-            <Route path="copilot" element={<CopilotPage />} />
-            <Route path="executions" element={<ExecutionPage />} />
-            <Route path="autonomous" element={<AutonomousPage />} />
             <Route path="memory" element={<MemoryPage />} />
             <Route path="performance" element={<PerformancePage />} />
             <Route path="recovery" element={<RecoveryPage />} />

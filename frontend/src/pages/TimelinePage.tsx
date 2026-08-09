@@ -364,7 +364,7 @@ export function TimelinePage() {
   }, []);
 
   return (
-    <div ref={containerRef} className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-8 py-8 lg:px-10">
+    <div ref={containerRef} className="flex w-full flex-col gap-8 px-8 py-8 lg:px-10">
       <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="animate-fade-in">
           <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-accent)">

@@ -119,7 +119,7 @@ export function SearchView() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8">
+    <div className="w-full px-6 py-8">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-(--color-foreground) mb-2">Search</h1>
