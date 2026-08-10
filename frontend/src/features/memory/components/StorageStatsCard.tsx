@@ -32,22 +32,22 @@ export function StorageStatsCard({ stats }: StorageStatsCardProps) {
   ];
 
   const retention = [
-    { label: "Permanent", count: stats.permanent_memories, tone: "text-emerald-600" },
-    { label: "Temporary", count: stats.temporary_memories, tone: "text-sky-600" },
-    { label: "Archived", count: stats.archived_memories, tone: "text-amber-600" },
-    { label: "Expired", count: stats.expired_memories, tone: "text-red-500" },
+    { label: "Permanent", count: stats.permanent_memories, tone: "text-(--color-success)" },
+    { label: "Temporary", count: stats.temporary_memories, tone: "text-(--color-cyan)" },
+    { label: "Archived", count: stats.archived_memories, tone: "text-(--color-warning)" },
+    { label: "Expired", count: stats.expired_memories, tone: "text-(--color-danger)" },
   ];
 
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2">
-        <HardDrive className="h-4 w-4 text-(--color-accent)" />
+        <HardDrive className="h-4 w-4 text-(--color-muted-foreground)" />
         <h2 className="text-sm font-medium text-(--color-foreground)">Storage usage</h2>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
         {tiles.map((tile) => (
-          <div key={tile.label} className="rounded-md bg-(--color-surface) px-3 py-2">
+          <div key={tile.label}>
             <p className="text-[11px] text-(--color-muted-foreground)">{tile.label}</p>
             <p className="mt-0.5 truncate font-mono text-sm font-medium text-(--color-foreground)">
               {tile.value}

@@ -1,4 +1,5 @@
-import { History, X } from "lucide-react";
+import { History, X, RotateCcw } from "lucide-react";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 
 interface SearchHistoryProps {
   history: string[];
@@ -16,27 +17,29 @@ export function SearchHistory({
   if (history.length === 0) return null;
 
   return (
-    <div className="py-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2 text-(--color-foreground) font-semibold">
-          <History className="h-4 w-4" />
-          Recent Searches
-        </div>
-        <button
-          onClick={onClear}
-          className="text-xs font-medium text-(--color-muted-foreground) hover:text-(--color-danger) transition-colors"
-        >
-          Clear History
-        </button>
-      </div>
-      <div className="flex flex-wrap gap-2">
+    <section className="glass-panel rounded-[var(--radius-card)] p-5">
+      <SectionLabel
+        icon={<History className="h-3.5 w-3.5" strokeWidth={1.75} />}
+        right={
+          <button
+            onClick={onClear}
+            className="flex items-center gap-1 text-[11px] font-medium text-(--color-faint-foreground) transition-colors hover:text-(--color-danger)"
+          >
+            <RotateCcw className="h-3 w-3" strokeWidth={1.75} />
+            Clear history
+          </button>
+        }
+      >
+        Recent Searches
+      </SectionLabel>
+      <div className="mt-3 flex flex-col">
         {history.map((query) => (
           <div
             key={query}
-            className="flex items-center gap-1 group bg-(--color-background)-secondary border border-(--color-border) rounded-full pl-3 pr-2 py-1.5 hover:border-(--color-accent)/50 transition-all cursor-pointer"
+            className="group flex cursor-pointer items-center gap-2 rounded-[var(--radius-control)] px-2 py-2 transition-colors duration-150 ease-[var(--ease-premium)] hover:bg-(--color-surface-hover)"
             onClick={() => onSelect(query)}
           >
-            <span className="text-sm text-(--color-muted-foreground) group-hover:text-(--color-foreground) transition-colors">
+            <span className="min-w-0 flex-1 truncate text-[13px] text-(--color-muted-foreground) transition-colors group-hover:text-(--color-foreground)">
               {query}
             </span>
             <button
@@ -44,13 +47,14 @@ export function SearchHistory({
                 e.stopPropagation();
                 onRemove(query);
               }}
-              className="p-1 rounded-full text-(--color-muted-foreground) hover:bg-(--color-background)-tertiary hover:text-(--color-foreground) transition-colors"
+              aria-label={`Remove ${query} from history`}
+              className="rounded-md p-1 text-(--color-faint-foreground) opacity-0 transition-all hover:bg-(--color-danger)/10 hover:text-(--color-danger) group-hover:opacity-100"
             >
-              <X className="h-3 w-3" />
+              <X className="h-3.5 w-3.5" strokeWidth={2} />
             </button>
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

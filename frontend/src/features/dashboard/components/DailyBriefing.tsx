@@ -30,7 +30,7 @@ export function DailyBriefing({ briefing }: DailyBriefingProps) {
       {briefing.insights.length > 0 && (
         <div className="mt-4 space-y-2">
           <div className="flex items-center gap-2">
-            <Lightbulb className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+            <Lightbulb className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
             <h3 className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
               Insights
             </h3>

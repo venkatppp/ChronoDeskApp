@@ -13,8 +13,8 @@ export function ContextMemoryCard({ snapshot, isLoading }: ContextMemoryCardProp
     return (
       <Card className="p-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-accent-muted)">
-            <Archive className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-raised)">
+            <Archive className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
@@ -31,7 +31,7 @@ export function ContextMemoryCard({ snapshot, isLoading }: ContextMemoryCardProp
     return (
       <Card className="p-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-surface-hover)">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-hover)">
             <Archive className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           </div>
           <div className="min-w-0 flex-1">
@@ -48,8 +48,8 @@ export function ContextMemoryCard({ snapshot, isLoading }: ContextMemoryCardProp
   return (
     <Card className="p-4">
       <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-accent-muted)">
-          <Archive className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-raised)">
+          <Archive className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">

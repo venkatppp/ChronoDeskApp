@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   Database,
   Gauge,
-  GitBranch,
   HeartPulse,
   ListChecks,
   Loader2,
@@ -19,6 +18,9 @@ import {
 } from "lucide-react";
 import { VirtualizedNodeList } from "@/features/graph/components/VirtualizedNodeList";
 import { getGraphOptimizationRepository } from "@/services/graphOptimizationRepository";
+import { Button } from "@/components/ui/Button";
+import { PageContainer } from "@/components/ui/PageContainer";
+import { PageHeader } from "@/components/ui/PageHeader";
 import type {
   BenchmarkSuiteResult,
   ConsistencyReport,
@@ -31,12 +33,12 @@ import type {
 import type { GraphNodeType, KgNode, TypeCount } from "@/types/graph";
 
 const TYPE_COLORS: Record<GraphNodeType, string> = {
-  workspace: "var(--color-accent)",
-  file: "var(--color-success)",
-  planner_report: "var(--color-warning)",
-  execution: "var(--color-danger)",
-  memory_record: "var(--color-accent-muted)",
-  autonomous_session: "var(--color-warning-foreground)",
+  workspace: "var(--color-blue)",
+  file: "var(--color-cyan)",
+  planner_report: "var(--color-emerald)",
+  execution: "var(--color-orange)",
+  memory_record: "var(--color-violet)",
+  autonomous_session: "var(--color-violet)",
 };
 
 const ALL_TYPES: GraphNodeType[] = [
@@ -161,55 +163,43 @@ export function GraphPerformancePage() {
   const metrics = diagnostics?.recentMetrics ?? [];
 
   return (
-    <div className="mx-auto h-[calc(100vh-64px)] overflow-y-auto">
-      <div className="flex w-full flex-col gap-8 px-8 py-8 lg:px-10">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="font-(family-name:--font-display) text-xl font-bold">
-              Graph Performance &amp; Scale
-            </h1>
-            <p className="text-sm text-(--color-muted-foreground)">
-              Pagination, virtualization, integrity, repair, benchmarks, and operational health.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleBenchmark}
-              disabled={busy !== null}
-              className="flex items-center gap-1.5 rounded-[var(--radius-control)] bg-(--color-accent) px-3 py-1.5 text-xs font-medium text-(--color-accent-foreground) transition-opacity disabled:opacity-50"
-            >
-              <Timer className="h-3.5 w-3.5" strokeWidth={1.75} />
-              Run benchmark suite
-            </button>
-            <button
-              onClick={refreshDiagnostics}
-              disabled={loadingDiagnostics}
-              className="flex items-center gap-1.5 rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface) px-2.5 py-1.5 text-xs font-medium text-(--color-muted-foreground) transition-colors hover:bg-(--color-surface-hover) disabled:opacity-50"
-            >
+    <PageContainer>
+      <PageHeader
+        eyebrow="Graph"
+        title="Graph Performance & Scale"
+        description="Pagination, virtualization, integrity, repair, benchmarks, and operational health for the knowledge graph."
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={refreshDiagnostics} disabled={loadingDiagnostics}>
               <RefreshCw className={`h-3.5 w-3.5 ${loadingDiagnostics ? "animate-spin" : ""}`} strokeWidth={1.75} />
               Refresh
-            </button>
-          </div>
+            </Button>
+            <Button size="sm" onClick={handleBenchmark} disabled={busy !== null}>
+              <Timer className="h-3.5 w-3.5" strokeWidth={1.75} />
+              Run benchmark suite
+            </Button>
+          </>
+        }
+      />
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-[var(--radius-control)] border border-(--color-danger)/30 bg-(--color-danger)/10 px-4 py-2.5 text-sm text-(--color-danger)">
+          {error}
         </div>
+      )}
 
-        {error && (
-          <p className="mt-3 rounded-[var(--radius-control)] border border-(--color-danger)/30 bg-(--color-danger)/10 px-3 py-2 text-xs text-(--color-danger)">
-            {error}
-          </p>
-        )}
-
-        {loadingDiagnostics && !diagnostics ? (
-          <div className="mt-16 flex flex-col items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-(--color-accent)" strokeWidth={1.75} />
-            <p className="text-sm text-(--color-muted-foreground)">Running diagnostics…</p>
-          </div>
-        ) : (
-          <div className="mt-5 flex flex-col gap-5">
-            {/* Memory & cache statistics */}
-            <section className="rounded-[var(--radius-card)] border border-(--color-border) bg-(--color-surface-raised) p-4">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="flex items-center gap-1.5 text-sm font-semibold text-(--color-foreground)">
-                  <MemoryStick className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+      {loadingDiagnostics && !diagnostics ? (
+        <div className="flex flex-col items-center gap-3 py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-(--color-accent)" strokeWidth={1.75} />
+          <p className="text-sm text-(--color-muted-foreground)">Running diagnostics…</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-5">
+          {/* Memory & cache statistics */}
+          <section className="glass-panel rounded-[var(--radius-card)] p-5">
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <h2 className="flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
+                  <MemoryStick className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
                   Memory &amp; cache statistics
                 </h2>
                 <div className="flex items-center gap-2">
@@ -231,17 +221,17 @@ export function GraphPerformancePage() {
                 </div>
               </div>
               {memory && (
-                <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+                <div className="grid grid-cols-2 divide-(--color-border-subtle) sm:grid-cols-3 md:grid-cols-5 md:divide-x">
                   {[
-                    { label: "Nodes", value: memory.nodeCount, icon: Network },
-                    { label: "Edges", value: memory.edgeCount, icon: GitBranch },
-                    { label: "Cache entries", value: memory.cacheEntries, icon: Database },
-                    { label: "Cache payload", value: formatBytes(memory.cacheSizeBytes), icon: Database },
-                    { label: "Est. memory", value: formatBytes(memory.estimatedBytes), icon: MemoryStick },
+                    { label: "Nodes", value: memory.nodeCount },
+                    { label: "Edges", value: memory.edgeCount },
+                    { label: "Cache entries", value: memory.cacheEntries },
+                    { label: "Cache payload", value: formatBytes(memory.cacheSizeBytes) },
+                    { label: "Est. memory", value: formatBytes(memory.estimatedBytes) },
                   ].map((stat) => (
-                    <div key={stat.label} className="rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface-hover) px-3 py-2">
-                      <p className="text-[9px] font-bold uppercase tracking-wider text-(--color-faint-foreground)">{stat.label}</p>
-                      <p className="font-(family-name:--font-mono) text-sm text-(--color-foreground)">{stat.value}</p>
+                    <div key={stat.label} className="min-w-0 px-1 py-1 md:px-4">
+                      <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-(--color-faint-foreground)">{stat.label}</p>
+                      <p className="mt-1 font-(family-name:--font-mono) text-sm tabular-nums text-(--color-foreground)">{stat.value}</p>
                     </div>
                   ))}
                 </div>
@@ -249,10 +239,10 @@ export function GraphPerformancePage() {
             </section>
 
             {/* Integrity panel */}
-            <section className="rounded-[var(--radius-card)] border border-(--color-border) bg-(--color-surface-raised) p-4">
+            <section className="glass-panel rounded-[var(--radius-card)] p-5">
               <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="flex items-center gap-1.5 text-sm font-semibold text-(--color-foreground)">
-                  <ShieldCheck className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+                <h2 className="flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
+                  <ShieldCheck className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
                   Integrity panel
                 </h2>
                 <div className="flex items-center gap-2">
@@ -267,7 +257,7 @@ export function GraphPerformancePage() {
                   <button
                     onClick={handleRepair}
                     disabled={busy !== null}
-                    className="rounded-[var(--radius-control)] bg-(--color-warning) px-2.5 py-1 text-[10px] font-medium text-(--color-warning-foreground) transition-opacity disabled:opacity-50"
+                    className="rounded-[var(--radius-control)] border border-(--color-warning)/30 bg-(--color-warning)/10 px-2.5 py-1 text-[10px] font-medium text-(--color-warning) transition-colors hover:bg-(--color-warning)/15 disabled:opacity-50"
                   >
                     Repair issues
                   </button>
@@ -322,12 +312,14 @@ export function GraphPerformancePage() {
               )}
             </section>
 
-            {/* Orphans + consistency */}
-            <div className="grid gap-5 lg:grid-cols-2">
-              <section className="rounded-[var(--radius-card)] border border-(--color-border) bg-(--color-surface-raised) p-4">
+            {/* Orphans + consistency + benchmarks + history — paired
+                two-column composition so diagnostic surfaces use the
+                canvas instead of stacking into a wall of cards. */}
+            <div className="grid items-start gap-5 xl:grid-cols-2">
+            <section className="glass-panel rounded-[var(--radius-card)] p-5">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="flex items-center gap-1.5 text-sm font-semibold text-(--color-foreground)">
-                    <Trash2 className="h-4 w-4 text-(--color-warning)" strokeWidth={1.75} />
+                  <h2 className="flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
+                    <Trash2 className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
                     Orphans
                   </h2>
                   <div className="flex items-center gap-2">
@@ -341,36 +333,39 @@ export function GraphPerformancePage() {
                     <button
                       onClick={handleOrphanCleanup}
                       disabled={busy !== null}
-                      className="rounded-[var(--radius-control)] bg-(--color-danger) px-2.5 py-1 text-[10px] font-medium text-(--color-danger-foreground) transition-opacity disabled:opacity-50"
+                      className="rounded-[var(--radius-control)] border border-(--color-danger)/30 bg-(--color-danger)/10 px-2.5 py-1 text-[10px] font-medium text-(--color-danger) transition-colors hover:bg-(--color-danger)/15 disabled:opacity-50"
                     >
                       Clean up
                     </button>
                   </div>
                 </div>
                 {orphans && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface-hover) px-3 py-2">
-                      <p className="text-[9px] font-bold uppercase tracking-wider text-(--color-faint-foreground)">Orphan edges</p>
-                      <p className="font-(family-name:--font-mono) text-sm text-(--color-foreground)">{orphans?.orphanEdges ?? 0}</p>
+                  <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-(--color-faint-foreground)">Orphan edges</p>
+                      <p className="mt-0.5 font-(family-name:--font-mono) text-sm tabular-nums text-(--color-foreground)">{orphans?.orphanEdges ?? 0}</p>
                     </div>
-                    <div className="rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface-hover) px-3 py-2">
-                      <p className="text-[9px] font-bold uppercase tracking-wider text-(--color-faint-foreground)">Dangling workspaces</p>
-                      <p className="font-(family-name:--font-mono) text-sm text-(--color-foreground)">{orphans?.danglingWorkspaces ?? 0}</p>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-(--color-faint-foreground)">Dangling workspaces</p>
+                      <p className="mt-0.5 font-(family-name:--font-mono) text-sm tabular-nums text-(--color-foreground)">{orphans?.danglingWorkspaces ?? 0}</p>
                     </div>
+                    {orphans.orphanEdges === 0 && orphans.danglingWorkspaces === 0 && (
+                      <p className="text-xs text-(--color-faint-foreground)">No orphans detected.</p>
+                    )}
                   </div>
                 )}
                 {lastCleanup && (
-                  <p className="mt-2 rounded-[var(--radius-control)] bg-(--color-success)/10 px-3 py-2 text-[10px] text-(--color-success)">
+                  <p className="mt-3 rounded-[var(--radius-control)] bg-(--color-success)/10 px-3 py-2 text-[10px] text-(--color-success)">
                     Cleanup removed {lastCleanup.orphanEdgesRemoved} edges and {lastCleanup.danglingWorkspacesRemoved} nodes ·{" "}
                     {lastCleanup.issuesResolved} issues resolved
                   </p>
                 )}
               </section>
 
-              <section className="rounded-[var(--radius-card)] border border-(--color-border) bg-(--color-surface-raised) p-4">
+              <section className="glass-panel rounded-[var(--radius-card)] p-5">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="flex items-center gap-1.5 text-sm font-semibold text-(--color-foreground)">
-                    <HeartPulse className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+                  <h2 className="flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
+                    <HeartPulse className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
                     Consistency
                   </h2>
                   <button
@@ -399,12 +394,11 @@ export function GraphPerformancePage() {
                   </div>
                 )}
               </section>
-            </div>
 
             {/* Benchmark viewer */}
-            <section className="rounded-[var(--radius-card)] border border-(--color-border) bg-(--color-surface-raised) p-4">
-              <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-(--color-foreground)">
-                <Gauge className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+            <section className="glass-panel rounded-[var(--radius-card)] p-5">
+              <h2 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
+                <Gauge className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
                 Benchmark viewer
               </h2>
               {lastSuite && (
@@ -442,9 +436,9 @@ export function GraphPerformancePage() {
             </section>
 
             {/* Query metrics */}
-            <section className="rounded-[var(--radius-card)] border border-(--color-border) bg-(--color-surface-raised) p-4">
-              <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-(--color-foreground)">
-                <Activity className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+            <section className="glass-panel rounded-[var(--radius-card)] p-5">
+              <h2 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
+                <Activity className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
                 Query metrics
               </h2>
               <div className="flex flex-col gap-1">
@@ -476,9 +470,9 @@ export function GraphPerformancePage() {
             </section>
 
             {/* Maintenance history */}
-            <section className="rounded-[var(--radius-card)] border border-(--color-border) bg-(--color-surface-raised) p-4">
-              <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-(--color-foreground)">
-                <Database className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+            <section className="glass-panel rounded-[var(--radius-card)] p-5">
+              <h2 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
+                <Database className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
                 Maintenance history
               </h2>
               <div className="flex flex-col gap-1">
@@ -503,12 +497,13 @@ export function GraphPerformancePage() {
                 ))}
               </div>
             </section>
+            </div>
 
             {/* Virtualized node browser */}
-            <section className="flex min-h-96 flex-col rounded-[var(--radius-card)] border border-(--color-border) bg-(--color-surface-raised) p-4">
+            <section className="glass-panel flex min-h-96 flex-col rounded-[var(--radius-card)] p-5">
               <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="flex items-center gap-1.5 text-sm font-semibold text-(--color-foreground)">
-                  <Network className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+                <h2 className="flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
+                  <Network className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
                   Virtualized node browser
                 </h2>
                 <div className="flex items-center gap-1">
@@ -518,7 +513,7 @@ export function GraphPerformancePage() {
                       onClick={() => setNodeFilter(filter.value)}
                       className={`rounded-[var(--radius-control)] px-2.5 py-1 text-[10px] font-medium transition-colors ${
                         nodeFilter === filter.value
-                          ? "bg-(--color-accent)/10 text-(--color-accent)"
+                          ? "material-selected text-(--color-foreground)"
                           : "text-(--color-muted-foreground) hover:bg-(--color-surface-hover)"
                       }`}
                     >
@@ -540,17 +535,17 @@ export function GraphPerformancePage() {
                   />
                 </div>
                 {selectedNode && (
-                  <div className="hidden w-56 shrink-0 flex-col gap-2 rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface) p-3 lg:flex">
+                  <div className="hidden w-56 shrink-0 flex-col gap-2.5 rounded-[var(--radius-control)] bg-(--color-surface) p-3 lg:flex">
                     <p className="truncate text-xs font-semibold text-(--color-foreground)">{selectedNode.title}</p>
                     <p className="text-[10px] font-medium uppercase tracking-wide text-(--color-faint-foreground)">
                       {selectedNode.nodeType.replace("_", " ")}
                     </p>
                     {selectedNode.summary && (
-                      <p className="rounded-[var(--radius-control)] bg-(--color-surface-hover) px-2 py-1.5 text-[10px] text-(--color-muted-foreground)">
+                      <p className="rounded-[var(--radius-control)] bg-(--color-surface-raised) px-2 py-1.5 text-[10px] text-(--color-muted-foreground)">
                         {selectedNode.summary}
                       </p>
                     )}
-                    <p className="text-[9px] text-(--color-faint-foreground)">
+                    <p className="break-all text-[9px] leading-relaxed text-(--color-faint-foreground)">
                       {selectedNode.entityId}
                     </p>
                   </div>
@@ -559,7 +554,6 @@ export function GraphPerformancePage() {
             </section>
           </div>
         )}
-      </div>
-    </div>
+    </PageContainer>
   );
 }

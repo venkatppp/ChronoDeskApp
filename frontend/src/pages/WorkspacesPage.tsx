@@ -5,18 +5,20 @@ import { getWorkspaceRepository } from "@/services/workspaceRepository";
 import type { UpdateWorkspaceInput, Workspace, WorkspaceStatus } from "@/types/workspace";
 import { formatRelativeTime } from "@/utils/formatRelativeTime";
 import { Button } from "@/components/ui/Button";
+import { GlassInput } from "@/components/ui/GlassInput";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { ProgressRing } from "@/components/ui/ProgressRing";
+import { Dialog } from "@/components/ui/Dialog";
 import { detectLanguage } from "@/features/dashboard/components/WorkspaceCard";
 
 const STATUS_STYLES: Record<WorkspaceStatus, { dot: string; label: string; tile: string }> = {
   active: {
     dot: "bg-(--color-success)",
     label: "text-(--color-success)",
-    tile: "bg-(--color-accent-muted) text-(--color-accent)",
+    tile: "bg-(--color-surface-raised) text-(--color-muted-foreground)",
   },
   archived: {
     dot: "bg-(--color-faint-foreground)",
@@ -228,17 +230,16 @@ export function WorkspacesPage() {
         />
 
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="relative flex-1 md:max-w-md">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-(--color-muted-foreground)" strokeWidth={1.75} />
-            <input
-              type="text"
-              aria-label="Search workspaces by name or description"
-              placeholder="Search by name or description..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface) py-2.5 pl-9 pr-3 text-sm text-(--color-foreground) shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] placeholder:text-(--color-faint-foreground) transition-colors focus:border-(--color-accent)/60 focus:outline-none focus:ring-2 focus:ring-(--color-accent)/15"
-            />
-          </div>
+          <GlassInput
+            className="flex-1 md:max-w-md"
+            size="md"
+            icon={<Search className="h-4 w-4" strokeWidth={1.75} />}
+            type="text"
+            aria-label="Search workspaces by name or description"
+            placeholder="Search by name or description..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
           <SegmentedControl
             ariaLabel="Filter workspaces by status"
             value={statusFilter}
@@ -295,7 +296,7 @@ export function WorkspacesPage() {
               return (
                 <div
                   key={workspace.id}
-                  className="group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border border-(--color-border-subtle) bg-(--color-surface) p-5 shadow-[var(--shadow-card)] transition-all duration-300 ease-[var(--ease-premium)] hover:-translate-y-0.5 hover:border-(--color-accent)/35 hover:shadow-[var(--shadow-float)]"
+                  className="glass-panel group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] p-5 transition-all duration-300 ease-[var(--ease-premium)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)]"
                 >
                   <div className="mb-4 flex items-start justify-between">
                     <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${statusStyle.tile}`}>
@@ -309,10 +310,10 @@ export function WorkspacesPage() {
                     </div>
                   </div>
 
-                  <h3 className="truncate font-(family-name:--font-display) text-lg font-semibold text-(--color-foreground) transition-colors group-hover:text-(--color-accent)">
+                  <h3 className="truncate font-(family-name:--font-display) text-lg font-semibold text-(--color-foreground)">
                     {workspace.name}
                   </h3>
-                  <p className="mb-5 mt-1 line-clamp-2 flex-1 text-[13px] italic leading-relaxed text-(--color-muted-foreground)">
+                  <p className="mb-5 mt-1 line-clamp-2 flex-1 text-[13px] leading-relaxed text-(--color-muted-foreground)">
                     {workspace.description || "No description provided."}
                   </p>
 
@@ -390,7 +391,7 @@ export function WorkspacesPage() {
                     </div>
                     <button
                       onClick={() => handleOpenWorkspace(workspace)}
-                      className="group/open flex items-center gap-1.5 text-sm font-semibold text-(--color-accent) transition-all duration-200 hover:gap-2.5"
+                      className="group/open flex items-center gap-1.5 text-sm font-semibold text-(--color-foreground) transition-all duration-200 hover:gap-2.5 hover:text-(--color-accent)"
                     >
                       Open
                       <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/open:translate-x-0.5" strokeWidth={1.75} />
@@ -403,119 +404,91 @@ export function WorkspacesPage() {
       )}
       </PageContainer>
       {/* Edit Workspace Modal */}
-      {editingWorkspace && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-(--color-overlay) p-6 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="edit-dialog-title"
-          tabIndex={-1}
-          onMouseDown={e => {
-            if (e.target === e.currentTarget) closeEditDialog();
-          }}
+      <Dialog
+        open={editingWorkspace !== null}
+        onClose={closeEditDialog}
+        title="Edit Workspace"
+        description="Update the name or description for this workspace."
+        footer={
+          <>
+            <Button variant="ghost" onClick={closeEditDialog} disabled={isUpdating} type="button">
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateWorkspace} disabled={isUpdating || !editName.trim() || !hasEditChanges} type="button">
+              {isUpdating ? "Saving…" : "Save"}
+            </Button>
+          </>
+        }
+      >
+        <GlassInput
+          ref={editInputRef}
+          type="text"
+          placeholder="Workspace name"
+          value={editName}
+          onChange={e => setEditName(e.target.value)}
           onKeyDown={e => {
-            if (e.key === "Escape") closeEditDialog();
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (!isUpdating && editName.trim() && hasEditChanges) handleUpdateWorkspace();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              closeEditDialog();
+            }
           }}
-        >
-          <div
-            className="w-full max-w-md animate-scale-in rounded-[var(--radius-card)] border border-(--color-border) bg-(--color-surface) p-6 shadow-[var(--shadow-pop)]"
-            onMouseDown={e => e.stopPropagation()}
-          >
-            <h2 id="edit-dialog-title" className="font-(family-name:--font-display) text-xl font-bold text-(--color-foreground)">Edit Workspace</h2>
-            <p className="mb-5 mt-1 text-sm text-(--color-muted-foreground)">Update the name or description for this workspace.</p>
-            <input
-              ref={editInputRef}
-              type="text"
-              placeholder="Workspace name"
-              value={editName}
-              onChange={e => setEditName(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  if (!isUpdating && editName.trim() && hasEditChanges) handleUpdateWorkspace();
-                } else if (e.key === "Escape") {
-                  e.preventDefault();
-                  closeEditDialog();
-                }
-              }}
-              disabled={isUpdating}
-              className="mb-3 w-full rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-raised) px-3.5 py-2.5 text-sm text-(--color-foreground) placeholder:text-(--color-faint-foreground) focus:border-(--color-accent)/60 focus:outline-none focus:ring-2 focus:ring-(--color-accent)/15"
-            />
-            <textarea
-              placeholder="Description (optional)"
-              value={editDescription}
-              onChange={e => setEditDescription(e.target.value)}
-              disabled={isUpdating}
-              rows={3}
-              className="mb-5 w-full resize-none rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-raised) px-3.5 py-2.5 text-sm text-(--color-foreground) placeholder:text-(--color-faint-foreground) focus:border-(--color-accent)/60 focus:outline-none focus:ring-2 focus:ring-(--color-accent)/15"
-            />
-            {updateError && (
-              <div className="mb-4 rounded-[var(--radius-control)] border border-(--color-danger)/30 bg-(--color-danger)/10 px-4 py-2.5 text-sm font-medium text-(--color-danger)">
-                {updateError}
-              </div>
-            )}
-            <div className="flex justify-end gap-2.5">
-              <Button variant="ghost" onClick={closeEditDialog} disabled={isUpdating} type="button">
-                Cancel
-              </Button>
-              <Button onClick={handleUpdateWorkspace} disabled={isUpdating || !editName.trim() || !hasEditChanges} type="button">
-                {isUpdating ? "Saving…" : "Save"}
-              </Button>
-            </div>
+          disabled={isUpdating}
+          className="mb-3"
+        />
+        <textarea
+          placeholder="Description (optional)"
+          value={editDescription}
+          onChange={e => setEditDescription(e.target.value)}
+          disabled={isUpdating}
+          rows={3}
+          className="mb-5 w-full resize-none rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-raised) px-3.5 py-2.5 text-sm text-(--color-foreground) placeholder:text-(--color-faint-foreground) focus:border-(--color-accent)/60 focus:outline-none focus:ring-2 focus:ring-(--color-accent)/15"
+        />
+        {updateError && (
+          <div className="mb-4 rounded-[var(--radius-control)] border border-(--color-danger)/30 bg-(--color-danger)/10 px-4 py-2.5 text-sm font-medium text-(--color-danger)">
+            {updateError}
           </div>
-        </div>
-      )}
+        )}
+      </Dialog>
 
       {/* Create Workspace Modal */}
-      {showCreateDialog && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-(--color-overlay) p-6 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="create-dialog-title"
-          tabIndex={-1}
-          onMouseDown={e => {
-            if (e.target === e.currentTarget) closeCreateDialog();
-          }}
+      <Dialog
+        open={showCreateDialog}
+        onClose={closeCreateDialog}
+        title="Create Workspace"
+        description="Enter a name for your new workspace."
+        footer={
+          <>
+            <Button variant="ghost" onClick={closeCreateDialog} disabled={isCreating} type="button">
+              Cancel
+            </Button>
+            <Button onClick={handleCreateWorkspace} disabled={isCreating || !workspaceName.trim()} type="button">
+              {isCreating ? "Creating…" : "Create"}
+            </Button>
+          </>
+        }
+      >
+        <GlassInput
+          ref={inputRef}
+          type="text"
+          placeholder="Workspace name"
+          value={workspaceName}
+          onChange={e => setWorkspaceName(e.target.value)}
           onKeyDown={e => {
-            if (e.key === "Escape") closeCreateDialog();
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (!isCreating && workspaceName.trim()) handleCreateWorkspace();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              closeCreateDialog();
+            }
           }}
-        >
-          <div
-            className="w-full max-w-md animate-scale-in rounded-[var(--radius-card)] border border-(--color-border) bg-(--color-surface) p-6 shadow-[var(--shadow-pop)]"
-            onMouseDown={e => e.stopPropagation()}
-          >
-            <h2 id="create-dialog-title" className="font-(family-name:--font-display) text-xl font-bold text-(--color-foreground)">Create Workspace</h2>
-            <p className="mb-5 mt-1 text-sm text-(--color-muted-foreground)">Enter a name for your new workspace.</p>
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder="Workspace name"
-              value={workspaceName}
-              onChange={e => setWorkspaceName(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  if (!isCreating && workspaceName.trim()) handleCreateWorkspace();
-                } else if (e.key === "Escape") {
-                  e.preventDefault();
-                  closeCreateDialog();
-                }
-              }}
-              disabled={isCreating}
-              className="mb-6 w-full rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-raised) px-3.5 py-2.5 text-sm text-(--color-foreground) placeholder:text-(--color-faint-foreground) focus:border-(--color-accent)/60 focus:outline-none focus:ring-2 focus:ring-(--color-accent)/15"
-            />
-            <div className="flex justify-end gap-2.5">
-              <Button variant="ghost" onClick={closeCreateDialog} disabled={isCreating} type="button">
-                Cancel
-              </Button>
-              <Button onClick={handleCreateWorkspace} disabled={isCreating || !workspaceName.trim()} type="button">
-                {isCreating ? "Creating…" : "Create"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+          disabled={isCreating}
+          className="mb-1"
+        />
+      </Dialog>
     </>
   );
 }

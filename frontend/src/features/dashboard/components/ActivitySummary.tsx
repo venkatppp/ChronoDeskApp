@@ -3,7 +3,6 @@
 // Displays a summary of activity for a time range.
 
 import { Clock, Files, Edit, GitCommit, Code } from "lucide-react";
-import { Card } from "@/components/ui/Card";
 import type { ActivitySummary as ActivitySummaryType } from "@/types/analytics";
 
 interface ActivitySummaryProps {
@@ -45,17 +44,17 @@ export function ActivitySummary({ summary }: ActivitySummaryProps) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
         {stats.map((stat, i) => (
-          <Card key={i} className="flex items-center gap-3 p-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--color-accent-muted)">
-              <div className="text-(--color-accent)">{stat.icon}</div>
-            </div>
+          <div key={i} className="flex items-center gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-raised)">
+              <span className="text-(--color-muted-foreground)">{stat.icon}</span>
+            </span>
             <div className="min-w-0">
-              <p className="text-xs text-(--color-faint-foreground)">{stat.label}</p>
+              <p className="text-[11px] text-(--color-faint-foreground)">{stat.label}</p>
               <p className="text-base font-bold text-(--color-foreground)">{stat.value}</p>
             </div>
-          </Card>
+          </div>
         ))}
       </div>
 

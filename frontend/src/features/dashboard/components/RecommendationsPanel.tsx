@@ -22,9 +22,9 @@ const PRIORITY_LABELS: Record<string, { label: string; color: string; border: st
   },
   medium: {
     label: "Medium Priority",
-    color: "text-(--color-accent)",
-    border: "border-(--color-accent)/20",
-    bg: "bg-(--color-accent)/5",
+    color: "text-(--color-violet)",
+    border: "border-(--color-violet)/25",
+    bg: "bg-(--color-violet)/10",
     icon: PlayCircle,
   },
   low: {
@@ -38,10 +38,10 @@ const PRIORITY_LABELS: Record<string, { label: string; color: string; border: st
 
 const CATEGORY_COLORS: Record<string, string> = {
   organization: "text-(--color-warning)",
-  productivity: "text-(--color-accent)",
+  productivity: "text-(--color-violet)",
   context: "text-(--color-success)",
   files: "text-(--color-warning)",
-  search: "text-(--color-accent)",
+  search: "text-(--color-violet)",
   health: "text-(--color-danger)",
 };
 
@@ -242,7 +242,7 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-          className="rounded border border-(--color-border-subtle) bg-(--color-surface) px-1.5 py-0.5 text-[10px] text-(--color-muted-foreground) focus:outline-none"
+          className="glass-control rounded-[var(--radius-control)] px-1.5 py-0.5 text-[10px] text-(--color-muted-foreground) focus:outline-none"
         >
           <option value="priority">Priority</option>
           <option value="effort">Effort</option>
@@ -257,7 +257,7 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
           return (
             <div
               key={rec.id}
-              className={`flex flex-col gap-3 rounded-[var(--radius-card)] border ${priority.border} bg-(--color-surface) p-4 shadow-[var(--shadow-card)] transition-colors hover:bg-(--color-surface-hover)`}
+              className={`glass-panel flex flex-col gap-3 rounded-[var(--radius-card)] border ${priority.border} p-4 transition-colors hover:border-(--color-accent)/30`}
             >
               <div className="flex flex-wrap items-start justify-between gap-2.5">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">

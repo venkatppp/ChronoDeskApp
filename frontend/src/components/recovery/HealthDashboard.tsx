@@ -36,12 +36,13 @@ export function HealthDashboard({ snapshot, loading, error }: { snapshot: Health
 
   const meta = STATUS_META[snapshot.status];
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid items-start gap-4 xl:grid-cols-2">
+      <div className="flex min-w-0 flex-col gap-4">
       <Card>
         <CardHeader className="flex-row items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-(--color-accent)" />
+              <ShieldCheck className="h-4 w-4 text-(--color-muted-foreground)" />
               Runtime Health
             </CardTitle>
             <CardDescription>
@@ -82,11 +83,12 @@ export function HealthDashboard({ snapshot, loading, error }: { snapshot: Health
           </CardContent>
         </Card>
       )}
+      </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-(--color-accent)" />
+            <CheckCircle2 className="h-4 w-4 text-(--color-muted-foreground)" />
             Monitored Workers
           </CardTitle>
           <CardDescription>
@@ -102,7 +104,7 @@ export function HealthDashboard({ snapshot, loading, error }: { snapshot: Health
             return (
               <div key={worker.worker} className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-col">
-                  <p className="truncate font-mono text-sm text-(--color-foreground)">{worker.worker}</p>
+                  <p className="truncate font-(family-name:--font-mono) text-sm text-(--color-foreground)">{worker.worker}</p>
                   <p className="text-xs text-(--color-muted-foreground)">
                     heartbeat {formatRelativeTime(worker.lastHeartbeat)}
                     {worker.consecutiveMisses > 0 ? ` · ${worker.consecutiveMisses} missed` : ""}

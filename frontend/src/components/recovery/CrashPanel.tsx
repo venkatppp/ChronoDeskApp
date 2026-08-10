@@ -13,7 +13,7 @@ export function CrashPanel({ crashes, loading, error }: { crashes: CrashReport[]
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Bug className="h-4 w-4 text-(--color-accent)" />
+          <Bug className="h-4 w-4 text-(--color-muted-foreground)" />
           Crash Reports
         </CardTitle>
         <CardDescription>
@@ -32,7 +32,7 @@ export function CrashPanel({ crashes, loading, error }: { crashes: CrashReport[]
           crashes.map((crash) => (
             <div key={crash.id} className="flex flex-col gap-1 border-b border-(--color-border-subtle) pb-3 last:border-0 last:pb-0">
               <div className="flex items-center justify-between gap-3">
-                <p className="font-mono text-sm text-(--color-foreground)">
+                <p className="font-(family-name:--font-mono) text-sm text-(--color-foreground)">
                   {crash.component} <span className="text-(--color-muted-foreground)">/ {crash.crashType}</span>
                 </p>
                 <div className="flex items-center gap-2">

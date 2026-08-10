@@ -9,11 +9,11 @@ interface PredictiveCardProps {
 }
 
 const WORKFLOW_LABELS: Record<string, { label: string; color: string }> = {
-  coding: { label: "Coding", color: "text-(--color-accent)" },
+  coding: { label: "Coding", color: "text-(--color-muted-foreground)" },
   debugging: { label: "Debugging", color: "text-(--color-danger)" },
   documentation: { label: "Documentation", color: "text-(--color-success)" },
   research: { label: "Research", color: "text-(--color-warning)" },
-  meeting: { label: "Meeting", color: "text-(--color-info)" },
+  meeting: { label: "Meeting", color: "text-(--color-violet)" },
   custom: { label: "Custom", color: "text-(--color-muted-foreground)" },
 };
 
@@ -30,8 +30,8 @@ export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) 
     return (
       <Card className="p-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-accent-muted)">
-            <Brain className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-raised)">
+            <Brain className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
@@ -58,7 +58,7 @@ export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) 
     return (
       <Card className="p-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-surface-hover)">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-hover)">
             <Brain className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           </div>
           <div className="min-w-0 flex-1">
@@ -79,8 +79,8 @@ export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) 
     <Card className="p-4">
       <div className="flex flex-col gap-3">
         <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-accent-muted)">
-            <Brain className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-raised)">
+            <Brain className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
@@ -95,14 +95,14 @@ export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) 
         <div className="space-y-3">
           {predictions.currentWorkflow && (
             <div className="flex items-start gap-2">
-              <Activity className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--color-accent)" strokeWidth={1.75} />
+              <Activity className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--color-muted-foreground)" strokeWidth={1.75} />
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-(--color-faint-foreground)">
                   Current Workflow
                 </p>
                 <div className="mt-1 flex items-center gap-2">
                   <Badge
-                    variant="accent"
+                    variant="neutral"
                     className={`text-xs ${WORKFLOW_LABELS[predictions.currentWorkflow.workflowType]?.color || ""}`}
                   >
                     {WORKFLOW_LABELS[predictions.currentWorkflow.workflowType]?.label || "Unknown"}
@@ -168,7 +168,7 @@ export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) 
 
           {predictions.nextActions.length > 0 && (
             <div className="flex items-start gap-2">
-              <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--color-info)" strokeWidth={1.75} />
+              <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--color-violet)" strokeWidth={1.75} />
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-(--color-faint-foreground)">
                   Suggested Actions

@@ -61,7 +61,7 @@ export function IntegrityPanel({
                     <Badge variant="warning">issues found</Badge>
                   </>
                 )}
-                <span className="text-xs text-(--color-muted-foreground">
+                <span className="text-xs text-(--color-muted-foreground)">
                   {formatBytes(report.main.databaseSizeBytes)} · {report.main.pageCount} pages ·{" "}
                   {report.main.pageSize} B/page · {report.main.freelistCount} free ·{" "}
                   journal {report.main.journalMode || "n/a"}
@@ -71,7 +71,7 @@ export function IntegrityPanel({
                 <div className="flex flex-col gap-1">
                   <p className="text-xs font-medium text-(--color-danger)">integrity_check failures:</p>
                   {report.main.integrity.lines.map((line) => (
-                    <p key={line} className="font-mono text-xs text-(--color-danger)">
+                    <p key={line} className="font-(family-name:--font-mono) text-xs text-(--color-danger)">
                       {line}
                     </p>
                   ))}
@@ -81,7 +81,7 @@ export function IntegrityPanel({
                 <div className="flex flex-col gap-1">
                   <p className="text-xs font-medium text-(--color-danger)">quick_check failures:</p>
                   {report.main.quickCheck.lines.map((line) => (
-                    <p key={line} className="font-mono text-xs text-(--color-danger)">
+                    <p key={line} className="font-(family-name:--font-mono) text-xs text-(--color-danger)">
                       {line}
                     </p>
                   ))}
@@ -91,7 +91,7 @@ export function IntegrityPanel({
                 <div className="flex flex-col gap-1">
                   <p className="text-xs font-medium text-(--color-danger)">foreign-key violations:</p>
                   {report.main.foreignKeyCheck.map((line) => (
-                    <p key={line} className="font-mono text-xs text-(--color-danger)">
+                    <p key={line} className="font-(family-name:--font-mono) text-xs text-(--color-danger)">
                       {line}
                     </p>
                   ))}

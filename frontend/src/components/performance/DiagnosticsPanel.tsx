@@ -68,7 +68,7 @@ export function DiagnosticsPanel({
         <CardHeader className="flex-row items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-(--color-accent)" />
+              <Activity className="h-4 w-4 text-(--color-muted-foreground)" />
               System Diagnostics
             </CardTitle>
             <CardDescription>
@@ -121,8 +121,8 @@ export function DiagnosticsPanel({
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-(--color-border-subtle) p-4">
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                <div className="flex flex-col gap-3">
                   <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
                     <Cpu className="h-3.5 w-3.5" /> CPU utilization
                     <span className="ml-auto tabular-nums text-(--color-muted-foreground)">
@@ -152,7 +152,7 @@ export function DiagnosticsPanel({
                   />
                 </div>
 
-                <div className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-(--color-border-subtle) p-4">
+                <div className="flex flex-col gap-2">
                   <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
                     <Users className="h-3.5 w-3.5" /> Processes & threads
                   </p>
@@ -230,7 +230,7 @@ export function DiagnosticsPanel({
                 setAppliedIds(new Set());
                 onOptimize(true);
               }}
-              className="flex items-center gap-1.5 rounded-[var(--radius-control)] bg-(--color-accent) px-2.5 py-1 text-xs font-medium text-(--color-accent-foreground)"
+              className="glass-accent flex items-center gap-1.5 rounded-[var(--radius-control)] px-2.5 py-1 text-xs font-medium text-(--color-accent-foreground)"
             >
               {optimizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
               Analyze & apply
@@ -256,7 +256,7 @@ export function DiagnosticsPanel({
             return (
               <div
                 key={recommendation.id}
-                className="flex items-start gap-3 rounded-[var(--radius-card)] border border-(--color-border-subtle) p-3"
+                className="glass-panel flex items-start gap-3 rounded-[var(--radius-card)] p-3"
               >
                 <AlertTriangle
                   className={
@@ -273,16 +273,16 @@ export function DiagnosticsPanel({
                     <span
                       className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
                         recommendation.severity === "critical"
-                          ? "bg-(--color-danger) text-(--color-accent-foreground)"
+                          ? "bg-(--color-danger)/12 text-(--color-danger)"
                           : recommendation.severity === "warning"
-                            ? "bg-(--color-warning) text-(--color-warning-foreground)"
+                            ? "bg-(--color-warning)/12 text-(--color-warning)"
                             : "bg-(--color-border-subtle) text-(--color-muted-foreground)"
                       }`}
                     >
                       {CATEGORY_LABELS[recommendation.category] ?? recommendation.category}
                     </span>
                     {applied && (
-                      <span className="rounded-full bg-(--color-success) px-1.5 py-0.5 text-[10px] font-medium text-(--color-accent-foreground)">
+                      <span className="rounded-full bg-(--color-success)/12 px-1.5 py-0.5 text-[10px] font-medium text-(--color-success)">
                         applied
                       </span>
                     )}
@@ -294,7 +294,7 @@ export function DiagnosticsPanel({
                     type="button"
                     disabled={optimizing}
                     onClick={() => handleApply(recommendation)}
-                    className="shrink-0 rounded-[var(--radius-control)] bg-(--color-accent) px-2.5 py-1 text-xs font-medium text-(--color-accent-foreground)"
+                    className="glass-accent shrink-0 rounded-[var(--radius-control)] px-2.5 py-1 text-xs font-medium text-(--color-accent-foreground)"
                   >
                     Apply
                   </button>

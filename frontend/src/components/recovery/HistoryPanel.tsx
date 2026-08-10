@@ -31,7 +31,7 @@ export function HistoryPanel({ runs, loading, error }: { runs: RecoveryRun[]; lo
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <History className="h-4 w-4 text-(--color-accent)" />
+          <History className="h-4 w-4 text-(--color-muted-foreground)" />
           Recovery History
         </CardTitle>
         <CardDescription>
@@ -51,7 +51,7 @@ export function HistoryPanel({ runs, loading, error }: { runs: RecoveryRun[]; lo
             return (
               <div key={run.id} className="flex flex-col gap-1 border-b border-(--color-border-subtle) pb-3 last:border-0 last:pb-0">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="font-mono text-sm text-(--color-foreground)">
+                  <p className="font-(family-name:--font-mono) text-sm text-(--color-foreground)">
                     {TRIGGER_LABEL[run.trigger]} <span className="text-(--color-muted-foreground)">#{run.id}</span>
                   </p>
                   <div className="flex items-center gap-2">
@@ -66,7 +66,7 @@ export function HistoryPanel({ runs, loading, error }: { runs: RecoveryRun[]; lo
                 )}
                 {run.recoveredJobs.length > 0 && (
                   <p className="text-xs text-(--color-muted-foreground)">
-                    jobs: <span className="font-mono">{run.recoveredJobs.join(", ")}</span>
+                    jobs: <span className="font-(family-name:--font-mono)">{run.recoveredJobs.join(", ")}</span>
                   </p>
                 )}
                 {run.rolledBackTo !== null && (

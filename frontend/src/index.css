@@ -1,91 +1,123 @@
 @import "tailwindcss";
 
-/* Self-hosted, local-first fonts — no runtime network calls.
-   Latin subsets only, to keep the shipped bundle lean; add further
-   subsets here if/when the product ships localized UI. */
-@import "@fontsource/manrope/latin-600.css";
-@import "@fontsource/manrope/latin-700.css";
-@import "@fontsource/inter/latin-400.css";
-@import "@fontsource/inter/latin-500.css";
-@import "@fontsource/inter/latin-600.css";
-@import "@fontsource/jetbrains-mono/latin-400.css";
-@import "@fontsource/jetbrains-mono/latin-500.css";
-
 /* ------------------------------------------------------------------------
- * Design tokens
- * ChronoDesk is dark-mode-first, built on TRUE BLACK (#000000) like
- * Arc / Linear / Raycast: pure black chrome with very dark charcoal
- * panels, a single vivid "chrono blue" signal accent, and restrained
- * amber/green/red status colors. One easing curve drives every motion.
+ * ChronoDesk design tokens — Apple Liquid Glass over a deep-space canvas.
+ *
+ * The material system has two cooperating halves:
+ *   1. lib/liquidGlass.ts applies real SVG-displacement refraction
+ *      (backdrop-filter: url(#…)) on Chromium engines.
+ *   2. This stylesheet owns the *dressing*: translucent tint gradients,
+ *      specular top edge, dark lower edge, chromatic rim hints, drop
+ *      shadows — plus the environmental canvas (light fields, orbs,
+ *      grain, vignette) that sits BEHIND the glass so every surface has
+ *      something visible to frost and bend.
+ *
+ * The frosted path (backdrop blur + saturation + brightness) is not a
+ * degraded mode: on macOS WKWebView it is the primary material, so the
+ * environment must be rich enough for the blur to be unmistakable.
  * ---------------------------------------------------------------------- */
+
 @theme {
-  --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  /* macOS-native type: SF Pro on Apple platforms, system-ui elsewhere. */
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
 
-  /* Surfaces: true black background, charcoal panels layered in 3 steps. */
-  --color-background: #000000;
-  --color-surface: #0d0d11;
-  --color-surface-hover: #17171d;
-  --color-surface-raised: #121218;
-  --color-overlay: rgba(4, 4, 6, 0.72);
+  /* Canvas — deep black with the faintest blue cast. */
+  --color-background: #05060a;
+  --color-surface: rgba(255, 255, 255, 0.045);
+  --color-surface-hover: rgba(255, 255, 255, 0.08);
+  --color-surface-raised: rgba(255, 255, 255, 0.11);
+  --color-overlay: rgba(0, 0, 0, 0.52);
 
-  --color-border: #20202a;
-  --color-border-subtle: #17171f;
+  /* Hairlines — glass edges, not outlines. */
+  --color-border: rgba(255, 255, 255, 0.11);
+  --color-border-subtle: rgba(255, 255, 255, 0.05);
 
-  /* Text: Apple-grade contrast scale. */
-  --color-foreground: #f4f4f6;
-  --color-muted-foreground: #a3a3ad;
-  --color-faint-foreground: #67676f;
+  /* Text — Apple's label color scale. */
+  --color-foreground: #f5f5f7;
+  --color-muted-foreground: #a1a1a8;
+  --color-faint-foreground: #6f6f76;
 
-  /* Accent: vivid system blue — the single signal color. */
+  /* Accent — macOS system blue. Interaction/state only, never decoration. */
   --color-accent: #0a84ff;
+  --color-accent-hover: #409cff;
+  --color-accent-active: #0060df;
   --color-accent-foreground: #ffffff;
-  --color-accent-muted: rgba(10, 132, 255, 0.14);
+  --color-accent-muted: rgba(10, 132, 255, 0.16);
+  /* Data-viz fill — the accent pulled far toward neutral so chart bars
+     and area fills stay readable without shouting over the glass. */
+  --color-accent-soft: rgba(10, 132, 255, 0.34);
 
-  /* Status colors, kept for meaning not decoration. */
-  --color-warning: #ffb454;
-  --color-warning-foreground: #1a1408;
-  --color-success: #32d74b;
-  --color-success-foreground: #05130a;
+  /* Semantic hues — macOS palette, used sparingly. */
+  --color-blue: #0a84ff;
+  --color-cyan: #64d2ff;
+  --color-violet: #bf5af2;
+  --color-emerald: #30d158;
+  --color-orange: #ff9f0a;
+  --color-amber: #ffd60a;
+
+  /* Status colors. */
+  --color-warning: #ffd60a;
+  --color-warning-foreground: #241c00;
+  --color-success: #30d158;
+  --color-success-foreground: #031a0b;
   --color-danger: #ff453a;
   --color-danger-foreground: #ffffff;
 
-  /* Geometry. */
-  --radius-card: 1rem;
-  --radius-control: 0.625rem;
+  /* ------------------------------------------------------------------ *
+   * Liquid Glass dressing — the physical recipe of the material.
+   * Mirrors the reference: glass is mostly TRANSPARENT neutral tint
+   * (the environment carries the color), with a bright specular top
+   * edge, a hairline glass border, and a deep soft drop shadow.
+   * No chromatic tint fill — color arrives from behind the glass.
+   * ------------------------------------------------------------------ */
+  --glass-tint-top: rgba(255, 255, 255, 0.1);
+  --glass-tint-mid: rgba(255, 255, 255, 0.045);
+  --glass-tint-bottom: rgba(255, 255, 255, 0.018);
+  --glass-tint-strong: rgba(20, 22, 30, 0.16);
+  --glass-edge: rgba(255, 255, 255, 0.14);
+  --glass-specular: rgba(255, 255, 255, 0.5);
+  --glass-specular-soft: rgba(255, 255, 255, 0.18);
+  --glass-edge-dark: rgba(0, 0, 0, 0.4);
+  --glass-underlight: rgba(255, 255, 255, 0.05);
+
+  /* Ambient light — neutral-slate fields the glass visibly distorts.
+     Saturation is deliberately LOW: glass reads neutral; color stays
+     atmospheric, not painted. */
+  --ambient-blue: rgba(120, 165, 255, 0.07);
+  --ambient-cyan: rgba(140, 210, 255, 0.05);
+  --ambient-violet: rgba(175, 150, 255, 0.05);
+  --ambient-emerald: rgba(130, 220, 170, 0.035);
+  --ambient-warm: rgba(255, 205, 140, 0.03);
+  --ambient-core: rgba(150, 175, 235, 0.045);
+
+  /* Orb bodies — larger, softer shapes that drift behind the glass. */
+  --orb-blue: rgba(120, 165, 255, 0.08);
+  --orb-cyan: rgba(140, 210, 255, 0.055);
+  --orb-violet: rgba(175, 150, 255, 0.055);
+  --orb-emerald: rgba(130, 220, 170, 0.035);
+  --orb-warm: rgba(255, 205, 140, 0.03);
+
+  /* Geometry — macOS radii. */
+  --radius-card: 0.875rem;
+  --radius-control: 0.5rem;
+  --radius-small: 0.375rem;
   --radius-pill: 999px;
 
-  /* Elevation. */
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.02);
-  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.6), 0 1px 4px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 0 1px rgba(10, 132, 255, 0.35), 0 4px 24px rgba(10, 132, 255, 0.25);
+  /* Elevation — soft black shadows, luminous top edge. No glows. */
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 14px 36px rgba(0, 0, 0, 0.38);
+  --shadow-float: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 24px 60px rgba(0, 0, 0, 0.5), 0 6px 16px rgba(0, 0, 0, 0.3);
+  --shadow-pop: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 14px 36px rgba(0, 0, 0, 0.5);
 
   /* The one easing curve used everywhere. */
   --ease-premium: cubic-bezier(0.32, 0.08, 0.24, 1);
 
-  --animate-pulse-line: pulse-line 3.2s ease-in-out infinite;
   --animate-fade-in: fade-in 0.28s var(--ease-premium);
-  --animate-scale-in: scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-scale-in: scale-in 0.22s cubic-bezier(0.28, 0.9, 0.32, 1);
   --animate-slide-up: slide-up 0.3s var(--ease-premium);
   --animate-slide-down: slide-down 0.2s var(--ease-premium);
   --animate-grow-bar: grow-bar 0.6s var(--ease-premium);
-  --animate-breathe: breathe 2.4s ease-in-out infinite;
-  --animate-shimmer: shimmer 2.2s linear infinite;
-  --animate-edge-flow: edge-flow 1.4s linear infinite;
-  --animate-pulse-ring: pulse-ring 2.4s var(--ease-premium) infinite;
-  --animate-float: float 5s ease-in-out infinite;
-
-  @keyframes pulse-line {
-    0%,
-    100% {
-      opacity: 0.35;
-    }
-    50% {
-      opacity: 1;
-    }
-  }
 
   @keyframes fade-in {
     from {
@@ -101,7 +133,7 @@
   @keyframes scale-in {
     from {
       opacity: 0;
-      transform: scale(0.96);
+      transform: scale(0.97);
     }
     to {
       opacity: 1;
@@ -139,72 +171,71 @@
       transform: scaleX(1);
     }
   }
-
-  @keyframes breathe {
-    0%,
-    100% {
-      opacity: 0.55;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 1;
-      transform: scale(1.06);
-    }
-  }
-
-  @keyframes shimmer {
-    from {
-      background-position: 200% 0;
-    }
-    to {
-      background-position: -200% 0;
-    }
-  }
-
-  @keyframes edge-flow {
-    to {
-      stroke-dashoffset: -20;
-    }
-  }
-
-  @keyframes pulse-ring {
-    0% {
-      transform: scale(1);
-      opacity: 0.7;
-    }
-    100% {
-      transform: scale(1.55);
-      opacity: 0;
-    }
-  }
-
-  @keyframes float {
-    0%,
-    100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(-5px);
-    }
-  }
 }
 
-/* Light theme override — kept for accessibility; dark is the default. */
+/* ------------------------------------------------------------------------
+ * Light theme — a genuine Apple-style light glass environment, not a white
+ * website. Warm-neutral canvas, frosted white materials, soft shadows.
+ * ---------------------------------------------------------------------- */
 .light {
-  --color-background: #f5f5f7;
-  --color-surface: #ffffff;
-  --color-surface-hover: #ececf0;
-  --color-surface-raised: #ffffff;
-  --color-border: #d9d9e0;
-  --color-border-subtle: #e4e4ea;
+  --color-background: #e9e9ec;
+  --color-surface: rgba(255, 255, 255, 0.55);
+  --color-surface-hover: rgba(0, 0, 0, 0.05);
+  --color-surface-raised: rgba(255, 255, 255, 0.8);
+  --color-overlay: rgba(32, 34, 44, 0.32);
+
+  --color-border: rgba(0, 0, 0, 0.1);
+  --color-border-subtle: rgba(0, 0, 0, 0.05);
 
   --color-foreground: #1d1d1f;
-  --color-muted-foreground: #55555c;
+  --color-muted-foreground: #5f5f66;
   --color-faint-foreground: #8a8a92;
 
   --color-accent: #0071e3;
+  --color-accent-hover: #0077ed;
+  --color-accent-active: #0062c4;
+  --color-accent-foreground: #ffffff;
   --color-accent-muted: rgba(0, 113, 227, 0.12);
-  --color-warning-foreground: #1a1408;
+  --color-accent-soft: rgba(0, 113, 227, 0.44);
+
+  --color-blue: #0071e3;
+  --color-cyan: #0a84ff;
+  --color-violet: #8944ab;
+  --color-emerald: #248a3d;
+  --color-orange: #c93400;
+  --color-amber: #a05a00;
+
+  --color-warning-foreground: #241c00;
+  --color-danger-foreground: #ffffff;
+
+  /* Frosted white glass. */
+  --glass-tint-top: rgba(255, 255, 255, 0.82);
+  --glass-tint-mid: rgba(255, 255, 255, 0.6);
+  --glass-tint-bottom: rgba(255, 255, 255, 0.42);
+  --glass-tint-strong: rgba(255, 255, 255, 0.78);
+  --glass-edge: rgba(255, 255, 255, 0.95);
+  --glass-specular: rgba(255, 255, 255, 1);
+  --glass-specular-soft: rgba(255, 255, 255, 0.65);
+  --glass-edge-dark: rgba(0, 0, 0, 0.06);
+  --glass-underlight: rgba(255, 255, 255, 0.4);
+
+  --ambient-blue: rgba(0, 113, 227, 0.06);
+  --ambient-cyan: rgba(40, 170, 255, 0.05);
+  --ambient-violet: rgba(137, 68, 171, 0.045);
+  --ambient-emerald: rgba(36, 138, 61, 0.035);
+  --ambient-warm: rgba(201, 52, 0, 0.03);
+  --ambient-core: rgba(0, 113, 227, 0.035);
+
+  --orb-blue: rgba(0, 113, 227, 0.07);
+  --orb-cyan: rgba(40, 170, 255, 0.05);
+  --orb-violet: rgba(137, 68, 171, 0.05);
+  --orb-emerald: rgba(36, 138, 61, 0.03);
+  --orb-warm: rgba(201, 52, 0, 0.025);
+
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 14px 36px rgba(0, 0, 0, 0.08);
+  --shadow-float: inset 0 1px 0 rgba(255, 255, 255, 1), 0 24px 60px rgba(0, 0, 0, 0.14), 0 6px 16px rgba(0, 0, 0, 0.08);
+  --shadow-pop: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 14px 36px rgba(0, 0, 0, 0.12);
+
   color-scheme: light;
 }
 
@@ -221,6 +252,8 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-weight: 400;
+    letter-spacing: -0.011em;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -238,10 +271,10 @@
     color: var(--color-foreground);
   }
 
-  /* Minimal, JetBrains-style thin scrollbars. */
+  /* Minimal, Apple-style thin scrollbars. */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 9px;
+    height: 9px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
@@ -267,21 +300,259 @@
   }
 }
 
-/* ------------------------------------------------------------------------
- * Shared component utilities — one vocabulary for every page.
- * ---------------------------------------------------------------------- */
+/* ========================================================================
+ * MATERIALS — one glass vocabulary for the whole application.
+ *
+ * The recipe mirrors the reference: glass is a THIN neutral tint over a
+ * live environment — nearly transparent, no saturation boost, no colored
+ * fill. Each material is differentiated by four physical quantities:
+ *   blur   — how thick/removed the pane feels
+ *   specular — how strongly the top edge catches light
+ *   border — how present the rim is
+ *   shadow — how far the pane floats above the canvas
+ * Small surfaces (controls/wells) blur less, cast small shadows, and stay
+ * quiet. Large surfaces (chrome/sheet) float higher with brighter edges.
+ * ====================================================================== */
 
-/* Subtle dot-grid backdrop for the graph canvas and hero sections. */
+/* Level 1 — CHROME. Floating structural glass: sidebar, toolbar, hero
+   surfaces, dialogs. The reference card recipe: bright specular top edge,
+   underlight from below, hairline glass border, deep soft shadow. */
+@utility glass-chrome {
+  background: linear-gradient(180deg, var(--glass-tint-top), var(--glass-tint-mid) 45%, var(--glass-tint-bottom));
+  -webkit-backdrop-filter: blur(28px) saturate(130%);
+  backdrop-filter: blur(28px) saturate(130%);
+  box-shadow:
+    inset 0 1px 1px var(--glass-specular),
+    inset 0 -8px 20px var(--glass-underlight),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 var(--glass-edge-dark),
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* Level 2 — SURFACE. Large hero panels: softer than chrome, fewer edges,
+   sits closer to the canvas so content dominates, not the box. */
+@utility glass-surface {
+  background: linear-gradient(180deg, var(--glass-tint-mid), var(--glass-tint-bottom) 70%);
+  -webkit-backdrop-filter: blur(18px) saturate(122%);
+  backdrop-filter: blur(18px) saturate(122%);
+  box-shadow:
+    inset 0 1px 0 var(--glass-specular-soft),
+    inset 0 -1px 0 var(--glass-edge-dark),
+    0 18px 44px rgba(0, 0, 0, 0.42);
+}
+
+/* Level 3 — PANEL. Quiet secondary surfaces (cards, list rails). Thinner
+   blur, faint specular, NO rim — repeated cards must not gain weight. */
+@utility glass-panel {
+  background: linear-gradient(180deg, var(--glass-tint-mid), var(--glass-tint-bottom) 75%);
+  -webkit-backdrop-filter: blur(14px) saturate(118%);
+  backdrop-filter: blur(14px) saturate(118%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 12px 26px rgba(0, 0, 0, 0.2);
+}
+
+/* Level 4 — WELL. Inset input/field wells: light enters the pane, the
+   interior sinks. Dark inner top, hairline edge, no float. */
+@utility glass-well {
+  background: linear-gradient(180deg, var(--glass-tint-bottom), rgba(0, 0, 0, 0.14));
+  -webkit-backdrop-filter: blur(10px) saturate(118%);
+  backdrop-filter: blur(10px) saturate(118%);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* Level 4 — CONTROL. Small glass controls (buttons, segments, filters):
+   compact blur, bright top specular so they catch the light, whisper of
+   shadow — quiet enough to repeat without stacking boxes. */
+@utility glass-control {
+  background: linear-gradient(180deg, var(--glass-tint-mid), var(--glass-tint-bottom) 72%);
+  -webkit-backdrop-filter: blur(10px) saturate(116%);
+  backdrop-filter: blur(10px) saturate(116%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 2px 6px rgba(0, 0, 0, 0.16);
+}
+
+/* NAV — sidebar rows: no glass of their own; the surface only appears on
+   hover/active (raised material), so the rail reads as chrome, not tiles. */
+@utility glass-nav {
+  -webkit-backdrop-filter: blur(8px) saturate(110%);
+  backdrop-filter: blur(8px) saturate(110%);
+}
+
+/* SHEET — dialogs/sheets: the thickest pane. Strongest blur, bright
+   specular rim all around, deep shadow; clearly the topmost object. */
+@utility glass-sheet {
+  background: linear-gradient(180deg, var(--glass-tint-top), var(--glass-tint-mid) 40%, var(--glass-tint-bottom));
+  -webkit-backdrop-filter: blur(36px) saturate(132%);
+  backdrop-filter: blur(36px) saturate(132%);
+  box-shadow:
+    inset 0 1px 1px var(--glass-specular),
+    inset 0 -8px 20px var(--glass-underlight),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.13),
+    inset 0 -1px 0 var(--glass-edge-dark),
+    0 32px 80px rgba(0, 0, 0, 0.6),
+    0 10px 28px rgba(0, 0, 0, 0.38);
+}
+
+/* ACCENT — illuminated primary action. Translucent blue glass with a
+   bright specular top edge — NOT a solid rectangle and NOT a glow box.
+   The blue is restrained: the pane lets the environment through. */
+@utility glass-accent {
+  background: linear-gradient(180deg, rgba(10, 132, 255, 0.48), rgba(10, 132, 255, 0.28));
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  backdrop-filter: blur(12px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 8px 20px rgba(0, 0, 0, 0.28);
+}
+
+.light .glass-accent {
+  background: linear-gradient(180deg, rgba(0, 113, 227, 0.75), rgba(0, 113, 227, 0.55));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.25),
+    0 1px 2px rgba(0, 0, 0, 0.18),
+    0 8px 20px rgba(0, 0, 0, 0.14);
+}
+
+/* Compatibility alias — legacy `.glass` == chrome material. */
+@utility glass {
+  background: linear-gradient(180deg, var(--glass-tint-top), var(--glass-tint-mid) 45%, var(--glass-tint-bottom));
+  -webkit-backdrop-filter: blur(28px) saturate(130%);
+  backdrop-filter: blur(28px) saturate(130%);
+  box-shadow:
+    inset 0 1px 1px var(--glass-specular),
+    inset 0 -8px 20px var(--glass-underlight),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 var(--glass-edge-dark),
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* Frosted-only fallback marker set by lib/liquidGlass on non-Chromium
+   engines; the inline blur it applies matches this material. */
+.lg-fallback {
+  /* The JS owns the inline backdrop-filter; nothing extra needed. */
+}
+
+/* ========================================================================
+ * ENVIRONMENTAL CANVAS — the scene behind every glass surface.
+ *
+ * This is what makes the glass read as glass: soft, visible light fields
+ * plus drifting orbs. Saturation stays LOW — the fields read as neutral
+ * atmospheric light (slate, not neon); the refraction and frost do the
+ * rest.
+ * ====================================================================== */
+
+@utility bg-env {
+  background:
+    radial-gradient(1300px 850px at 10% -10%, var(--ambient-blue), transparent 62%),
+    radial-gradient(1100px 800px at 95% -8%, var(--ambient-cyan), transparent 60%),
+    radial-gradient(1200px 900px at 4% 110%, var(--ambient-violet), transparent 62%),
+    radial-gradient(900px 700px at 98% 108%, var(--ambient-emerald), transparent 60%),
+    radial-gradient(760px 520px at 72% 26%, var(--ambient-warm), transparent 64%),
+    radial-gradient(1500px 1000px at 50% 40%, var(--ambient-core), transparent 66%);
+}
+
+/* Quiet dotted canvas for graph/scatter surfaces. */
 @utility bg-dotgrid {
-  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.045) 1px, transparent 0);
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.05) 1px, transparent 0);
   background-size: 22px 22px;
 }
 
-/* Frosted panel — used for floating toolbars over the graph. */
-@utility glass {
-  background: var(--color-overlay);
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+.light .bg-dotgrid {
+  background-image: radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.08) 1px, transparent 0);
+}
+
+/* Soft corner darkening — depth at the edges of the canvas. */
+@utility bg-vignette {
+  background: radial-gradient(125% 110% at 50% 35%, transparent 58%, rgba(0, 0, 0, 0.52) 100%);
+}
+
+.light .bg-vignette {
+  background: radial-gradient(125% 110% at 50% 35%, transparent 60%, rgba(40, 42, 52, 0.18) 100%);
+}
+
+/* Film grain — a whisper of texture so large fields never look flat. */
+@utility bg-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+/* Drifting light orbs — slow, barely-there motion behind the glass. */
+.env-orb {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  filter: blur(72px);
+  will-change: transform;
+}
+.env-orb-blue {
+  top: -14%;
+  left: -8%;
+  width: 52vw;
+  height: 52vw;
+  background: radial-gradient(circle at 40% 40%, var(--orb-blue), transparent 68%);
+  animation: env-drift-a 90s ease-in-out infinite alternate;
+}
+.env-orb-cyan {
+  top: 24%;
+  right: -12%;
+  width: 44vw;
+  height: 44vw;
+  background: radial-gradient(circle, var(--orb-cyan), transparent 68%);
+  animation: env-drift-b 110s ease-in-out infinite alternate;
+}
+.env-orb-violet {
+  bottom: -18%;
+  left: 14%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, var(--orb-violet), transparent 70%);
+  animation: env-drift-a 120s ease-in-out infinite alternate-reverse;
+}
+.env-orb-emerald {
+  bottom: -12%;
+  right: 26%;
+  width: 34vw;
+  height: 34vw;
+  background: radial-gradient(circle, var(--orb-emerald), transparent 70%);
+  animation: env-drift-b 100s ease-in-out infinite alternate;
+}
+.env-orb-warm {
+  top: 48%;
+  left: 50%;
+  width: 26vw;
+  height: 26vw;
+  background: radial-gradient(circle, var(--orb-warm), transparent 72%);
+  animation: env-drift-a 130s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes env-drift-a {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(4%, 3%) scale(1.07);
+  }
+}
+
+@keyframes env-drift-b {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(-3.5%, 4%) scale(0.95);
+  }
 }
 
 /* Skeleton shimmer line. */
@@ -298,4 +569,16 @@
 /* Scrollable list panel with inset fade. */
 @utility scroll-fade-y {
   mask-image: linear-gradient(to bottom, transparent 0, black 12px, black calc(100% - 12px), transparent 100%);
+}
+
+/* macOS-style raised selection material (selected rows, active items). */
+@utility material-selected {
+  background: var(--color-surface-raised);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+/* Quiet hairline separator used instead of boxes. */
+@utility separator {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-border-subtle) 12%, var(--color-border-subtle) 88%, transparent);
 }

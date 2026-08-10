@@ -15,13 +15,13 @@ export function WorkflowFamiliesCard({ families }: WorkflowFamiliesCardProps) {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2">
-        <GitBranch className="h-4 w-4 text-(--color-accent)" />
+        <GitBranch className="h-4 w-4 text-(--color-muted-foreground)" />
         <h2 className="text-sm font-medium text-(--color-foreground)">Workflow families</h2>
       </div>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 space-y-1">
         {families.slice(0, 6).map((family) => (
-          <div key={family.family_id} className="rounded-lg border border-(--color-border) bg-(--color-surface-raised) p-3">
+          <div key={family.family_id} className="rounded-[var(--radius-control)] px-1 py-2">
             <div className="flex items-center justify-between gap-2">
               <p className="truncate text-sm font-medium text-(--color-foreground)">
                 {family.name}
@@ -40,7 +40,7 @@ export function WorkflowFamiliesCard({ families }: WorkflowFamiliesCardProps) {
               <div className="mt-2 flex items-center gap-2">
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-(--color-surface)">
                   <div
-                    className="h-full rounded-full bg-(--color-accent)"
+                    className="h-full rounded-full bg-(--color-accent-soft)"
                     style={{ width: `${Math.round(family.avg_confidence * 100)}%` }}
                   />
                 </div>

@@ -9,7 +9,7 @@ interface BriefingBannerProps {
 export function BriefingBanner({ briefing, isLoading }: BriefingBannerProps) {
   if (isLoading) {
     return (
-      <div className="relative overflow-hidden rounded-[var(--radius-card)] border border-(--color-border-subtle) bg-(--color-surface-raised) p-5">
+      <div className="glass-panel relative overflow-hidden rounded-[var(--radius-card)] p-5">
         <div className="animate-pulse space-y-3">
           <div className="h-5 w-48 rounded bg-(--color-surface-hover)" />
           <div className="h-4 w-96 rounded bg-(--color-surface-hover)" />
@@ -25,10 +25,10 @@ export function BriefingBanner({ briefing, isLoading }: BriefingBannerProps) {
 
   if (!briefing || briefing.workspacesCount === 0) {
     return (
-      <div className="relative overflow-hidden rounded-[var(--radius-card)] border border-(--color-border-subtle) bg-(--color-surface-raised) p-5">
+      <div className="glass-panel relative overflow-hidden rounded-[var(--radius-card)] p-5">
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-(--color-accent-muted)">
-            <Sparkles className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-(--color-surface-raised)">
+            <Sparkles className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">Getting Started</p>
@@ -48,9 +48,9 @@ export function BriefingBanner({ briefing, isLoading }: BriefingBannerProps) {
   } = briefing;
 
   return (
-    <div className="relative overflow-hidden rounded-[var(--radius-card)] border border-(--color-border-subtle) bg-(--color-surface-raised) p-5">
+    <div className="glass-panel relative overflow-hidden rounded-[var(--radius-card)] p-5">
       <div className="absolute right-0 top-0 h-24 w-24 opacity-[0.03]">
-        <div className="h-full w-full rounded-bl-full bg-(--color-accent)" />
+        <div className="h-full w-full rounded-bl-full bg-(--color-violet)" />
       </div>
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">

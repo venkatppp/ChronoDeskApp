@@ -118,7 +118,7 @@ export function ContextIntelPanel({ node, repository }: ContextIntelPanelProps) 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
-        <Brain className="h-3.5 w-3.5 text-(--color-accent)" strokeWidth={1.75} />
+        <Brain className="h-3.5 w-3.5 text-(--color-muted-foreground)" strokeWidth={1.75} />
         <p className="text-[10px] font-bold uppercase tracking-wider text-(--color-faint-foreground)">
           Context intelligence
         </p>
@@ -170,7 +170,7 @@ export function ContextIntelPanel({ node, repository }: ContextIntelPanelProps) 
               <span className="w-14 shrink-0 text-[10px] text-(--color-muted-foreground)">{entry.label}</span>
               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-(--color-surface-hover)">
                 <div
-                  className="h-full rounded-full bg-(--color-accent)"
+                  className="h-full rounded-full bg-(--color-accent-soft)"
                   style={{ width: `${Math.round(entry.value * 100)}%` }}
                 />
               </div>
@@ -183,7 +183,7 @@ export function ContextIntelPanel({ node, repository }: ContextIntelPanelProps) 
             <span className="w-14 shrink-0 text-[10px] font-semibold text-(--color-foreground)">Total</span>
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-(--color-surface-hover)">
               <div
-                className="h-full rounded-full bg-(--color-accent-muted)"
+                className="h-full rounded-full bg-(--color-violet)/20"
                 style={{ width: `${Math.round(breakdown.total * 100)}%` }}
               />
             </div>

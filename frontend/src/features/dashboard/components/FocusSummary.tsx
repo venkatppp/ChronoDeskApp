@@ -29,7 +29,7 @@ export function FocusSummary({
   return (
     <Card className="p-4">
       <div className="mb-3 flex items-center gap-2">
-        <Target className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+        <Target className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
         <h3 className="text-sm font-medium text-(--color-foreground)">Focus Sessions</h3>
       </div>
 

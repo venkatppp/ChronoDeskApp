@@ -34,24 +34,24 @@ export function DuplicateGroupsCard({ groups, onMerged }: DuplicateGroupsCardPro
     <Card className="p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Copy className="h-4 w-4 text-(--color-accent)" />
+          <Copy className="h-4 w-4 text-(--color-muted-foreground)" />
           <h2 className="text-sm font-medium text-(--color-foreground)">Duplicate memories</h2>
         </div>
         <button
           onClick={runMerge}
           disabled={merging}
-          className="flex items-center gap-1.5 rounded-md border border-(--color-border) px-3 py-1.5 text-xs font-medium text-(--color-foreground) transition-opacity hover:opacity-80 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-[var(--radius-control)] border border-(--color-border) px-3 py-1.5 text-xs font-medium text-(--color-foreground) transition-opacity hover:opacity-80 disabled:opacity-50"
         >
           <Combine className={merging ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
           {merging ? "Merging…" : "Merge duplicates"}
         </button>
       </div>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 space-y-1">
         {groups.map((group) => (
           <div
             key={group.goal_fingerprint}
-            className="rounded-lg border border-(--color-border) bg-(--color-surface-raised) p-3"
+            className="rounded-[var(--radius-control)] px-1 py-2"
           >
             <div className="flex items-center justify-between gap-2">
               <p className="truncate text-sm font-medium text-(--color-foreground)">

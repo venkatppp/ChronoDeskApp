@@ -10,10 +10,8 @@ interface ProgressRingProps {
 }
 
 /**
- * The dashboard's signature visual: a small circular "activity ring"
- * standing in for a workspace's health score, echoing the product's core
- * metaphor (a workspace as a living context, not a static folder) rather
- * than a generic horizontal progress bar.
+ * Small circular activity ring standing in for a workspace's health
+ * score — the product's core metaphor rendered as a quiet macOS ring.
  */
 export function ProgressRing({ value, size = 44, strokeWidth = 4, className, label }: ProgressRingProps) {
   const clamped = Math.min(100, Math.max(0, value));

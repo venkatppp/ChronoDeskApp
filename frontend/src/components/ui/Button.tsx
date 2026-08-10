@@ -10,18 +10,27 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        /* Illuminated glass — translucent blue pane with a bright
+           specular top edge. Never a solid blue rectangle. */
         primary:
-          "bg-(--color-accent) text-(--color-accent-foreground) shadow-[0_1px_2px_rgba(0,0,0,0.4)] hover:brightness-110",
+          "glass-accent text-(--color-accent-foreground) " +
+          "hover:brightness-[1.06] active:brightness-[0.97]",
+        /* Neutral glass — quiet frosted control, minimal border. */
         secondary:
-          "bg-(--color-surface-hover) text-(--color-foreground) border border-(--color-border) hover:bg-(--color-border-subtle)",
+          "glass-control text-(--color-foreground) " +
+          "hover:bg-(--color-surface-raised)/60",
         ghost: "text-(--color-muted-foreground) hover:bg-(--color-surface-hover) hover:text-(--color-foreground)",
-        danger: "bg-(--color-danger) text-white hover:brightness-110",
-        outline: "border border-(--color-border) bg-transparent text-(--color-muted-foreground) hover:bg-(--color-surface-hover) hover:text-(--color-foreground)",
+        danger:
+          "bg-(--color-danger)/90 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_4px_16px_rgba(0,0,0,0.3)] hover:brightness-[1.06]",
+        outline:
+          "border border-(--color-border) bg-transparent text-(--color-muted-foreground) " +
+          "hover:bg-(--color-surface-hover) hover:text-(--color-foreground) hover:border-(--color-border)",
       },
       size: {
-        sm: "h-8 px-3 text-xs",
-        md: "h-9 px-4",
-        icon: "h-9 w-9 shrink-0",
+        sm: "h-7 px-3 text-xs",
+        md: "h-8.5 px-3.5",
+        lg: "h-10 px-4 text-[15px]",
+        icon: "h-8.5 w-8.5 shrink-0",
       },
     },
     defaultVariants: {

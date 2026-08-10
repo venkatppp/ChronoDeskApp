@@ -15,7 +15,7 @@ export interface BarDatum {
 export function BarList({
   items,
   valueFormatter = (v) => String(v),
-  color = "var(--color-accent)",
+  color = "var(--color-accent-soft)",
   max,
   onSelect,
   className,

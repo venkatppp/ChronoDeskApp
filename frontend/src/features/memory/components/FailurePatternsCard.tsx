@@ -16,9 +16,9 @@ const PATTERN_LABELS: Record<FailurePatternType, string> = {
 };
 
 const PATTERN_TONES: Record<FailurePatternType, string> = {
-  repeated_failure: "border-red-500/40 bg-red-500/10 text-red-500",
-  unstable_workflow: "border-amber-500/40 bg-amber-500/10 text-amber-600",
-  low_confidence_plan: "border-orange-500/40 bg-orange-500/10 text-orange-600",
+  repeated_failure: "border-(--color-danger)/30 bg-(--color-danger)/12 text-(--color-danger)",
+  unstable_workflow: "border-(--color-warning)/30 bg-(--color-warning)/12 text-(--color-warning)",
+  low_confidence_plan: "border-(--color-orange)/30 bg-(--color-orange)/12 text-(--color-orange)",
 };
 
 export function FailurePatternsCard({ patterns }: FailurePatternsCardProps) {
@@ -27,15 +27,15 @@ export function FailurePatternsCard({ patterns }: FailurePatternsCardProps) {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2">
-        <ShieldAlert className="h-4 w-4 text-(--color-accent)" />
+        <ShieldAlert className="h-4 w-4 text-(--color-muted-foreground)" />
         <h2 className="text-sm font-medium text-(--color-foreground)">Failure patterns</h2>
       </div>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 space-y-1">
         {patterns.map((pattern) => (
           <div
             key={`${pattern.pattern_type}-${pattern.goal_fingerprint}`}
-            className="rounded-lg border border-(--color-border) bg-(--color-surface-raised) p-3"
+            className="rounded-[var(--radius-control)] px-1 py-2"
           >
             <div className="flex items-center justify-between gap-2">
               <p className="truncate text-sm font-medium text-(--color-foreground)">

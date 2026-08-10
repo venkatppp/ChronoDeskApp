@@ -16,6 +16,7 @@ import type {
   EdgeDecaySummary,
 } from "@/types/graph";
 import { useAppEvents } from "@/hooks/useAppEvents";
+import { Button } from "@/components/ui/Button";
 import { Network, RefreshCw, Search, X, Map, ChevronLeft, Sparkles, Hourglass, Activity, Gauge, Boxes } from "lucide-react";
 
 const GRAPH_MODES: { value: GraphMode; label: string; icon: typeof Network }[] = [
@@ -38,12 +39,12 @@ const INITIAL_LIMIT = 400;
 const MAX_LIMIT = 4000;
 
 const TYPE_COLORS: Record<GraphNodeType, string> = {
-  workspace: "var(--color-accent)",
-  file: "var(--color-success)",
-  planner_report: "var(--color-warning)",
-  execution: "var(--color-danger)",
-  memory_record: "var(--color-accent-muted)",
-  autonomous_session: "var(--color-warning-foreground)",
+  workspace: "var(--color-blue)",
+  file: "var(--color-cyan)",
+  planner_report: "var(--color-emerald)",
+  execution: "var(--color-orange)",
+  memory_record: "var(--color-violet)",
+  autonomous_session: "var(--color-violet)",
 };
 
 export function GraphPage() {
@@ -247,10 +248,14 @@ export function GraphPage() {
   );
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-64px)] flex-col overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-(--color-border-subtle) px-6 py-4">
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="glass-chrome relative z-10 flex shrink-0 items-center justify-between gap-4 border-b border-(--color-border-subtle) px-6 py-4">
         <div>
-          <h1 className="font-(family-name:--font-display) text-xl font-bold">Knowledge Graph</h1>
+          <p className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-faint-foreground)">
+            <span className="h-1 w-1 rounded-full bg-(--color-faint-foreground)" />
+            Graph
+          </p>
+          <h1 className="font-(family-name:--font-display) text-xl font-semibold tracking-tight">Knowledge Graph</h1>
           <p className="text-sm text-(--color-muted-foreground)">
             Typed graph across workspaces, files, planner reports, executions, memory, and sessions.
           </p>
@@ -300,15 +305,15 @@ export function GraphPage() {
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-3 border-b border-(--color-border-subtle) px-6 py-2.5">
-        <div className="flex shrink-0 items-center gap-0.5 rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface) p-0.5">
+      <div className="glass-chrome relative z-10 flex shrink-0 items-center gap-3 border-b border-(--color-border-subtle) px-6 py-2.5">
+        <div className="glass-control flex shrink-0 items-center gap-0.5 rounded-[var(--radius-control)] p-0.5">
           {GRAPH_MODES.map((m) => (
             <button
               key={m.value}
               onClick={() => setMode(m.value)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] px-2.5 py-1 text-xs font-medium transition-colors ${
+              className={`flex shrink-0 items-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] px-2.5 py-1 text-xs font-medium transition-all duration-150 ease-[var(--ease-premium)] ${
                 mode === m.value
-                  ? "bg-(--color-surface-hover) text-(--color-foreground) shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
+                  ? "bg-(--color-surface-hover) text-(--color-foreground) shadow-[0_1px_2px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.06)]"
                   : "text-(--color-muted-foreground) hover:text-(--color-foreground)"
               }`}
             >
@@ -350,7 +355,7 @@ export function GraphPage() {
               All nodes
             </button>
           )}
-          <div className="flex items-center gap-1.5 rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface) px-2.5 py-1.5">
+          <div className="glass-control flex items-center gap-1.5 rounded-[var(--radius-control)] px-2.5 py-1.5">
             <Search className="h-3.5 w-3.5 shrink-0 text-(--color-faint-foreground)" strokeWidth={1.75} />
             <input
               value={searchQuery}
@@ -383,14 +388,14 @@ export function GraphPage() {
             <Gauge className="h-3.5 w-3.5" strokeWidth={1.75} />
             Performance
           </a>
-          <button
+          <Button
             onClick={handleSync}
             disabled={isSyncing}
-            className="flex shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] bg-(--color-accent) px-3 py-1.5 text-xs font-medium text-(--color-accent-foreground) transition-opacity disabled:opacity-50"
+            size="sm"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} strokeWidth={1.75} />
             Rebuild
-          </button>
+          </Button>
           <span className="h-4 w-px bg-(--color-border-subtle)" />
           <button
             onClick={handleIncrementalSync}
@@ -420,7 +425,7 @@ export function GraphPage() {
       </div>
 
       {searchResults.length > 0 && (
-        <div className="absolute left-1/2 top-24 z-30 w-80 -translate-x-1/2 overflow-hidden rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-raised) py-1 shadow-[0_4px_12px_rgba(0,0,0,0.4)]">
+        <div className="absolute left-1/2 top-24 z-30 w-80 -translate-x-1/2 overflow-hidden rounded-[var(--radius-control)] glass-panel py-1 shadow-[var(--shadow-pop)]">
           {searchResults.map((node) => (
             <button
               key={`${node.nodeType}-${node.entityId}`}
@@ -442,7 +447,7 @@ export function GraphPage() {
       )}
 
       <div className="flex flex-1 gap-0 overflow-hidden">
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden bg-env">
           {isLoading ? (
             <div className="flex flex-1 items-center justify-center">
               <div className="flex flex-col items-center gap-3">
@@ -454,12 +459,12 @@ export function GraphPage() {
             <div className="flex flex-1 items-center justify-center">
               <div className="flex flex-col items-center gap-3">
                 <p className="text-sm text-(--color-danger)">{error}</p>
-                <button
+                <Button
                   onClick={() => fetchAllNodes(activeFilter)}
-                  className="rounded-[var(--radius-control)] bg-(--color-accent) px-4 py-2 text-sm font-medium text-(--color-accent-foreground)"
+                  size="sm"
                 >
                   Retry
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
@@ -480,11 +485,11 @@ export function GraphPage() {
           )}
         </div>
 
-        <div className="hidden w-80 shrink-0 overflow-y-auto border-l border-(--color-border-subtle) bg-(--color-surface) p-4 lg:block">
+        <div className="glass-panel hidden w-80 shrink-0 overflow-y-auto border-l border-(--color-border-subtle) p-4 lg:block">
           {selectedNode && context ? (
             <div className="flex flex-col gap-4 animate-fade-in">
               <div className="flex items-start gap-2">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `${TYPE_COLORS[selectedNode.nodeType]}20` }}>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)]" style={{ backgroundColor: `${TYPE_COLORS[selectedNode.nodeType]}20` }}>
                   <Network className="h-4 w-4" style={{ color: TYPE_COLORS[selectedNode.nodeType] }} strokeWidth={1.75} />
                 </div>
                 <div className="min-w-0">
@@ -573,7 +578,7 @@ export function GraphPage() {
           ) : analytics ? (
             <div className="flex flex-col gap-4 animate-fade-in">
               <div className="flex items-start gap-2">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--color-accent)/10">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-accent)/10">
                   <Activity className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
                 </div>
                 <div className="min-w-0">

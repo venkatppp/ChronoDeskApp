@@ -13,16 +13,16 @@ export function MemoryAgingCard({ summary }: MemoryAgingCardProps) {
   if (!summary) return null;
 
   const buckets = [
-    { label: "Fresh", count: summary.fresh_records, tone: "bg-emerald-500" },
-    { label: "Aging", count: summary.aging_records, tone: "bg-amber-500" },
-    { label: "Archived", count: summary.archived_records, tone: "bg-slate-500" },
+    { label: "Fresh", count: summary.fresh_records, tone: "bg-(--color-emerald)" },
+    { label: "Aging", count: summary.aging_records, tone: "bg-(--color-warning)" },
+    { label: "Archived", count: summary.archived_records, tone: "bg-(--color-muted-foreground)" },
   ];
   const total = Math.max(summary.total_records, 1);
 
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2">
-        <Hourglass className="h-4 w-4 text-(--color-accent)" />
+        <Hourglass className="h-4 w-4 text-(--color-muted-foreground)" />
         <h2 className="text-sm font-medium text-(--color-foreground)">Memory aging</h2>
       </div>
 
@@ -39,7 +39,7 @@ export function MemoryAgingCard({ summary }: MemoryAgingCardProps) {
 
       <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
         {buckets.map((bucket) => (
-          <div key={bucket.label} className="rounded-md bg-(--color-surface) px-2 py-1.5">
+          <div key={bucket.label}>
             <p className="text-(--color-muted-foreground)">{bucket.label}</p>
             <p className="mt-0.5 font-medium text-(--color-foreground)">{bucket.count}</p>
           </div>

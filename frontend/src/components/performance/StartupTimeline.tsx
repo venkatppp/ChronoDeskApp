@@ -36,7 +36,7 @@ export function StartupTimeline({
       <CardHeader className="flex-row items-start justify-between">
         <div>
           <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-(--color-accent)" />
+            <BarChart3 className="h-4 w-4 text-(--color-muted-foreground)" />
             Startup Timeline
           </CardTitle>
           <CardDescription>
@@ -60,7 +60,7 @@ export function StartupTimeline({
             <BarList
               items={items}
               valueFormatter={formatMs}
-              color="var(--color-accent)"
+              color="var(--color-accent-soft)"
               onSelect={(index) => setPinned((latest?.stages[index] ?? null))}
             />
             {slowest && (

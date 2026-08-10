@@ -15,6 +15,7 @@ import {
   File as FileIcon,
   Boxes,
 } from "lucide-react";
+import { GlassSurface } from "@/components/ui/GlassSurface";
 
 export type GraphMode = "structure" | "activity" | "semantic";
 
@@ -43,13 +44,17 @@ const NODE_RADIUS: Record<GraphNodeType, number> = {
   autonomous_session: 31,
 };
 
+/* Calm semantic palette — macOS-muted hues, no neon. Workspace = system
+   blue, file = steel blue, reports = green, runs = muted orange,
+   memory/semantic = violet. Saturation stays low enough for the canvas
+   to read as an environment, not a command center. */
 const NODE_COLORS: Record<GraphNodeType, string> = {
-  workspace: "#0a84ff",
-  file: "#32d74b",
-  planner_report: "#ffb454",
-  execution: "#ff453a",
-  memory_record: "#bf5af2",
-  autonomous_session: "#ff9f0a",
+  workspace: "#4d9fff",
+  file: "#7fa9c4",
+  planner_report: "#63c98f",
+  execution: "#d9a05b",
+  memory_record: "#a78bdc",
+  autonomous_session: "#b39ddb",
 };
 
 const NODE_RING: Record<string, number> = {
@@ -62,11 +67,11 @@ const NODE_RING: Record<string, number> = {
 };
 
 const EDGE_COLORS: Record<GraphRelationshipType, string> = {
-  contains: "#565664",
-  runs_in: "#0a84ff",
-  reports_on: "#ffb454",
-  derived_from: "#32d74b",
-  related_to: "#bf5af2",
+  contains: "#5b6472",
+  runs_in: "#4d9fff",
+  reports_on: "#d9a05b",
+  derived_from: "#63c98f",
+  related_to: "#a78bdc",
 };
 
 const EDGE_LABELS: Record<GraphRelationshipType, string> = {
@@ -86,7 +91,7 @@ function nodeRadius(type: GraphNodeType): number {
 }
 
 function nodeColor(type: GraphNodeType): string {
-  return NODE_COLORS[type] ?? "#0a84ff";
+  return NODE_COLORS[type] ?? "#4d9fff";
 }
 
 function edgeColor(type: GraphRelationshipType): string {
@@ -219,18 +224,18 @@ interface StructureNode {
 }
 
 const FILE_TONES: Record<string, string> = {
-  react: "#5ac8fa",
-  rust: "#ff9f0a",
-  database: "#bf5af2",
-  ai: "#ffb454",
-  file: "#32d74b",
+  react: "#5b9dff",
+  rust: "#d9a05b",
+  database: "#a78bdc",
+  ai: "#63c98f",
+  file: "#8fa9c4",
 };
 
 export const STRUCTURE_TONES: Record<StructureKind, string> = {
-  layer: "#0a84ff",
-  workspace: "#0a84ff",
+  layer: "#5b9dff",
+  workspace: "#5b9dff",
   folder: "#8e8e93",
-  file: "#32d74b",
+  file: "#8fa9c4",
   other: "#a3a3ad",
 };
 
@@ -1091,9 +1096,8 @@ export function KnowledgeGraphView({
     return (
       <div className="relative flex h-full w-full flex-col items-center justify-center gap-6 overflow-hidden p-12 text-center">
         <div className="pointer-events-none absolute inset-0 bg-dotgrid opacity-40" aria-hidden="true" />
-        <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl border border-(--color-border-subtle) bg-(--color-surface-raised) shadow-[var(--shadow-pop)] animate-(--animate-float)">
-          <span className="absolute inset-0 rounded-3xl bg-(--color-accent)/15 blur-2xl" aria-hidden="true" />
-          <Waypoints className="relative h-8 w-8 text-(--color-accent)" strokeWidth={1.5} />
+        <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl border border-(--color-border-subtle) bg-(--color-surface-raised) shadow-[var(--shadow-pop)]">
+          <Waypoints className="h-8 w-8 text-(--color-muted-foreground)" strokeWidth={1.5} />
         </div>
         <div className="relative max-w-md">
           <h3 className="font-(family-name:--font-display) text-2xl font-bold tracking-tight text-(--color-foreground)">
@@ -1119,10 +1123,11 @@ export function KnowledgeGraphView({
       className="relative h-full w-full cursor-grab overflow-hidden bg-dotgrid active:cursor-grabbing"
       style={{
         backgroundImage:
-          "radial-gradient(1100px 700px at 50% -10%, rgba(10,132,255,0.06), transparent 60%)," +
-          "radial-gradient(900px 600px at 90% 110%, rgba(191,90,242,0.05), transparent 55%)," +
+          "radial-gradient(1100px 700px at 50% -10%, rgba(56,189,248,0.1), transparent 60%)," +
+          "radial-gradient(900px 600px at 90% 110%, rgba(167,139,250,0.09), transparent 55%)," +
+          "radial-gradient(800px 600px at 8% 100%, rgba(10,132,255,0.08), transparent 58%)," +
           "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0)",
-        backgroundSize: "auto, auto, 22px 22px",
+        backgroundSize: "auto, auto, auto, 22px 22px",
       }}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
@@ -1133,6 +1138,8 @@ export function KnowledgeGraphView({
       tabIndex={0}
       aria-label="Knowledge graph canvas"
     >
+      {/* Spatial depth — vignette over the ambient light fields. */}
+      <div className="pointer-events-none absolute inset-0 bg-vignette" aria-hidden="true" />
       <div
         className="absolute inset-0 transition-transform duration-150 ease-[var(--ease-premium)]"
         style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})` }}
@@ -1146,13 +1153,6 @@ export function KnowledgeGraphView({
                 <stop offset="100%" stopColor={color} stopOpacity="0.02" />
               </radialGradient>
             ))}
-            <filter id="kg-node-glow" x="-80%" y="-80%" width="260%" height="260%">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
           </defs>
 
           {mode === "structure" && structureLayout && renderStructure(structureLayout, effectiveExpanded, handleStructureNodeClick, selectedNodeId)}
@@ -1183,7 +1183,6 @@ export function KnowledgeGraphView({
                     stroke={ec}
                     strokeWidth={baseWidth * 3.2}
                     strokeOpacity={0.16}
-                    filter="url(#kg-node-glow)"
                     className="pointer-events-none"
                   />
                 )}
@@ -1204,7 +1203,7 @@ export function KnowledgeGraphView({
                     strokeWidth={baseWidth}
                     strokeOpacity={0.9}
                     strokeDasharray="3 7"
-                    className="pointer-events-none animate-(--animate-edge-flow)"
+                    className="pointer-events-none"
                   />
                 )}
                 <path
@@ -1251,34 +1250,28 @@ export function KnowledgeGraphView({
                 {isSelected && (
                   <>
                     <circle
-                      r={r + 6}
-                      fill="none"
-                      stroke={col}
-                      strokeWidth={1.5}
-                      className="animate-(--animate-pulse-ring) origin-center"
-                      style={{ transformBox: "fill-box", transformOrigin: "center" }}
+                      r={r + 9}
+                      fill={col}
+                      opacity={0.1}
+                      className="pointer-events-none"
                     />
                     <circle
-                      r={r + 4}
+                      r={r + 5}
                       fill="none"
-                      stroke={col}
-                      strokeWidth={1.5}
-                      strokeDasharray="5 4"
-                      className="animate-[spin_10s_linear_infinite] origin-center"
-                      style={{ transformBox: "fill-box", transformOrigin: "center" }}
+                      stroke="#f4f4f6"
+                      strokeOpacity={0.65}
+                      strokeWidth={1.25}
+                      className="pointer-events-none"
                     />
                   </>
                 )}
-                {!isSelected && neighbor && (
-                  <circle r={r + 7} fill={col} opacity={0.14} filter="url(#kg-node-glow)" className="animate-(--animate-breathe)" style={{ transformBox: "fill-box", transformOrigin: "center" }} />
-                )}
+
                 <circle
                   r={r}
                   fill={dimmed ? "#0a0a0d" : `url(#grad-${node.nodeType})`}
-                  stroke={isSelected ? "#ffffff" : dimmed ? "#26262e" : col}
-                  strokeWidth={isSelected ? 2.5 : neighbor ? 2 : 1.5}
+                  stroke={isSelected ? "#f4f4f6" : dimmed ? "#26262e" : col}
+                  strokeWidth={isSelected ? 1.75 : neighbor ? 1.75 : 1.25}
                   className="transition-all duration-500 ease-[var(--ease-premium)]"
-                  filter={isSelected ? "url(#kg-node-glow)" : undefined}
                   style={{ opacity: dimmed ? 0.28 : 1 }}
                 />
                 <circle r={r} fill="none" stroke={hovered ? "#ffffff" : "none"} strokeWidth={hovered ? 0.75 : 0} strokeDasharray="2 5" className="transition-all duration-200" style={{ opacity: hovered ? 0.8 : 0 }} />
@@ -1317,7 +1310,11 @@ export function KnowledgeGraphView({
         </svg>
       </div>
       {selected && (
-        <div className="glass absolute left-4 top-4 z-20 w-[272px] animate-fade-in rounded-[var(--radius-card)] border border-(--color-border) p-4 shadow-[var(--shadow-pop)]">
+        <GlassSurface
+          material="panel"
+          refraction={true}
+          className="absolute left-4 top-4 z-20 w-[272px] animate-fade-in rounded-[var(--radius-card)] p-4 shadow-[var(--shadow-pop)]"
+        >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="truncate font-(family-name:--font-display) text-sm font-semibold text-(--color-foreground)">
@@ -1334,7 +1331,7 @@ export function KnowledgeGraphView({
             <div className="flex shrink-0 items-center gap-1">
               <button
                 onClick={toggleFocusMode}
-                className={`rounded-lg p-1.5 transition-colors ${
+                className={`rounded-[var(--radius-control)] p-1.5 transition-colors ${
                   focusMode && focusNodeId === selected.entityId
                     ? "bg-(--color-accent)/15 text-(--color-accent)"
                     : "text-(--color-faint-foreground) hover:bg-(--color-surface-hover) hover:text-(--color-foreground)"
@@ -1345,7 +1342,7 @@ export function KnowledgeGraphView({
               </button>
               <button
                 onClick={() => jumpTo(layoutNodes.find((n) => nodeKeyOf(n) === selectedNodeKey) ?? (selected as PositionedNode))}
-                className="shrink-0 rounded-lg p-1.5 text-(--color-faint-foreground) transition-colors hover:bg-(--color-surface-hover) hover:text-(--color-foreground)"
+                className="shrink-0 rounded-[var(--radius-control)] p-1.5 text-(--color-faint-foreground) transition-colors hover:bg-(--color-surface-hover) hover:text-(--color-foreground)"
                 title="Center on this node"
               >
                 <LocateFixed className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -1361,7 +1358,7 @@ export function KnowledgeGraphView({
           <div className="mt-3 flex flex-wrap gap-1.5">
             <button
               onClick={toggleFocusMode}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+              className={`flex items-center gap-1.5 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
                 focusMode && focusNodeId === selected.entityId
                   ? "bg-(--color-accent)/15 text-(--color-accent)"
                   : "bg-(--color-surface-hover) text-(--color-muted-foreground) hover:text-(--color-foreground)"
@@ -1375,18 +1372,18 @@ export function KnowledgeGraphView({
                 setShowSearch(true);
                 setSearchQuery("");
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-(--color-surface-hover) px-2.5 py-1.5 text-[11px] font-medium text-(--color-muted-foreground) transition-colors hover:text-(--color-foreground)"
+              className="flex items-center gap-1.5 rounded-[var(--radius-control)] bg-(--color-surface-hover) px-2.5 py-1.5 text-[11px] font-medium text-(--color-muted-foreground) transition-colors hover:text-(--color-foreground)"
             >
               <Search className="h-3 w-3" strokeWidth={1.75} />
               Search
             </button>
           </div>
-        </div>
+        </GlassSurface>
       )}
 
       {showSearch && (
         <div className="absolute left-1/2 top-4 z-30 w-80 -translate-x-1/2 animate-slide-down">
-          <div className="glass flex items-center gap-2 rounded-[var(--radius-control)] border border-(--color-border) px-3 py-2.5 shadow-[var(--shadow-pop)]">
+          <div className="glass-control flex items-center gap-2 rounded-[var(--radius-control)] border border-(--color-border) px-3 py-2.5">
             <Search className="h-4 w-4 shrink-0 text-(--color-muted-foreground)" strokeWidth={1.75} />
             <input
               ref={searchInputRef}
@@ -1453,10 +1450,10 @@ export function KnowledgeGraphView({
       )}
 
       <div className="absolute right-5 bottom-5 z-20 flex flex-col items-center gap-1.5">
-        <div className="glass flex flex-col items-center gap-1 rounded-[var(--radius-control)] border border-(--color-border) p-1 shadow-[var(--shadow-pop)]">
+        <div className="glass-control flex flex-col items-center gap-1 rounded-[var(--radius-control)] border border-(--color-border) p-1">
           <button
             onClick={() => applyZoom(1.28)}
-            className="rounded-lg p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
+            className="rounded-[var(--radius-control)] p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
             title="Zoom in"
           >
             <ZoomIn className="h-4 w-4" strokeWidth={1.75} />
@@ -1466,7 +1463,7 @@ export function KnowledgeGraphView({
           </span>
           <button
             onClick={() => applyZoom(1 / 1.28)}
-            className="rounded-lg p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
+            className="rounded-[var(--radius-control)] p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
             title="Zoom out"
           >
             <ZoomOut className="h-4 w-4" strokeWidth={1.75} />
@@ -1474,21 +1471,21 @@ export function KnowledgeGraphView({
         </div>
         <button
           onClick={fitToView}
-          className="glass rounded-[var(--radius-control)] border border-(--color-border) p-2 text-(--color-muted-foreground) shadow-[var(--shadow-pop)] transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
+          className="glass-control rounded-[var(--radius-control)] border border-(--color-border) p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
           title="Fit to view"
         >
           <Maximize className="h-4 w-4" strokeWidth={1.75} />
         </button>
         <button
           onClick={resetView}
-          className="glass rounded-[var(--radius-control)] border border-(--color-border) p-2 text-(--color-muted-foreground) shadow-[var(--shadow-pop)] transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
+          className="glass-control rounded-[var(--radius-control)] border border-(--color-border) p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
           title="Reset view"
         >
           <LocateFixed className="h-4 w-4" strokeWidth={1.75} />
         </button>
         <button
           onClick={() => setShowSearch((p) => !p)}
-          className={`glass rounded-[var(--radius-control)] border p-2 shadow-[var(--shadow-pop)] transition-all duration-150 active:scale-90 ${
+          className={`glass-control rounded-[var(--radius-control)] border p-2 transition-all duration-150 active:scale-90 ${
             showSearch
               ? "border-(--color-accent)/50 bg-(--color-accent)/10 text-(--color-accent)"
               : "border-(--color-border) text-(--color-muted-foreground) hover:bg-(--color-surface-hover) hover:text-(--color-foreground)"
@@ -1499,7 +1496,7 @@ export function KnowledgeGraphView({
         </button>
       </div>
 
-      <div className="glass absolute bottom-5 left-5 z-20 flex items-center gap-2.5 rounded-lg border border-(--color-border) px-3.5 py-2 text-xs text-(--color-muted-foreground) shadow-[var(--shadow-pop)]">
+      <div className="glass-control absolute bottom-5 left-5 z-20 flex items-center gap-2.5 rounded-[var(--radius-control)] border border-(--color-border) px-3.5 py-2 text-xs text-(--color-muted-foreground)">
         <span className="font-medium text-(--color-foreground)">{nodes.length} nodes</span>
         <span className="h-3 w-px bg-(--color-border)" />
         <span className="font-medium text-(--color-foreground)">
@@ -1515,18 +1512,17 @@ export function KnowledgeGraphView({
         <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2">
           <button
             onClick={onLoadMore}
-            className="glass flex items-center gap-2 rounded-lg border border-(--color-border) px-4 py-2 text-xs font-medium text-(--color-muted-foreground) shadow-[var(--shadow-pop)] transition-colors hover:bg-(--color-surface-hover) hover:text-(--color-foreground)"
+            className="glass-control flex items-center gap-2 rounded-[var(--radius-control)] border border-(--color-border) px-4 py-2 text-xs font-medium text-(--color-muted-foreground) transition-colors hover:bg-(--color-surface-hover) hover:text-(--color-foreground)"
           >
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-(--color-accent) opacity-50" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-(--color-accent)" />
+              <span className="inline-flex h-2 w-2 rounded-full bg-(--color-accent)" />
             </span>
             {nodes.length} of {totalHint} nodes loaded — load more
           </button>
         </div>
       )}
 
-      <div className="absolute bottom-5 left-1/2 z-10 hidden -translate-x-1/2 overflow-hidden rounded-lg border border-(--color-border-subtle) bg-(--color-surface) shadow-[var(--shadow-pop)] transition-opacity duration-300 hover:opacity-100 lg:block xl:opacity-80" style={{ width: mmW + 16, height: mmH + 16, cursor: "pointer" }}>
+      <div className="glass-panel absolute bottom-5 left-1/2 z-10 hidden -translate-x-1/2 overflow-hidden rounded-[var(--radius-control)] p-0.5 shadow-[var(--shadow-pop)] transition-opacity duration-300 hover:opacity-100 lg:block xl:opacity-80" style={{ width: mmW + 16, height: mmH + 16, cursor: "pointer" }}>
         {mode === "structure" && structureLayout ? (
           <svg viewBox={`${structureLayout.minX - 20} ${structureLayout.minY - 20} ${structureLayout.maxX - structureLayout.minX + 40} ${structureLayout.maxY - structureLayout.minY + 40}`} width={mmW + 16} height={mmH + 16}>
             {flattenPlaced(structureLayout.placed).map((n) => (
@@ -1559,17 +1555,17 @@ export function KnowledgeGraphView({
         <rect x={0} y={0} width={mmW} height={mmH} fill="none" pointerEvents="none" />
       </div>
 
-      <div className="glass absolute left-1/2 top-4 z-10 hidden -translate-x-1/2 items-center gap-3 rounded-full border border-(--color-border-subtle) px-4 py-1.5 text-[10px] text-(--color-faint-foreground) xl:flex">
+      <div className="glass-control absolute left-1/2 top-4 z-10 hidden -translate-x-1/2 items-center gap-3 rounded-full border border-(--color-border-subtle) px-4 py-1.5 text-[10px] text-(--color-faint-foreground) xl:flex">
         {mode === "structure" ? (
           <>
             {[
               ["Workspace", STRUCTURE_TONES.workspace],
               ["Folder", "#8e8e93"],
-              ["File", "#32d74b"],
-              ["React", "#5ac8fa"],
-              ["Rust", "#ff9f0a"],
-              ["Database", "#bf5af2"],
-              ["AI", "#ffb454"],
+              ["File", "#8fa9c4"],
+              ["React", "#5b9dff"],
+              ["Rust", "#d9a05b"],
+              ["Database", "#a78bdc"],
+              ["AI", "#63c98f"],
             ].map(([label, tone]) => (
               <span key={label} className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tone }} />
@@ -1587,7 +1583,7 @@ export function KnowledgeGraphView({
             </span>
             <span className="h-3 w-px bg-(--color-border)" />
             {focusMode && focusNodeId ? (
-              <span className="text-(--color-accent)">Focus mode on — click a node to explore</span>
+              <span className="text-(--color-violet)">Focus mode on — click a node to explore</span>
             ) : (
               <span>Click a node to explore its context</span>
             )}

@@ -15,15 +15,15 @@ const CATEGORIES: { value: BenchmarkCategory | "all"; label: string }[] = [
 ];
 
 const CATEGORY_COLORS: Record<BenchmarkCategory, string> = {
-  planner: "var(--color-accent)",
+  planner: "var(--color-accent-soft)",
   execution: "var(--color-success)",
   memory: "var(--color-warning)",
-  graph: "var(--color-danger)",
-  vector: "var(--color-accent-muted)",
+  graph: "var(--color-violet)",
+  vector: "var(--color-cyan)",
 };
 
 function benchmarkColor(category: BenchmarkCategory): string {
-  return CATEGORY_COLORS[category] ?? "var(--color-accent)";
+  return CATEGORY_COLORS[category] ?? "var(--color-accent-soft)";
 }
 
 /**
@@ -73,7 +73,7 @@ export function BenchmarkPanel({
               }}
               className={
                 selected === category.value
-                  ? "rounded-[var(--radius-control)] bg-(--color-accent) px-2.5 py-1 text-xs font-medium text-(--color-accent-foreground)"
+                  ? "glass-accent rounded-[var(--radius-control)] px-2.5 py-1 text-xs font-medium text-(--color-accent-foreground)"
                   : "rounded-[var(--radius-control)] border border-(--color-border-subtle) px-2.5 py-1 text-xs text-(--color-muted-foreground) transition-colors hover:text-(--color-foreground)"
               }
             >
@@ -104,7 +104,7 @@ export function BenchmarkPanel({
                 sublabel: benchmark.ok ? `${benchmark.operation}` : "skipped",
               }))}
               valueFormatter={formatMs}
-              color="var(--color-accent)"
+              color="var(--color-accent-soft)"
             />
             <div className="flex flex-col divide-y divide-(--color-border-subtle) border-t border-(--color-border-subtle)">
               {benchmarks.map((benchmark) => (

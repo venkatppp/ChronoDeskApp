@@ -24,7 +24,7 @@ export function JournalPanel({ entries, loading, error }: { entries: RecoveryJou
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <ScrollText className="h-4 w-4 text-(--color-accent)" />
+          <ScrollText className="h-4 w-4 text-(--color-muted-foreground)" />
           Reliability Journal
         </CardTitle>
         <CardDescription>
@@ -45,7 +45,7 @@ export function JournalPanel({ entries, loading, error }: { entries: RecoveryJou
               <div key={entry.id} className="flex items-center justify-between gap-3 border-b border-(--color-border-subtle) pb-2 last:border-0 last:pb-0">
                 <div className="flex min-w-0 items-center gap-2">
                   <Badge variant={badge.variant}>{badge.label}</Badge>
-                  <span className="truncate font-mono text-sm text-(--color-foreground)">{entry.entity}</span>
+                  <span className="truncate font-(family-name:--font-mono) text-sm text-(--color-foreground)">{entry.entity}</span>
                   <span className="truncate text-sm text-(--color-muted-foreground)">{entry.state}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
@@ -53,7 +53,7 @@ export function JournalPanel({ entries, loading, error }: { entries: RecoveryJou
                     {entry.scope} · {formatRelativeTime(entry.createdAt)}
                   </span>
                   {entry.checksum !== "" && (
-                    <span className="hidden font-mono text-[10px] text-(--color-muted-foreground) md:inline">
+                    <span className="hidden font-(family-name:--font-mono) text-[10px] text-(--color-muted-foreground) md:inline">
                       {entry.checksum.slice(0, 8)}
                     </span>
                   )}

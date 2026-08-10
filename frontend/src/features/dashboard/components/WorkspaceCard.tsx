@@ -52,12 +52,12 @@ export function WorkspaceCard({ workspace, stats, onOpen }: WorkspaceCardProps) 
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") onOpen?.(workspace);
       }}
-      className="cursor-pointer hover:border-(--color-accent) hover:bg-(--color-surface-hover) focus-visible:border-(--color-accent)"
+      className="cursor-pointer hover:border-(--color-border) hover:bg-(--color-surface-hover) focus-visible:border-(--color-accent)"
     >
       <div className="flex items-start justify-between gap-3 p-4 pb-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="truncate text-sm font-bold text-(--color-foreground)">{workspace.name}</h3>
+            <h3 className="truncate text-sm font-semibold text-(--color-foreground)">{workspace.name}</h3>
             {workspace.status === "archived" && (
               <Badge variant="neutral">
                 <Archive className="mr-0.5 h-2.5 w-2.5" strokeWidth={2} />

@@ -11,8 +11,8 @@ interface LearningHealthCardProps {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-(--color-border) bg-(--color-surface-raised) p-3">
-      <p className="text-xs text-(--color-muted-foreground)">{label}</p>
+    <div>
+      <p className="text-[11px] text-(--color-muted-foreground)">{label}</p>
       <p className="mt-1 font-(family-name:--font-display) text-lg font-semibold text-(--color-foreground)">
         {value}
       </p>
@@ -32,7 +32,7 @@ export function LearningHealthCard({ health }: LearningHealthCardProps) {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2">
-        <BrainCircuit className="h-4 w-4 text-(--color-accent)" />
+        <BrainCircuit className="h-4 w-4 text-(--color-muted-foreground)" />
         <h2 className="text-sm font-medium text-(--color-foreground)">Learning health</h2>
       </div>
 
@@ -48,30 +48,30 @@ export function LearningHealthCard({ health }: LearningHealthCardProps) {
           <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
             <Gauge className="h-3.5 w-3.5" /> Workflow quality
           </p>
-          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-            <div className="flex items-center justify-between rounded-md bg-(--color-surface) px-2 py-1.5">
+          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+            <div className="flex items-center justify-between">
               <span className="text-(--color-muted-foreground)">Workflows</span>
               <span className="font-medium text-(--color-foreground)">{quality.workflow_count}</span>
             </div>
-            <div className="flex items-center justify-between rounded-md bg-(--color-surface) px-2 py-1.5">
+            <div className="flex items-center justify-between">
               <span className="text-(--color-muted-foreground)">Success rate</span>
               <span className="font-medium text-(--color-foreground)">
                 {percent(quality.avg_success_rate)}
               </span>
             </div>
-            <div className="flex items-center justify-between rounded-md bg-(--color-surface) px-2 py-1.5">
+            <div className="flex items-center justify-between">
               <span className="text-(--color-muted-foreground)">Plan confidence</span>
               <span className="font-medium text-(--color-foreground)">
                 {percent(quality.avg_plan_confidence)}
               </span>
             </div>
-            <div className="flex items-center justify-between rounded-md bg-(--color-surface) px-2 py-1.5">
+            <div className="flex items-center justify-between">
               <span className="text-(--color-muted-foreground)">Replay adoption</span>
               <span className="font-medium text-(--color-foreground)">
                 {percent(quality.replay_adoption_rate)}
               </span>
             </div>
-            <div className="flex items-center justify-between rounded-md bg-(--color-surface) px-2 py-1.5">
+            <div className="flex items-center justify-between">
               <span className="text-(--color-muted-foreground)">Avg duration</span>
               <span className="font-medium text-(--color-foreground)">
                 {quality.avg_duration_seconds > 0
@@ -79,7 +79,7 @@ export function LearningHealthCard({ health }: LearningHealthCardProps) {
                   : "—"}
               </span>
             </div>
-            <div className="flex items-center justify-between rounded-md bg-(--color-surface) px-2 py-1.5">
+            <div className="flex items-center justify-between">
               <span className="text-(--color-muted-foreground)">Replays / run</span>
               <span className="font-medium text-(--color-foreground)">
                 {quality.replay_per_run.toFixed(2)}
@@ -101,7 +101,7 @@ export function LearningHealthCard({ health }: LearningHealthCardProps) {
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-(--color-surface)">
               <div
-                className="h-full rounded-full bg-(--color-accent)"
+                className="h-full rounded-full bg-(--color-accent-soft)"
                 style={{ width: percent(utilization.utilization_ratio) }}
               />
             </div>
@@ -113,7 +113,7 @@ export function LearningHealthCard({ health }: LearningHealthCardProps) {
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-(--color-surface)">
               <div
-                className="h-full rounded-full bg-emerald-500"
+                className="h-full rounded-full bg-(--color-emerald)/70"
                 style={{ width: percent(utilization.avg_freshness) }}
               />
             </div>
@@ -140,11 +140,11 @@ export function LearningHealthCard({ health }: LearningHealthCardProps) {
               return (
                 <div key={trend.date} className="flex flex-1 flex-col justify-end" title={trend.date}>
                   <div
-                    className="w-full rounded-t-sm bg-red-400/70"
+                    className="w-full rounded-t-sm bg-(--color-danger)/60"
                     style={{ height: `${failureHeight}%` }}
                   />
                   <div
-                    className="w-full rounded-t-sm bg-emerald-500"
+                    className="w-full rounded-t-sm bg-(--color-emerald)/70"
                     style={{ height: `${successHeight}%` }}
                   />
                 </div>

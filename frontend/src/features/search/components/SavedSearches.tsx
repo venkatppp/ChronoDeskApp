@@ -1,6 +1,7 @@
 import { Bookmark, Trash2, Calendar } from "lucide-react";
 import type { SavedSearch } from "@/types/search";
 import { formatRelativeTime } from "@/utils/formatRelativeTime";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 
 interface SavedSearchesProps {
   savedSearches: SavedSearch[];
@@ -16,25 +17,24 @@ export function SavedSearches({
   if (savedSearches.length === 0) return null;
 
   return (
-    <div className="py-6 border-t border-(--color-border)">
-      <div className="flex items-center gap-2 text-(--color-foreground) font-semibold mb-4">
-        <Bookmark className="h-4 w-4" />
+    <section className="glass-panel rounded-[var(--radius-card)] p-5">
+      <SectionLabel icon={<Bookmark className="h-3.5 w-3.5" strokeWidth={1.75} />}>
         Saved Searches
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      </SectionLabel>
+      <div className="mt-3 flex flex-col">
         {savedSearches.map((search) => (
           <div
             key={search.id}
-            className="flex items-center justify-between p-4 bg-(--color-background)-secondary border border-(--color-border) rounded-xl hover:border-(--color-accent)/50 transition-all cursor-pointer group"
+            className="group flex cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-control)] px-2 py-2.5 transition-colors duration-150 ease-[var(--ease-premium)] hover:bg-(--color-surface-hover)"
             onClick={() => onSelect(search.query)}
           >
-            <div>
-              <div className="font-medium text-(--color-foreground) group-hover:text-(--color-accent) transition-colors">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium text-(--color-foreground) transition-colors group-hover:text-(--color-accent)">
                 {search.query}
               </div>
-              <div className="flex items-center gap-1.5 text-[10px] text-(--color-muted-foreground) mt-1">
-                <Calendar className="h-3 w-3" />
-                {formatRelativeTime(search.createdAt)}
+              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-(--color-faint-foreground)">
+                <Calendar className="h-3 w-3" strokeWidth={1.75} />
+                Saved {formatRelativeTime(search.createdAt)}
               </div>
             </div>
             <button
@@ -42,13 +42,14 @@ export function SavedSearches({
                 e.stopPropagation();
                 onDelete(search.id);
               }}
-              className="p-2 rounded-lg text-(--color-muted-foreground) hover:bg-(--color-danger)/10 hover:text-(--color-danger) transition-colors opacity-0 group-hover:opacity-100"
+              aria-label={`Delete saved search ${search.query}`}
+              className="shrink-0 rounded-lg p-1.5 text-(--color-faint-foreground) opacity-0 transition-all hover:bg-(--color-danger)/10 hover:text-(--color-danger) group-hover:opacity-100"
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-4 w-4" strokeWidth={1.75} />
             </button>
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

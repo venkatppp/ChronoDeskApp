@@ -44,12 +44,13 @@ export function BackupPanel({
   onCancelRestore: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+      <div className="flex min-w-0 flex-col gap-4">
       <Card>
         <CardHeader className="flex-row items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <DatabaseBackup className="h-4 w-4 text-(--color-accent)" />
+              <DatabaseBackup className="h-4 w-4 text-(--color-muted-foreground)" />
               Back up now
             </CardTitle>
             <CardDescription>
@@ -90,6 +91,7 @@ export function BackupPanel({
           </CardContent>
         </Card>
       )}
+      </div>
 
       <Card>
         <CardHeader>
@@ -121,13 +123,13 @@ export function BackupPanel({
                         {KIND_LABEL[run.kind]}
                       </span>
                       {run.path && (
-                        <span className="truncate font-mono text-xs text-(--color-foreground)">
+                        <span className="truncate font-(family-name:--font-mono) text-xs text-(--color-foreground)">
                           {run.path}
                         </span>
                       )}
                     </div>
                     {run.checksum && (
-                      <p className="truncate font-mono text-xs text-(--color-muted-foreground)">
+                      <p className="truncate font-(family-name:--font-mono) text-xs text-(--color-muted-foreground)">
                         sha256 {run.checksum}
                       </p>
                     )}

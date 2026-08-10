@@ -25,7 +25,10 @@ import { SnapshotManagerCard } from "@/features/memory/components/SnapshotManage
 import { StorageStatsCard } from "@/features/memory/components/StorageStatsCard";
 import { WorkflowFamiliesCard } from "@/features/memory/components/WorkflowFamiliesCard";
 import { Button } from "@/components/ui/Button";
+import { GlassInput } from "@/components/ui/GlassInput";
+import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Stat } from "@/components/ui/Stat";
 import { memoryRepository } from "@/services/memoryRepository";
 import type {
   AvoidedStrategy,
@@ -59,10 +62,10 @@ const STATUS_LABELS: Record<string, string> = {
 function statusPill(record: ExecutionMemoryRecord) {
   const tone =
     record.status === "success"
-      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
+      ? "border-(--color-success)/30 bg-(--color-success)/12 text-(--color-success)"
       : record.status === "failed"
-        ? "border-red-500/40 bg-red-500/10 text-red-500"
-        : "border-amber-500/40 bg-amber-500/10 text-amber-600";
+        ? "border-(--color-danger)/30 bg-(--color-danger)/12 text-(--color-danger)"
+        : "border-(--color-warning)/30 bg-(--color-warning)/12 text-(--color-warning)";
   return (
     <span
       className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${tone}`}
@@ -73,20 +76,13 @@ function statusPill(record: ExecutionMemoryRecord) {
 }
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface-raised) p-4">
-      <p className="text-xs text-(--color-muted-foreground)">{label}</p>
-      <p className="mt-1 font-(family-name:--font-display) text-xl font-semibold text-(--color-foreground)">
-        {value}
-      </p>
-    </div>
-  );
+  return <Stat label={label} value={value} />;
 }
 
 function RecordCard({ hit }: { hit: MemoryHit }) {
   const record = hit.record;
   return (
-    <div className="rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface-raised) p-4">
+    <div className="rounded-[var(--radius-control)] p-3.5 transition-colors duration-150 ease-[var(--ease-premium)] hover:bg-(--color-surface-hover)">
       <div className="flex items-center justify-between gap-2">
         <p className="truncate text-sm font-medium text-(--color-foreground)">{record.goal}</p>
         {statusPill(record)}
@@ -101,12 +97,12 @@ function RecordCard({ hit }: { hit: MemoryHit }) {
         {record.replay_count > 0 && <span>{record.replay_count} replay(s)</span>}
       </div>
       {record.tools_used.length > 0 && (
-        <p className="mt-1.5 truncate font-mono text-[11px] text-(--color-muted-foreground)">
+        <p className="mt-1.5 truncate font-(family-name:--font-mono) text-[11px] text-(--color-muted-foreground)">
           {record.tools_used.join(" → ")}
         </p>
       )}
       {record.error && (
-        <p className="mt-1.5 truncate text-[11px] text-red-500">{record.error}</p>
+        <p className="mt-1.5 truncate text-[11px] text-(--color-danger)">{record.error}</p>
       )}
     </div>
   );
@@ -121,11 +117,11 @@ function RecommendationCard({
 }) {
   const record = recommendation.record;
   return (
-    <div className="rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface-raised) p-4">
+    <div className="rounded-[var(--radius-control)] p-3.5 transition-colors duration-150 ease-[var(--ease-premium)] hover:bg-(--color-surface-hover)">
       <div className="flex items-center justify-between gap-2">
         <p className="truncate text-sm font-medium text-(--color-foreground)">{record.goal}</p>
         <div className="flex shrink-0 items-center gap-1.5">
-          <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
+          <span className="rounded-full border border-(--color-emerald)/30 bg-(--color-emerald)/12 px-2 py-0.5 text-[11px] font-medium text-(--color-emerald)">
             score {recommendation.score.toFixed(2)}
           </span>
           <span
@@ -139,7 +135,7 @@ function RecommendationCard({
         </div>
       </div>
       {record.plan && (
-        <p className="mt-1 font-mono text-[11px] text-(--color-muted-foreground)">
+        <p className="mt-1 font-(family-name:--font-mono) text-[11px] text-(--color-muted-foreground)">
           {record.plan.tasks.map((task) => task.description).join(" → ")}
         </p>
       )}
@@ -150,13 +146,13 @@ function RecommendationCard({
               <span
                 className={
                   factor.impact > 0
-                    ? "font-medium text-emerald-600"
+                    ? "font-medium text-(--color-emerald)"
                     : factor.impact < 0
-                      ? "font-medium text-red-500"
+                      ? "font-medium text-(--color-danger)"
                       : "font-medium text-(--color-muted-foreground)"
                 }
               >
-                {factor.impact > 0 ? "▲" : factor.impact < 0 ? "▼" : "·"} {factor.factor}
+                {factor.impact > 0 ? "↑" : factor.impact < 0 ? "↓" : "·"} {factor.factor}
               </span>
               <span className="text-(--color-faint-foreground)">{factor.description}</span>
             </li>
@@ -167,14 +163,14 @@ function RecommendationCard({
         <button
           onClick={() => onFeedback(true)}
           title="Accept this recommendation"
-          className="flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-600 transition-opacity hover:opacity-80"
+          className="flex items-center gap-1 rounded-md border border-(--color-emerald)/30 bg-(--color-emerald)/12 px-2 py-1 text-[11px] font-medium text-(--color-emerald) transition-opacity hover:opacity-80"
         >
           <Check className="h-3 w-3" /> Accept
         </button>
         <button
           onClick={() => onFeedback(false)}
           title="Reject this recommendation"
-          className="flex items-center gap-1 rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-500 transition-opacity hover:opacity-80"
+          className="flex items-center gap-1 rounded-md border border-(--color-danger)/30 bg-(--color-danger)/12 px-2 py-1 text-[11px] font-medium text-(--color-danger) transition-opacity hover:opacity-80"
         >
           <X className="h-3 w-3" /> Reject
         </button>
@@ -189,7 +185,7 @@ function RecommendationCard({
 function SectionHeading({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-(--color-accent-muted) text-(--color-accent)">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-(--color-surface-raised) text-(--color-muted-foreground)">
         {icon}
       </span>
       <h2 className="font-(family-name:--font-display) text-sm font-semibold tracking-tight text-(--color-foreground)">
@@ -308,11 +304,11 @@ export function MemoryDashboard() {
   };
 
   return (
-    <div className="flex w-full flex-col gap-8 px-8 py-8 lg:px-10">
+    <PageContainer>
       <PageHeader
         eyebrow="Intelligence"
-        title="Execution Memory"
-        description="What ChronoDesk has learned from previous runs — searchable history, workflow recommendations, and failed strategies to avoid."
+        title="Memory"
+        description="What ChronoDesk has learned over time — searchable history, workflow recommendations, and failed strategies to avoid."
       />
 
       {loading && (
@@ -323,115 +319,119 @@ export function MemoryDashboard() {
       )}
 
       <section className="grid items-start gap-8 lg:grid-cols-2">
-        <div className="space-y-8">
-          <section className="rounded-[var(--radius-card)] border border-(--color-border-subtle) bg-(--color-surface) p-5 shadow-[var(--shadow-card)]">
-            <SectionHeading icon={<Search className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Semantic search" />
-            <p className="mt-1 text-xs text-(--color-muted-foreground)">
-              Find past goals and sessions the way you would ask — not by keyword.
-            </p>
-            <div className="mt-3 flex gap-2">
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && runSearch()}
-                placeholder="Search remembered goals, e.g. resume my focus session"
-                className="min-w-0 flex-1 rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-raised) px-3 py-2.5 text-sm text-(--color-foreground) placeholder:text-(--color-faint-foreground) transition-colors focus:border-(--color-accent)/60 focus:outline-none focus:ring-2 focus:ring-(--color-accent)/15"
-              />
-              <Button onClick={runSearch}>
-                <Search className="h-3.5 w-3.5" strokeWidth={1.75} />
-                Search
-              </Button>
-            </div>
-            {searched && (
-              <div className="mt-3 space-y-2">
-                {searched.length === 0 && (
-                  <p className="text-sm text-(--color-muted-foreground)">No matching memories.</p>
-                )}
-                {searched.map((hit) => (
-                  <RecordCard key={hit.record.id} hit={hit} />
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="space-y-3">
-            <SectionHeading icon={<History className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Recent memories" />
-            <div className="space-y-2">
-              {recent.length === 0 && (
-                <p className="text-sm text-(--color-muted-foreground)">
-                  No executions remembered yet. Run a plan or autonomous session and it will appear here.
-                </p>
+        {/* 1. SEARCH — the primary interaction */}
+        <section className="glass-panel rounded-[var(--radius-card)] p-5">
+          <SectionHeading icon={<Search className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Semantic search" />
+          <p className="mt-1 text-xs text-(--color-muted-foreground)">
+            Find past goals and sessions the way you would ask — not by keyword.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <GlassInput
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && runSearch()}
+              placeholder="Search remembered goals, e.g. resume my focus session"
+              aria-label="Search remembered goals"
+            />
+            <Button onClick={runSearch}>
+              <Search className="h-3.5 w-3.5" strokeWidth={1.75} />
+              Search
+            </Button>
+          </div>
+          {searched && (
+            <div className="mt-3 space-y-2">
+              {searched.length === 0 && (
+                <p className="text-sm text-(--color-muted-foreground)">No matching memories.</p>
               )}
-              {recent.map((hit) => (
+              {searched.map((hit) => (
                 <RecordCard key={hit.record.id} hit={hit} />
               ))}
             </div>
-          </section>
-        </div>
+          )}
+        </section>
 
-        <div className="space-y-8">
-          <section className="rounded-[var(--radius-card)] border border-(--color-border-subtle) bg-(--color-surface) p-5 shadow-[var(--shadow-card)]">
-            <SectionHeading icon={<TrendingUp className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Recommend workflows" />
-            <p className="mt-1 text-xs text-(--color-muted-foreground)">
-              Describe a goal and ChronoDesk plans it from the workflows it has already learned.
-            </p>
-            <div className="mt-3 flex gap-2">
-              <input
-                value={recommendGoal}
-                onChange={(e) => setRecommendGoal(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && runRecommend()}
-                placeholder="Goal to plan for — e.g. resume my focus session"
-                className="min-w-0 flex-1 rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-raised) px-3 py-2.5 text-sm text-(--color-foreground) placeholder:text-(--color-faint-foreground) transition-colors focus:border-(--color-accent)/60 focus:outline-none focus:ring-2 focus:ring-(--color-accent)/15"
-              />
-              <Button onClick={runRecommend}>
-                <BrainCircuit className="h-3.5 w-3.5" strokeWidth={1.75} />
-                Recommend
-              </Button>
-            </div>
-            {recommendations && (
-              <div className="mt-3 space-y-2">
-                {recommendations.length === 0 && (
-                  <p className="text-sm text-(--color-muted-foreground)">
-                    No successful workflow learned yet for this goal.
-                  </p>
-                )}
-                {recommendations.map((rec) => (
-                  <RecommendationCard
-                    key={rec.record.id}
-                    recommendation={rec}
-                    onFeedback={(accepted) => void sendFeedback(rec.record.id, accepted)}
-                  />
-                ))}
-              </div>
-            )}
-            {avoided && avoided.length > 0 && (
-              <div className="mt-3 space-y-2">
-                <p className="flex items-center gap-1.5 text-xs font-medium text-(--color-warning)">
-                  <ShieldAlert className="h-3.5 w-3.5" strokeWidth={1.75} /> Strategies to avoid:
+        {/* 2. RECOMMEND — the second most valuable interaction */}
+        <section className="glass-panel rounded-[var(--radius-card)] p-5">
+          <SectionHeading icon={<TrendingUp className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Recommend workflows" />
+          <p className="mt-1 text-xs text-(--color-muted-foreground)">
+            Describe a goal and ChronoDesk plans it from the workflows it has already learned.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <GlassInput
+              value={recommendGoal}
+              onChange={(e) => setRecommendGoal(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && runRecommend()}
+              placeholder="Goal to plan for — e.g. resume my focus session"
+              aria-label="Goal to plan for"
+            />
+            <Button onClick={runRecommend}>
+              <BrainCircuit className="h-3.5 w-3.5" strokeWidth={1.75} />
+              Recommend
+            </Button>
+          </div>
+          {recommendations && (
+            <div className="mt-3 space-y-2">
+              {recommendations.length === 0 && (
+                <p className="text-sm text-(--color-muted-foreground)">
+                  No successful workflow learned yet for this goal.
                 </p>
-                {avoided.map((strategy) => (
-                  <div key={strategy.record.id} className="rounded-lg border border-(--color-warning)/25 bg-(--color-warning)/5 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-medium text-(--color-foreground)">
-                        {strategy.record.goal}
-                      </p>
-                      <span className="text-[11px] text-(--color-faint-foreground)">
-                        similarity {strategy.similarity.toFixed(2)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-(--color-warning)">{strategy.failure}</p>
+              )}
+              {recommendations.map((rec) => (
+                <RecommendationCard
+                  key={rec.record.id}
+                  recommendation={rec}
+                  onFeedback={(accepted) => void sendFeedback(rec.record.id, accepted)}
+                />
+              ))}
+            </div>
+          )}
+          {avoided && avoided.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-(--color-warning)">
+                <ShieldAlert className="h-3.5 w-3.5" strokeWidth={1.75} /> Strategies to avoid:
+              </p>
+              {avoided.map((strategy) => (
+                <div key={strategy.record.id} className="rounded-lg border border-(--color-warning)/25 bg-(--color-warning)/5 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-medium text-(--color-foreground)">
+                      {strategy.record.goal}
+                    </p>
+                    <span className="text-[11px] text-(--color-faint-foreground)">
+                      similarity {strategy.similarity.toFixed(2)}
+                    </span>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
+                  <p className="mt-1 text-xs text-(--color-warning)">{strategy.failure}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </section>
 
+      <section className="grid items-start gap-8 lg:grid-cols-2">
+        {/* 3. RECENT MEMORIES */}
+        <section className="space-y-3">
+          <SectionHeading icon={<History className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Recent memories" />
+          <div className="space-y-2">
+            {recent.length === 0 && (
+              <p className="text-sm text-(--color-muted-foreground)">
+                Nothing remembered yet. Completed sessions and runs will appear here.
+              </p>
+            )}
+            {recent.map((hit) => (
+              <RecordCard key={hit.record.id} hit={hit} />
+            ))}
+          </div>
+        </section>
+
+        {/* 4. LEARNED CONTEXT */}
+        <section className="space-y-3">
           {workflows.length > 0 && (
-            <section className="space-y-3">
+            <>
               <SectionHeading icon={<BrainCircuit className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Learned workflows" />
               <div className="space-y-2">
                 {workflows.slice(0, 5).map((workflow) => (
-                  <div key={workflow.goal_fingerprint} className="rounded-lg border border-(--color-border) bg-(--color-surface-raised) p-3">
+                  <div key={workflow.goal_fingerprint} className="rounded-[var(--radius-control)] p-3 transition-colors duration-150 ease-[var(--ease-premium)] hover:bg-(--color-surface-hover)">
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-sm font-medium text-(--color-foreground)">{workflow.goal}</p>
                       <span className="text-[11px] text-(--color-faint-foreground)">
@@ -439,16 +439,16 @@ export function MemoryDashboard() {
                       </span>
                     </div>
                     {workflow.best_plan && (
-                      <p className="mt-1 font-mono text-[11px] text-(--color-muted-foreground)">
+                      <p className="mt-1 font-(family-name:--font-mono) text-[11px] text-(--color-muted-foreground)">
                         {workflow.best_plan.tasks.map((t) => t.description).join(" → ")}
                       </p>
                     )}
                   </div>
                 ))}
               </div>
-            </section>
+            </>
           )}
-        </div>
+        </section>
       </section>
 
       {stats && (
@@ -483,17 +483,21 @@ export function MemoryDashboard() {
           </p>
         </div>
         {indexStatus && (
-          <section className="rounded-[var(--radius-card)] border border-(--color-border-subtle) bg-(--color-surface) p-5 shadow-[var(--shadow-card)]">
+          <section className="glass-panel rounded-[var(--radius-card)] p-5">
             <div className="flex items-center justify-between gap-2">
-              <SectionHeading icon={<Database className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Vector index" />
-              <button
+              <h3 className="flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
+                <Database className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
+                Vector index
+              </h3>
+              <Button
                 onClick={runReindex}
                 disabled={reindexing}
-                className="flex items-center gap-1.5 rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-raised) px-3 py-1.5 text-xs font-medium text-(--color-foreground) transition-all duration-200 hover:border-(--color-accent)/40 hover:text-(--color-accent) disabled:opacity-50"
+                variant="outline"
+                size="sm"
               >
-                <RefreshCw className={reindexing ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} strokeWidth={1.75} />
+                <RefreshCw className={`h-3.5 w-3.5 ${reindexing ? "animate-spin" : ""}`} strokeWidth={1.75} />
                 {reindexing ? "Indexing…" : "Index now"}
-              </button>
+              </Button>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
               <StatCard label="Indexed" value={`${indexStatus.indexed}/${indexStatus.total_records}`} />
@@ -521,6 +525,6 @@ export function MemoryDashboard() {
 
       <WorkflowFamiliesCard families={families} />
       <DuplicateGroupsCard groups={duplicates} onMerged={runMergeDuplicates} />
-    </div>
+    </PageContainer>
   );
 }

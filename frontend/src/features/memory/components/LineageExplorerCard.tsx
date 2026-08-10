@@ -17,7 +17,7 @@ function statusTone(status: string): "neutral" | "accent" | "warning" | "success
 
 function NodeRow({ node, role }: { node: LineageNode; role: string }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-md bg-(--color-surface) px-3 py-1.5">
+    <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-control)] bg-(--color-surface) px-3 py-1.5">
       <span className="w-16 shrink-0 text-[10px] font-medium uppercase tracking-wide text-(--color-faint-foreground)">
         {role}
       </span>
@@ -76,7 +76,7 @@ export function LineageExplorerCard() {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2">
-        <GitBranch className="h-4 w-4 text-(--color-accent)" />
+        <GitBranch className="h-4 w-4 text-(--color-muted-foreground)" />
         <h2 className="text-sm font-medium text-(--color-foreground)">Lineage explorer</h2>
       </div>
 
@@ -86,7 +86,7 @@ export function LineageExplorerCard() {
           onChange={(e) => setMemoryId(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && explore()}
           placeholder="Memory id to explore"
-          className="min-w-0 flex-1 rounded-md border border-(--color-border) bg-(--color-surface-raised) px-3 py-1.5 text-xs text-(--color-foreground) placeholder:text-(--color-faint-foreground)"
+          className="glass-well min-w-0 h-8 flex-1 rounded-[var(--radius-control)] px-3 text-xs text-(--color-foreground) placeholder:text-(--color-faint-foreground) transition-all duration-200 ease-[var(--ease-premium)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.25),0_0_0_1px_rgba(10,132,255,0.5)] focus:outline-none"
         />
         <Button size="sm" onClick={() => void explore()}>
           <Search className="h-3.5 w-3.5" /> Explore
@@ -94,7 +94,7 @@ export function LineageExplorerCard() {
       </div>
 
       {notFound && (
-        <p className="mt-2 text-xs text-red-500">No memory with that id.</p>
+        <p className="mt-2 text-xs text-(--color-danger)">No memory with that id.</p>
       )}
 
       {lineage && (
@@ -103,18 +103,17 @@ export function LineageExplorerCard() {
             {lineage.ancestors.map((node) => (
               <NodeRow key={node.id} node={node} role={node.relation ?? "parent"} />
             ))}
-            <div className="rounded-md border border-(--color-accent)/40 bg-(--color-accent)/5 px-3 py-1.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="w-16 shrink-0 text-[10px] font-medium uppercase tracking-wide text-(--color-faint-foreground)">
-                  current
-                </span>
-                <p className="min-w-0 flex-1 truncate text-xs font-medium text-(--color-foreground)">
-                  {lineage.version === 1 ? "root workflow" : `version ${lineage.version}`}
-                </p>
-                <span className="font-mono text-[10px] text-(--color-faint-foreground)">
-                  {lineage.memory_id.slice(0, 8)}
-                </span>
-              </div>
+            <div className="flex flex-wrap items-center gap-2 px-1 py-1">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-(--color-accent)" aria-hidden="true" />
+              <span className="w-16 shrink-0 text-[10px] font-medium uppercase tracking-wide text-(--color-faint-foreground)">
+                current
+              </span>
+              <p className="min-w-0 flex-1 truncate text-xs font-medium text-(--color-foreground)">
+                {lineage.version === 1 ? "root workflow" : `version ${lineage.version}`}
+              </p>
+              <span className="font-mono text-[10px] text-(--color-faint-foreground)">
+                {lineage.memory_id.slice(0, 8)}
+              </span>
             </div>
             {lineage.children.map((node) => (
               <NodeRow key={node.id} node={node} role={node.relation ?? "child"} />
@@ -149,7 +148,7 @@ export function LineageExplorerCard() {
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
             placeholder="Paste export JSON to import"
-            className="min-w-0 flex-1 rounded-md border border-(--color-border) bg-(--color-surface-raised) px-3 py-1.5 text-xs text-(--color-foreground) placeholder:text-(--color-faint-foreground)"
+            className="glass-well min-w-0 h-8 flex-1 rounded-[var(--radius-control)] px-3 text-xs text-(--color-foreground) placeholder:text-(--color-faint-foreground) transition-all duration-200 ease-[var(--ease-premium)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.25),0_0_0_1px_rgba(10,132,255,0.5)] focus:outline-none"
           />
           <Button size="sm" variant="secondary" onClick={() => void importStore()} disabled={!importText.trim()}>
             <Upload className="h-3.5 w-3.5" /> Import
@@ -166,7 +165,7 @@ export function LineageExplorerCard() {
             <textarea
               readOnly
               value={exportText}
-              className="mt-2 h-40 w-full resize-y rounded-md border border-(--color-border) bg-(--color-surface) p-2 font-mono text-[10px] text-(--color-foreground)"
+              className="mt-2 h-40 w-full resize-y rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface) p-2 font-mono text-[10px] text-(--color-foreground)"
             />
           </details>
         )}

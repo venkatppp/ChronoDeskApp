@@ -66,7 +66,7 @@ export function SnapshotManagerCard() {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2">
-        <Camera className="h-4 w-4 text-(--color-accent)" />
+        <Camera className="h-4 w-4 text-(--color-muted-foreground)" />
         <h2 className="text-sm font-medium text-(--color-foreground)">Snapshots</h2>
       </div>
 
@@ -76,7 +76,7 @@ export function SnapshotManagerCard() {
           onChange={(e) => setLabel(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && create()}
           placeholder="Label (optional, e.g. before refactor)"
-          className="min-w-0 flex-1 rounded-md border border-(--color-border) bg-(--color-surface-raised) px-3 py-1.5 text-xs text-(--color-foreground) placeholder:text-(--color-faint-foreground)"
+          className="glass-well min-w-0 h-8 flex-1 rounded-[var(--radius-control)] px-3 text-xs text-(--color-foreground) placeholder:text-(--color-faint-foreground) transition-all duration-200 ease-[var(--ease-premium)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.25),0_0_0_1px_rgba(10,132,255,0.5)] focus:outline-none"
         />
         <Button size="sm" onClick={() => void create()} disabled={creating}>
           <Camera className="h-3.5 w-3.5" />
@@ -97,7 +97,7 @@ export function SnapshotManagerCard() {
         {snapshots.map((snapshot) => (
           <div
             key={snapshot.id}
-            className="flex flex-wrap items-center gap-2 rounded-md bg-(--color-surface) px-3 py-2"
+            className="flex flex-wrap items-center gap-2 rounded-[var(--radius-control)] bg-(--color-surface) px-3 py-2"
           >
             <History className="h-3.5 w-3.5 shrink-0 text-(--color-muted-foreground)" />
             <p className="min-w-0 flex-1 truncate text-xs text-(--color-foreground)">

@@ -8,6 +8,11 @@ import { getSearchRepository } from "@/services/searchRepository";
 import type { SearchResult, SearchEntityType, SavedSearch } from "@/types/search";
 import { useAppEvents } from "@/hooks/useAppEvents";
 import { Search } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { GlassSurface } from "@/components/ui/GlassSurface";
+import { PageContainer } from "@/components/ui/PageContainer";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export function SearchView() {
   const [query, setQuery] = useState("");
@@ -97,8 +102,6 @@ export function SearchView() {
   };
 
   const handleRemoveHistoryItem = (q: string) => {
-    // No per-item delete IPC command exists (only clear_search_history for
-    // the whole list), so remove it from local UI state optimistically.
     setHistory((prev) => prev.filter((item) => item !== q));
   };
 
@@ -119,41 +122,41 @@ export function SearchView() {
   };
 
   return (
-    <div className="w-full px-6 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-(--color-foreground) mb-2">Search</h1>
-          <p className="text-(--color-muted-foreground)">Find anything across your workspaces and files.</p>
-        </div>
-        {query && (
-          <button
-            onClick={handleSaveSearch}
-            className="flex items-center gap-2 px-4 py-2 bg-(--color-accent)/10 text-(--color-accent) hover:bg-(--color-accent)/20 rounded-lg font-medium transition-all"
-          >
-            Save Query
-          </button>
-        )}
-      </div>
+    <PageContainer className="gap-6">
+      <PageHeader
+        eyebrow="Intelligence"
+        title="Search"
+        description="Find anything across your workspaces and files."
+        actions={
+          query ? (
+            <Button variant="secondary" size="sm" onClick={handleSaveSearch}>
+              Bookmark this search
+            </Button>
+          ) : undefined
+        }
+      />
 
-      <div className="sticky top-0 z-10 bg-(--color-background)/80 backdrop-blur-md pb-4">
-        <SearchBar onSearch={handleSearch} isLoading={isLoading} />
-        <FilterPanel
-          entityTypes={entityTypes}
-          onEntityTypesChange={handleEntityTypesChange}
-          workspaceId={workspaceId}
-          onWorkspaceChange={handleWorkspaceChange}
-          onClear={handleClearFilters}
-        />
+      <div className="sticky top-0 z-20 -mx-6 px-6 pt-1 pb-3 lg:-mx-8 lg:px-8">
+        <GlassSurface material="chrome" className="flex flex-col rounded-2xl px-4 py-3.5">
+          <SearchBar onSearch={handleSearch} isLoading={isLoading} />
+          <FilterPanel
+            entityTypes={entityTypes}
+            onEntityTypesChange={handleEntityTypesChange}
+            workspaceId={workspaceId}
+            onWorkspaceChange={handleWorkspaceChange}
+            onClear={handleClearFilters}
+          />
+        </GlassSurface>
       </div>
 
       {error && (
-        <div className="my-6 p-4 bg-(--color-danger)/10 border border-(--color-danger)/20 rounded-xl text-(--color-danger) text-sm">
+        <div className="flex items-center gap-2.5 rounded-[var(--radius-card)] border border-(--color-danger)/30 bg-(--color-danger)/10 px-4 py-3 text-sm text-(--color-danger)">
           {error}
         </div>
       )}
 
       {!query && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex animate-(--animate-fade-in) flex-col gap-2">
           <SearchHistory
             history={history}
             onSelect={handleSearch}
@@ -165,12 +168,13 @@ export function SearchView() {
             onSelect={handleSearch}
             onDelete={handleDeleteSavedSearch}
           />
-          
+
           {history.length === 0 && savedSearches.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-center opacity-50">
-              <Search className="h-16 w-16 mb-4 text-(--color-muted-foreground)" />
-              <p className="text-lg font-medium">Start typing to search...</p>
-            </div>
+            <EmptyState
+              icon={<Search className="h-4 w-4" strokeWidth={1.75} />}
+              title="Start typing to search"
+              description="Search across your workspaces and files. ChronoDesk remembers recent queries and lets you bookmark searches you run often."
+            />
           )}
         </div>
       )}
@@ -182,6 +186,6 @@ export function SearchView() {
           onSelect={(result) => console.log("Selected:", result)}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }

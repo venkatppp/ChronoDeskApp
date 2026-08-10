@@ -128,7 +128,7 @@ export default function LearningPage() {
   if (!insights) {
     return (
       <PageContainer>
-        <div className="flex flex-col items-center gap-4 rounded-[var(--radius-card)] border border-(--color-border-subtle) bg-(--color-surface) px-6 py-20 text-center">
+        <div className="glass-panel flex flex-col items-center gap-4 rounded-[var(--radius-card)] px-6 py-20 text-center">
           <Brain className="h-10 w-10 text-(--color-faint-foreground)" strokeWidth={1.5} />
           <p className="text-sm text-(--color-muted-foreground)">No learning data available yet.</p>
         </div>
@@ -193,11 +193,11 @@ export default function LearningPage() {
         </CardHeader>
         <CardContent className="space-y-5">
           {recommendation_accuracy.total_recommendations === 0 ? (
-            <div className="rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface-raised) px-4 py-6 text-center">
+            <div className="px-4 py-10 text-center">
               <p className="text-sm font-medium text-(--color-foreground)">Insufficient data</p>
               <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-(--color-muted-foreground)">
                 Accuracy is calculated from accepted/rejected feedback on your recommendations.
-                Once you accept or reject suggestions from the dashboard or copilot, ChronoDesk
+                Once you accept or reject suggestions from the dashboard or the graph page, ChronoDesk
                 can measure how often its suggestions match your choices.
               </p>
             </div>
@@ -217,7 +217,7 @@ export default function LearningPage() {
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-(--color-surface-hover)">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-(--color-success)/70 to-(--color-success) animate-(--animate-grow-bar)"
+                    className="h-full rounded-full bg-gradient-to-r from-(--color-success)/50 to-(--color-success)/80 animate-(--animate-grow-bar)"
                     style={{ width: `${recommendation_accuracy.overall_accuracy * 100}%` }}
                   />
                 </div>
@@ -233,7 +233,7 @@ export default function LearningPage() {
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-(--color-surface-hover)">
                       <div
-                        className="h-full rounded-full bg-(--color-accent) transition-all duration-700 ease-[var(--ease-premium)]"
+                        className="h-full rounded-full bg-(--color-accent-soft) transition-all duration-700 ease-[var(--ease-premium)]"
                         style={{ width: `${cat.accuracy * 100}%` }}
                       />
                     </div>
@@ -264,7 +264,7 @@ export default function LearningPage() {
                 {top_preferences.map((pref) => (
                   <div
                     key={pref.id}
-                    className="flex items-center justify-between rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface-raised) px-3.5 py-3 transition-colors hover:border-(--color-border)"
+                    className="flex items-center justify-between rounded-[var(--radius-control)] px-2 py-2.5 transition-colors duration-150 ease-[var(--ease-premium)] hover:bg-(--color-surface-hover)"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-(--color-foreground)">{pref.key}</p>
@@ -288,7 +288,7 @@ export default function LearningPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-(--color-accent)/12 text-(--color-accent)">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-(--color-surface-raised) text-(--color-muted-foreground)">
                 <Activity className="h-4 w-4" strokeWidth={1.75} />
               </span>
               Behavioral Patterns
@@ -299,11 +299,11 @@ export default function LearningPage() {
             {recent_patterns.length === 0 ? (
               <p className="text-sm text-(--color-muted-foreground)">No patterns detected yet.</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {recent_patterns.map((pattern) => (
                   <div
                     key={pattern.id}
-                    className="rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface-raised) px-3.5 py-3"
+                    className="rounded-[var(--radius-control)] px-2 py-2 transition-colors duration-150 ease-[var(--ease-premium)] hover:bg-(--color-surface-hover)"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
@@ -312,7 +312,7 @@ export default function LearningPage() {
                           {pattern.pattern_type} · {pattern.occurrences} occurrences
                         </p>
                       </div>
-                      <span className="shrink-0 font-(family-name:--font-display) text-sm font-semibold tabular-nums text-(--color-accent)">
+                      <span className="shrink-0 font-(family-name:--font-display) text-sm font-semibold tabular-nums text-(--color-foreground)">
                         {(pattern.confidence * 100).toFixed(0)}%
                       </span>
                     </div>
@@ -334,7 +334,7 @@ export default function LearningPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-(--color-accent)/12 text-(--color-accent)">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-(--color-surface-raised) text-(--color-muted-foreground)">
                 <TrendingUp className="h-4 w-4" strokeWidth={1.75} />
               </span>
               Confidence Trends (30 days)
@@ -353,7 +353,7 @@ export default function LearningPage() {
                   </span>
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-(--color-surface-hover)">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-(--color-accent)/60 to-(--color-accent) transition-all duration-700 ease-[var(--ease-premium)]"
+                      className="h-full rounded-full bg-gradient-to-r from-(--color-accent-soft)/60 to-(--color-accent-soft) transition-all duration-700 ease-[var(--ease-premium)]"
                       style={{ width: `${trend.avg_confidence * 100}%` }}
                     />
                   </div>
@@ -382,9 +382,9 @@ export default function LearningPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center gap-3.5 rounded-[var(--radius-control)] border border-(--color-success)/20 bg-(--color-success)/5 px-4 py-3.5">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-(--color-success)/12 text-(--color-success)">
-                <CheckCircle className="h-5 w-5" strokeWidth={1.75} />
+            <div className="flex items-center gap-3.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-success)/12 text-(--color-success)">
+                <CheckCircle className="h-4.5 w-4.5" strokeWidth={1.75} />
               </span>
               <div>
                 <p className="font-(family-name:--font-display) text-2xl font-bold tabular-nums text-(--color-foreground)">
@@ -393,9 +393,9 @@ export default function LearningPage() {
                 <p className="text-xs text-(--color-muted-foreground)">Accepted</p>
               </div>
             </div>
-            <div className="flex items-center gap-3.5 rounded-[var(--radius-control)] border border-(--color-danger)/20 bg-(--color-danger)/5 px-4 py-3.5">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-(--color-danger)/12 text-(--color-danger)">
-                <XCircle className="h-5 w-5" strokeWidth={1.75} />
+            <div className="flex items-center gap-3.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-danger)/12 text-(--color-danger)">
+                <XCircle className="h-4.5 w-4.5" strokeWidth={1.75} />
               </span>
               <div>
                 <p className="font-(family-name:--font-display) text-2xl font-bold tabular-nums text-(--color-foreground)">

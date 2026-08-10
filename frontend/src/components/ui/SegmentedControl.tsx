@@ -16,8 +16,8 @@ interface SegmentedControlProps<T extends string> {
 }
 
 /**
- * Pill-style segmented control used for every filter/tab group so the
- * whole app shares one interaction vocabulary.
+ * macOS-style segmented control — translucent well, raised selection,
+ * quiet text. Shared by every filter/tab group in the app.
  */
 export function SegmentedControl<T extends string>({
   options,
@@ -31,7 +31,7 @@ export function SegmentedControl<T extends string>({
       role="group"
       aria-label={ariaLabel}
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface) p-1 shadow-[var(--shadow-card)]",
+        "glass-control inline-flex items-center gap-0.5 rounded-[var(--radius-control)] p-0.5",
         className,
       )}
     >
@@ -44,9 +44,9 @@ export function SegmentedControl<T extends string>({
             aria-pressed={isActive}
             onClick={() => onChange(option.value)}
             className={cn(
-              "flex shrink-0 items-center gap-1.5 rounded-[calc(var(--radius-control)-4px)] px-3 py-1.5 text-[13px] font-medium transition-all duration-150 ease-[var(--ease-premium)]",
+              "flex shrink-0 items-center gap-1.5 rounded-[calc(var(--radius-control)-3px)] px-3 py-1 text-[13px] font-medium transition-all duration-150 ease-[var(--ease-premium)]",
               isActive
-                ? "bg-(--color-surface-raised) text-(--color-foreground) shadow-[0_1px_2px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.04)]"
+                ? "bg-(--color-surface-hover) text-(--color-foreground) shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_1px_2px_rgba(0,0,0,0.35)]"
                 : "text-(--color-muted-foreground) hover:text-(--color-foreground)",
             )}
           >

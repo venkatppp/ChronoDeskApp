@@ -1,7 +1,12 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Clock, FilePlus, FileEdit, Trash2, ArrowRightLeft, Eye, Camera, RefreshCw, Search, ChevronDown, ExternalLink, MoveRight, Code, FileJson, FileType, FileImage, FolderOpen, Copy, GitCommit, Zap } from "lucide-react";
 import { getTimelineRepository } from "@/services/timelineRepository";
 import { getWorkspaceRepository } from "@/services/workspaceRepository";
+import { GlassInput } from "@/components/ui/GlassInput";
+import { Button } from "@/components/ui/Button";
+import { PageContainer } from "@/components/ui/PageContainer";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { TimelineEvent, TimelineEventType } from "@/types/timeline";
 import type { Workspace } from "@/types/workspace";
 import { formatRelativeTime } from "@/utils/formatRelativeTime";
@@ -253,7 +258,6 @@ export function TimelinePage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const timelineRepo = getTimelineRepository();
   const workspaceRepo = getWorkspaceRepository();
@@ -364,39 +368,29 @@ export function TimelinePage() {
   }, []);
 
   return (
-    <div ref={containerRef} className="flex w-full flex-col gap-8 px-8 py-8 lg:px-10">
-      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="animate-fade-in">
-          <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-accent)">
-            <span className="h-1 w-1 rounded-full bg-(--color-accent)" />
-            Activity
-          </p>
-          <h1 className="font-(family-name:--font-display) text-3xl font-bold tracking-tight text-(--color-foreground)">Timeline</h1>
-          <p className="mt-1 text-sm text-(--color-muted-foreground)">Every edit, creation, and action across your workspaces, grouped into sessions.</p>
-        </div>
-        <div className="flex animate-fade-in items-center gap-2">
-          <button
-            onClick={fetchEvents}
-            className="flex items-center gap-2 rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface) px-3 py-2 text-sm text-(--color-muted-foreground) transition-all duration-200 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-[0.98]"
-            title="Refresh"
-          >
+    <PageContainer className="gap-8">
+      <PageHeader
+        eyebrow="Activity"
+        title="Timeline"
+        description="Every edit, creation, and action across your workspaces, grouped into sessions."
+        actions={
+          <Button variant="outline" size="sm" onClick={fetchEvents} title="Refresh">
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} strokeWidth={1.75} />
             Refresh
-          </button>
-        </div>
-      </div>
+          </Button>
+        }
+      />
 
       <div className="mb-8 flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[180px] flex-[2]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-(--color-muted-foreground)" strokeWidth={1.75} />
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search files..."
-            aria-label="Search timeline events by file name"
-            className="w-full rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface) py-2 pl-9 pr-3 text-sm text-(--color-foreground) shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] placeholder:text-(--color-faint-foreground) transition-colors focus:border-(--color-accent)/60 focus:outline-none focus:ring-2 focus:ring-(--color-accent)/15"
-          />
-        </div>
+        <GlassInput
+          className="min-w-[180px] flex-[2]"
+          size="md"
+          icon={<Search className="h-4 w-4" strokeWidth={1.75} />}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search files..."
+          aria-label="Search timeline events by file name"
+        />
         <select
           value={selectedWorkspaceId}
           aria-label="Filter by workspace"
@@ -406,26 +400,21 @@ export function TimelinePage() {
             localStorage.setItem("activeWorkspaceId", id);
             try { await workspaceRepo.switchWorkspace(id); } catch {}
           }}
-          className="rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface) px-3 py-2 text-sm text-(--color-foreground) transition-colors focus:border-(--color-accent)/60 focus:outline-none focus:ring-2 focus:ring-(--color-accent)/15"
+          className="glass-well rounded-[var(--radius-control)] px-3 py-2 text-sm text-(--color-foreground) transition-colors focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.25),0_0_0_1px_rgba(10,132,255,0.5)] focus:outline-none"
         >
           <option value="" disabled>Workspace</option>
           {workspaces.map((w) => (<option key={w.id} value={w.id}>{w.name}</option>))}
         </select>
-        <div className="flex items-center gap-1 rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface) p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-          {relevantTypes.map((type) => (
-            <button
-              key={type}
-              onClick={() => setFilterType(type as TimelineEventType | "all")}
-              className={`rounded-[calc(var(--radius-control)-4px)] px-2.5 py-1 text-xs font-medium capitalize whitespace-nowrap transition-all duration-200 ${
-                filterType === type
-                  ? "bg-(--color-accent) text-(--color-accent-foreground) shadow-[0_1px_8px_rgba(10,132,255,0.35)]"
-                  : "text-(--color-muted-foreground) hover:text-(--color-foreground)"
-              }`}
-            >
-              {type === "all" ? `All (${events.length})` : `${type} (${typeCounts[type] ?? 0})`}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Filter timeline by event type"
+          value={filterType}
+          onChange={(value) => setFilterType(value as TimelineEventType | "all")}
+          options={relevantTypes.map((type) => ({
+            value: type,
+            label: type === "all" ? "All" : type.replace("_", " "),
+            count: type === "all" ? events.length : typeCounts[type] ?? 0,
+          }))}
+        />
       </div>
 
       {isLoading ? (
@@ -454,10 +443,11 @@ export function TimelinePage() {
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-10">
+        <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,17rem)]">
+          <div className="flex flex-col gap-10">
           {daySessions.map(({ day, sessions }) => (
-            <section key={day} className="animate-fade-in">
-              <div className="sticky top-0 z-10 -mx-8 mb-4 flex items-center gap-2.5 bg-(--color-background)/85 px-8 py-2 backdrop-blur-md lg:-mx-10 lg:px-10">
+            <section key={day} id={`day-${day}`} className="animate-fade-in">
+              <div className="sticky top-0 z-10 -mx-6 mb-4 flex items-center gap-2.5 border-b border-(--color-border-subtle) bg-(--color-background)/45 px-6 py-2 backdrop-blur-2xl lg:-mx-8 lg:px-8">
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-(--color-accent)" />
                 <h2 className="font-(family-name:--font-display) text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-faint-foreground)">
                   {formatDayHeader(day)}
@@ -474,7 +464,7 @@ export function TimelinePage() {
                   return (
                     <div
                       key={`${day}-${si}`}
-                      className="overflow-hidden rounded-[var(--radius-card)] border border-(--color-border-subtle) bg-(--color-surface) shadow-[var(--shadow-card)] transition-colors duration-300 hover:border-(--color-border)"
+                      className="glass-panel overflow-hidden rounded-[var(--radius-card)] transition-colors duration-300"
                     >
                       <button
                         onClick={() => toggleSession(session.firstEventId)}
@@ -586,7 +576,7 @@ export function TimelinePage() {
                       </button>
 
                       {expanded && (
-                        <div className="border-t border-(--color-border-subtle) bg-(--color-background)/40 px-5 py-4">
+                        <div className="border-t border-(--color-border-subtle) bg-(--color-surface) px-5 py-4">
                           <div className="relative space-y-2.5 pl-8 before:absolute before:bottom-2 before:left-[13px] before:top-2 before:w-px before:bg-(--color-border)/40">
                             {session.events.map((event) => {
                               const colorClasses = EVENT_COLORS[event.eventType];
@@ -646,6 +636,81 @@ export function TimelinePage() {
               </div>
             </section>
           ))}
+          </div>
+
+          {/* Session summary rail — day index + first-day aggregate so the
+              timeline reads as an activity workspace across the canvas. */}
+          {daySessions.length > 0 && (
+            <aside className="glass-panel hidden self-start overflow-hidden rounded-[var(--radius-card)] p-4 xl:sticky xl:top-0 xl:block">
+              {(() => {
+                const head = daySessions[0];
+                const totalMs = head.sessions.reduce((a, s) => a + s.durationMs, 0);
+                const edits = head.sessions.reduce((a, s) => a + (s.counts.edit ?? 0), 0);
+                const files = new Set(head.sessions.flatMap((s) => [...s.filesChanged])).size;
+                const commits = head.sessions.reduce((a, s) => a + (s.counts.commit ?? 0), 0);
+                return (
+                  <>
+                    <div className="mb-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-(--color-faint-foreground)">
+                        {formatDayHeader(head.day)}
+                      </p>
+                      <div className="mt-3 flex flex-col gap-2.5">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs text-(--color-muted-foreground)">Focus time</span>
+                          <span className="font-(family-name:--font-display) text-sm font-semibold tabular-nums text-(--color-foreground)">
+                            {formatDuration(totalMs)}
+                          </span>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs text-(--color-muted-foreground)">Edits</span>
+                          <span className="font-(family-name:--font-display) text-sm font-semibold tabular-nums text-(--color-foreground)">
+                            {edits}
+                          </span>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs text-(--color-muted-foreground)">Files touched</span>
+                          <span className="font-(family-name:--font-display) text-sm font-semibold tabular-nums text-(--color-foreground)">
+                            {files}
+                          </span>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs text-(--color-muted-foreground)">Commits</span>
+                          <span className="font-(family-name:--font-display) text-sm font-semibold tabular-nums text-(--color-foreground)">
+                            {commits}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    {daySessions.length > 1 && (
+                      <div className="border-t border-(--color-border-subtle) pt-3">
+                        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-(--color-faint-foreground)">
+                          Days
+                        </p>
+                        <div className="flex flex-col gap-px">
+                          {daySessions.map(({ day, sessions }, i) => (
+                            <button
+                              key={day}
+                              onClick={() =>
+                                document.getElementById(`day-${day}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
+                              }
+                              className={`flex items-center justify-between gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left text-xs transition-colors hover:bg-(--color-surface-hover) ${
+                                i === 0 ? "text-(--color-foreground)" : "text-(--color-muted-foreground)"
+                              }`}
+                            >
+                              <span className="truncate">{formatDayHeader(day)}</span>
+                              <span className="shrink-0 text-[10px] tabular-nums text-(--color-faint-foreground)">
+                                {sessions.length}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </aside>
+          )}
         </div>
       )}
 
@@ -697,6 +762,6 @@ export function TimelinePage() {
           </button>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

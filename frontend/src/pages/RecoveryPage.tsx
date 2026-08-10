@@ -135,7 +135,7 @@ export function RecoveryPage() {
         <CardHeader className="flex-row items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-(--color-accent)" />
+              <ShieldCheck className="h-4 w-4 text-(--color-muted-foreground)" />
               Session Checkpoint
             </CardTitle>
             <CardDescription>

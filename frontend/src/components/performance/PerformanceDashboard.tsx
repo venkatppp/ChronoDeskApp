@@ -8,15 +8,15 @@ import { StartupTimeline } from "@/components/performance/StartupTimeline";
 import { getPerformanceRepository } from "@/services/performanceRepository";
 
 const CATEGORY_COLORS: Record<string, string> = {
-  command: "var(--color-accent)",
+  command: "var(--color-accent-soft)",
   service: "var(--color-success)",
   repository: "var(--color-warning)",
   worker: "var(--color-danger)",
-  engine: "var(--color-accent-muted)",
+  engine: "var(--color-violet)",
 };
 
 function categoryColor(category: string): string {
-  return CATEGORY_COLORS[category] ?? "var(--color-accent)";
+  return CATEGORY_COLORS[category] ?? "var(--color-accent-soft)";
 }
 
 const REFRESH_INTERVAL_MS = 10_000;
@@ -71,7 +71,7 @@ export function PerformanceDashboard() {
         <CardHeader className="flex-row items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-(--color-accent)" />
+              <Activity className="h-4 w-4 text-(--color-muted-foreground)" />
               Live Profiling
             </CardTitle>
             <CardDescription>
@@ -171,7 +171,7 @@ export function PerformanceDashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <History className="h-4 w-4 text-(--color-accent)" />
+              <History className="h-4 w-4 text-(--color-muted-foreground)" />
               Recent History
             </CardTitle>
             <CardDescription>Persisted samples, benchmark runs, and startup launches</CardDescription>

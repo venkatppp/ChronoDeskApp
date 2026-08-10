@@ -9,21 +9,21 @@ interface PageHeaderProps {
   className?: string;
 }
 
-/** Large page title block with an optional eyebrow, description, and actions. */
+/** Large page title block — quiet, Apple-style hierarchy. */
 export function PageHeader({ eyebrow, title, description, actions, className }: PageHeaderProps) {
   return (
-    <div className={cn("flex flex-col gap-6 md:flex-row md:items-end md:justify-between", className)}>
-      <div className="max-w-2xl">
+    <div className={cn("flex flex-col gap-5 md:flex-row md:items-end md:justify-between", className)}>
+      <div className="min-w-0">
         {eyebrow && (
-          <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-(--color-accent)">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-(--color-faint-foreground)">
             {eyebrow}
           </p>
         )}
-        <h1 className="font-(family-name:--font-display) text-3xl font-bold tracking-tight text-(--color-foreground) md:text-[2rem] md:leading-tight">
+        <h1 className="font-(family-name:--font-display) text-[1.75rem] font-semibold tracking-[-0.02em] text-(--color-foreground)">
           {title}
         </h1>
         {description && (
-          <p className="mt-2 text-[15px] leading-relaxed text-(--color-muted-foreground)">{description}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-(--color-muted-foreground)">{description}</p>
         )}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2.5">{actions}</div>}

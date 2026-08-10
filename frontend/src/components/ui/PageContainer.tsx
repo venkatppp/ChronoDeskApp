@@ -5,13 +5,14 @@ interface PageContainerProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
 }
 
-/** Standard content frame for every page — one grid, one rhythm. */
+/**
+ * Standard content frame for every page — one grid, one rhythm.
+ * Uses the full available width; readable content sections set their own
+ * local widths.
+ */
 export function PageContainer({ className, children, ...props }: PageContainerProps) {
   return (
-    <div
-      className={cn("flex w-full flex-col gap-8 px-8 py-8 lg:px-10", className)}
-      {...props}
-    >
+    <div className={cn("flex w-full flex-col gap-8 px-6 py-7 lg:px-8", className)} {...props}>
       {children}
     </div>
   );

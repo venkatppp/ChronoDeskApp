@@ -58,19 +58,19 @@ export function MaintenancePanel({
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div className="flex flex-col gap-1">
                   <p className="text-xs text-(--color-muted-foreground)">File size</p>
-                  <p className="font-mono text-sm text-(--color-foreground)">
+                  <p className="font-(family-name:--font-mono) text-sm text-(--color-foreground)">
                     {formatBytes(report.sizeBeforeBytes)} → {formatBytes(report.sizeAfterBytes)}
                   </p>
                 </div>
                 <div className="flex flex-col gap-1">
                   <p className="text-xs text-(--color-muted-foreground)">Free pages</p>
-                  <p className="font-mono text-sm text-(--color-foreground)">
+                  <p className="font-(family-name:--font-mono) text-sm text-(--color-foreground)">
                     {report.freelistBefore} → {report.freelistAfter}
                   </p>
                 </div>
                 <div className="flex flex-col gap-1">
                   <p className="text-xs text-(--color-muted-foreground)">Recovered</p>
-                  <p className="font-mono text-sm text-(--color-success)">
+                  <p className="font-(family-name:--font-mono) text-sm text-(--color-success)">
                     {formatBytes(report.recoveredBytes)}
                   </p>
                 </div>

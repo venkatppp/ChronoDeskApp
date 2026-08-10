@@ -75,7 +75,7 @@ export function RecentActivityFeed({ events, isLoading }: RecentActivityFeedProp
 
             return (
               <div key={event.id} className="flex items-center gap-2.5 rounded-[var(--radius-control)] px-2 py-2 text-sm">
-                <Icon className="h-4 w-4 shrink-0 text-(--color-accent)" strokeWidth={1.75} />
+                <Icon className="h-4 w-4 shrink-0 text-(--color-muted-foreground)" strokeWidth={1.75} />
                 <span className="min-w-0 flex-1 truncate text-(--color-foreground)">
                   {fileName ? (
                     <>

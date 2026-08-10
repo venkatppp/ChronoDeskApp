@@ -8,10 +8,10 @@ interface RelatedWorkCardProps {
 }
 
 const RELATIONSHIP_LABELS: Record<string, { label: string; color: string }> = {
-  shared_files: { label: "Shared Files", color: "text-(--color-accent)" },
+  shared_files: { label: "Shared Files", color: "text-(--color-muted-foreground)" },
   shared_folders: { label: "Shared Folders", color: "text-(--color-success)" },
   shared_tech: { label: "Shared Tech", color: "text-(--color-warning)" },
-  similar_patterns: { label: "Similar Patterns", color: "text-(--color-accent)" },
+  similar_patterns: { label: "Similar Patterns", color: "text-(--color-muted-foreground)" },
 };
 
 export function RelatedWorkCard({ relatedWorkspaces, isLoading }: RelatedWorkCardProps) {
@@ -19,8 +19,8 @@ export function RelatedWorkCard({ relatedWorkspaces, isLoading }: RelatedWorkCar
     return (
       <Card className="p-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-accent-muted)">
-            <Network className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-raised)">
+            <Network className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
@@ -40,7 +40,7 @@ export function RelatedWorkCard({ relatedWorkspaces, isLoading }: RelatedWorkCar
     return (
       <Card className="p-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-surface-hover)">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-hover)">
             <Network className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           </div>
           <div className="min-w-0 flex-1">
@@ -57,8 +57,8 @@ export function RelatedWorkCard({ relatedWorkspaces, isLoading }: RelatedWorkCar
   return (
     <Card className="p-4">
       <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-accent-muted)">
-          <Network className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-raised)">
+          <Network className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">

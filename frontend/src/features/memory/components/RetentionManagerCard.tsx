@@ -77,7 +77,7 @@ export function RetentionManagerCard() {
     <Card className="p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Shield className="h-4 w-4 text-(--color-accent)" />
+          <Shield className="h-4 w-4 text-(--color-muted-foreground)" />
           <h2 className="text-sm font-medium text-(--color-foreground)">Retention</h2>
         </div>
         <Button variant="secondary" size="sm" onClick={() => void runCleanup()} disabled={cleaning}>
@@ -87,7 +87,7 @@ export function RetentionManagerCard() {
       </div>
 
       {report && (
-        <p className="mt-2 rounded-md bg-(--color-surface) px-3 py-2 text-[11px] text-(--color-muted-foreground)">
+        <p className="mt-2 rounded-[var(--radius-control)] bg-(--color-surface) px-3 py-2 text-[11px] text-(--color-muted-foreground)">
           Last pass: {report.expired_marked} expired · {report.removed_expired} deleted ·{" "}
           {report.removed_duplicate_archives} archive dupes · {report.compressed} compressed
         </p>
@@ -102,7 +102,7 @@ export function RetentionManagerCard() {
         {memories.map((record) => (
           <div
             key={record.id}
-            className="flex flex-wrap items-center gap-2 rounded-md bg-(--color-surface) px-3 py-2"
+            className="flex flex-wrap items-center gap-2 rounded-[var(--radius-control)] bg-(--color-surface) px-3 py-2"
           >
             <p className="min-w-0 flex-1 truncate text-xs text-(--color-foreground)">
               {record.goal}
