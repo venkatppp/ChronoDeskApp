@@ -61,7 +61,7 @@ export function ContextMemoryCard({ snapshot, isLoading }: ContextMemoryCardProp
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {snapshot.activeFiles.length > 0 && (
               <span className="inline-flex items-center gap-1 text-xs text-(--color-muted-foreground)">
-                <GitBranch className="h-3 w-3" strokeWidth={2} />
+                <GitBranch className="h-3 w-3" strokeWidth={1.75} />
                 {snapshot.activeFiles.length} file{snapshot.activeFiles.length !== 1 ? 's' : ''}
               </span>
             )}

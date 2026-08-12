@@ -66,7 +66,7 @@ export function SnapshotManagerCard() {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2">
-        <Camera className="h-4 w-4 text-(--color-muted-foreground)" />
+        <Camera className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
         <h2 className="text-sm font-medium text-(--color-foreground)">Snapshots</h2>
       </div>
 
@@ -76,10 +76,10 @@ export function SnapshotManagerCard() {
           onChange={(e) => setLabel(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && create()}
           placeholder="Label (optional, e.g. before refactor)"
-          className="glass-well min-w-0 h-8 flex-1 rounded-[var(--radius-control)] px-3 text-xs text-(--color-foreground) placeholder:text-(--color-faint-foreground) transition-all duration-200 ease-[var(--ease-premium)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.25),0_0_0_1px_rgba(10,132,255,0.5)] focus:outline-none"
+          className="glass-well min-w-0 h-8 flex-1 rounded-[var(--radius-control)] px-3 text-xs text-(--color-foreground) placeholder:text-(--color-faint-foreground) transition-all duration-200 ease-[var(--ease-premium)] focus-well"
         />
         <Button size="sm" onClick={() => void create()} disabled={creating}>
-          <Camera className="h-3.5 w-3.5" />
+          <Camera className="h-3.5 w-3.5" strokeWidth={1.75} />
           {creating ? "Capturing…" : "Capture"}
         </Button>
       </div>
@@ -99,7 +99,7 @@ export function SnapshotManagerCard() {
             key={snapshot.id}
             className="flex flex-wrap items-center gap-2 rounded-[var(--radius-control)] bg-(--color-surface) px-3 py-2"
           >
-            <History className="h-3.5 w-3.5 shrink-0 text-(--color-muted-foreground)" />
+            <History className="h-3.5 w-3.5 shrink-0 text-(--color-muted-foreground)" strokeWidth={1.75} />
             <p className="min-w-0 flex-1 truncate text-xs text-(--color-foreground)">
               {snapshot.label}
             </p>
@@ -112,7 +112,7 @@ export function SnapshotManagerCard() {
               disabled={restoringId === snapshot.id}
               onClick={() => void restore(snapshot)}
             >
-              <RotateCcw className="h-3 w-3" />
+              <RotateCcw className="h-3 w-3" strokeWidth={1.75} />
               {restoringId === snapshot.id ? "Restoring…" : "Restore"}
             </Button>
           </div>

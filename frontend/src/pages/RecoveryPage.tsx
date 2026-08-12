@@ -135,7 +135,7 @@ export function RecoveryPage() {
         <CardHeader className="flex-row items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-(--color-muted-foreground)" />
+              <ShieldCheck className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
               Session Checkpoint
             </CardTitle>
             <CardDescription>
@@ -145,18 +145,18 @@ export function RecoveryPage() {
           </div>
           <div className="flex items-center gap-2">
             <Button variant="secondary" disabled={acting} onClick={() => runAction("self_heal")}>
-              <Stethoscope className="h-4 w-4" />
+              <Stethoscope className="h-4 w-4" strokeWidth={1.75} />
               Run self-healing
             </Button>
             <Button variant="secondary" disabled={acting} onClick={() => runAction("rollback")}>
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw className="h-4 w-4" strokeWidth={1.75} />
               Roll back
             </Button>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           <div className="flex items-center gap-3">
-            <TimerReset className="h-4 w-4 text-(--color-muted-foreground)" />
+            <TimerReset className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
             <span className="text-sm text-(--color-muted-foreground)">
               Watchdog tick <span className="font-mono text-(--color-foreground)">{tick}</span>
             </span>

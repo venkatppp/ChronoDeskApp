@@ -1,4 +1,5 @@
 import { History, X, RotateCcw } from "lucide-react";
+import { Card } from "@/components/ui/Card";
 import { SectionLabel } from "@/components/ui/SectionLabel";
 
 interface SearchHistoryProps {
@@ -17,7 +18,7 @@ export function SearchHistory({
   if (history.length === 0) return null;
 
   return (
-    <section className="glass-panel rounded-[var(--radius-card)] p-5">
+    <Card className="p-5">
       <SectionLabel
         icon={<History className="h-3.5 w-3.5" strokeWidth={1.75} />}
         right={
@@ -50,11 +51,11 @@ export function SearchHistory({
               aria-label={`Remove ${query} from history`}
               className="rounded-md p-1 text-(--color-faint-foreground) opacity-0 transition-all hover:bg-(--color-danger)/10 hover:text-(--color-danger) group-hover:opacity-100"
             >
-              <X className="h-3.5 w-3.5" strokeWidth={2} />
+              <X className="h-3.5 w-3.5" strokeWidth={1.75} />
             </button>
           </div>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }

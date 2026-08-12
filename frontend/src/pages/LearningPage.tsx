@@ -128,10 +128,10 @@ export default function LearningPage() {
   if (!insights) {
     return (
       <PageContainer>
-        <div className="glass-panel flex flex-col items-center gap-4 rounded-[var(--radius-card)] px-6 py-20 text-center">
-          <Brain className="h-10 w-10 text-(--color-faint-foreground)" strokeWidth={1.5} />
+        <Card className="flex flex-col items-center gap-4 px-6 py-20 text-center">
+          <Brain className="h-10 w-10 text-(--color-faint-foreground)" strokeWidth={1.75} />
           <p className="text-sm text-(--color-muted-foreground)">No learning data available yet.</p>
-        </div>
+        </Card>
       </PageContainer>
     );
   }

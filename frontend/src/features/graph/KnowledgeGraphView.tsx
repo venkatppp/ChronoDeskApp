@@ -1121,14 +1121,6 @@ export function KnowledgeGraphView({
     <div
       ref={containerRef}
       className="relative h-full w-full cursor-grab overflow-hidden bg-dotgrid active:cursor-grabbing"
-      style={{
-        backgroundImage:
-          "radial-gradient(1100px 700px at 50% -10%, rgba(56,189,248,0.1), transparent 60%)," +
-          "radial-gradient(900px 600px at 90% 110%, rgba(167,139,250,0.09), transparent 55%)," +
-          "radial-gradient(800px 600px at 8% 100%, rgba(10,132,255,0.08), transparent 58%)," +
-          "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0)",
-        backgroundSize: "auto, auto, auto, 22px 22px",
-      }}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -1313,7 +1305,7 @@ export function KnowledgeGraphView({
         <GlassSurface
           material="panel"
           refraction={true}
-          className="absolute left-4 top-4 z-20 w-[272px] animate-fade-in rounded-[var(--radius-card)] p-4 shadow-[var(--shadow-pop)]"
+          className="absolute left-4 top-4 z-20 w-[272px] animate-fade-in rounded-[var(--radius-card)] p-4"
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -1418,7 +1410,7 @@ export function KnowledgeGraphView({
             </kbd>
           </div>
           {searchResults.length > 0 && (
-            <div className="mt-1.5 max-h-56 overflow-y-auto rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-raised) py-1 shadow-[var(--shadow-pop)]">
+            <div className="glass-panel mt-1.5 max-h-56 overflow-y-auto rounded-[var(--radius-control)] py-1">
               {searchResults.map((result, i) => (
                 <button
                   key={nodeKeyOf(result)}
@@ -1442,7 +1434,7 @@ export function KnowledgeGraphView({
             </div>
           )}
           {searchResults.length === 0 && searchQuery.trim() && (
-            <div className="mt-1.5 rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-raised) px-3 py-2.5 text-sm text-(--color-muted-foreground) shadow-[var(--shadow-pop)]">
+            <div className="glass-panel mt-1.5 rounded-[var(--radius-control)] px-3 py-2.5 text-sm text-(--color-muted-foreground)">
               No nodes match “{searchQuery}”.
             </div>
           )}
@@ -1522,7 +1514,7 @@ export function KnowledgeGraphView({
         </div>
       )}
 
-      <div className="glass-panel absolute bottom-5 left-1/2 z-10 hidden -translate-x-1/2 overflow-hidden rounded-[var(--radius-control)] p-0.5 shadow-[var(--shadow-pop)] transition-opacity duration-300 hover:opacity-100 lg:block xl:opacity-80" style={{ width: mmW + 16, height: mmH + 16, cursor: "pointer" }}>
+      <div className="glass-panel absolute bottom-5 left-1/2 z-10 hidden -translate-x-1/2 overflow-hidden rounded-[var(--radius-control)] p-0.5 transition-opacity duration-300 hover:opacity-100 lg:block xl:opacity-80" style={{ width: mmW + 16, height: mmH + 16, cursor: "pointer" }}>
         {mode === "structure" && structureLayout ? (
           <svg viewBox={`${structureLayout.minX - 20} ${structureLayout.minY - 20} ${structureLayout.maxX - structureLayout.minX + 40} ${structureLayout.maxY - structureLayout.minY + 40}`} width={mmW + 16} height={mmH + 16}>
             {flattenPlaced(structureLayout.placed).map((n) => (

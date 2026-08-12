@@ -31,7 +31,7 @@ export function HistoryPanel({ runs, loading, error }: { runs: RecoveryRun[]; lo
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <History className="h-4 w-4 text-(--color-muted-foreground)" />
+          <History className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           Recovery History
         </CardTitle>
         <CardDescription>

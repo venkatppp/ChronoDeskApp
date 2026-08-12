@@ -93,9 +93,10 @@ export function SettingsPage() {
         </div>
       )}
 
-      <div className="mx-auto grid w-full max-w-7xl grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,21rem)]">
-        {/* Main column — Appearance + Watched Folders */}
-        <div className="flex min-w-0 flex-col gap-6">
+      <div className="grid w-full grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+        {/* Main column — Appearance + Watched Folders; from xl up the two
+            cards sit side by side so the pane uses the desktop width. */}
+        <div className="flex min-w-0 flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:gap-6">
           {/* Appearance */}
           <Card className="overflow-hidden">
             <div className="flex items-center gap-3 border-b border-(--color-border-subtle) px-5 py-4">
@@ -184,7 +185,7 @@ export function SettingsPage() {
                   </span>
                 )}
                 <Button onClick={handleAddPath} size="sm">
-                  <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+                  <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
                   Add Folder
                 </Button>
               </div>

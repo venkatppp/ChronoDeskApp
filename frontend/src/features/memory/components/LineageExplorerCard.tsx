@@ -76,7 +76,7 @@ export function LineageExplorerCard() {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2">
-        <GitBranch className="h-4 w-4 text-(--color-muted-foreground)" />
+        <GitBranch className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
         <h2 className="text-sm font-medium text-(--color-foreground)">Lineage explorer</h2>
       </div>
 
@@ -86,10 +86,10 @@ export function LineageExplorerCard() {
           onChange={(e) => setMemoryId(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && explore()}
           placeholder="Memory id to explore"
-          className="glass-well min-w-0 h-8 flex-1 rounded-[var(--radius-control)] px-3 text-xs text-(--color-foreground) placeholder:text-(--color-faint-foreground) transition-all duration-200 ease-[var(--ease-premium)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.25),0_0_0_1px_rgba(10,132,255,0.5)] focus:outline-none"
+          className="glass-well min-w-0 h-8 flex-1 rounded-[var(--radius-control)] px-3 text-xs text-(--color-foreground) placeholder:text-(--color-faint-foreground) transition-all duration-200 ease-[var(--ease-premium)] focus-well"
         />
         <Button size="sm" onClick={() => void explore()}>
-          <Search className="h-3.5 w-3.5" /> Explore
+          <Search className="h-3.5 w-3.5" strokeWidth={1.75} /> Explore
         </Button>
       </div>
 
@@ -142,16 +142,16 @@ export function LineageExplorerCard() {
       <div className="mt-4 border-t border-(--color-border) pt-3">
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" size="sm" onClick={() => void exportStore()}>
-            <Download className="h-3.5 w-3.5" /> Export JSON
+            <Download className="h-3.5 w-3.5" strokeWidth={1.75} /> Export JSON
           </Button>
           <input
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
             placeholder="Paste export JSON to import"
-            className="glass-well min-w-0 h-8 flex-1 rounded-[var(--radius-control)] px-3 text-xs text-(--color-foreground) placeholder:text-(--color-faint-foreground) transition-all duration-200 ease-[var(--ease-premium)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.25),0_0_0_1px_rgba(10,132,255,0.5)] focus:outline-none"
+            className="glass-well min-w-0 h-8 flex-1 rounded-[var(--radius-control)] px-3 text-xs text-(--color-foreground) placeholder:text-(--color-faint-foreground) transition-all duration-200 ease-[var(--ease-premium)] focus-well"
           />
           <Button size="sm" variant="secondary" onClick={() => void importStore()} disabled={!importText.trim()}>
-            <Upload className="h-3.5 w-3.5" /> Import
+            <Upload className="h-3.5 w-3.5" strokeWidth={1.75} /> Import
           </Button>
         </div>
         {importNotice && (

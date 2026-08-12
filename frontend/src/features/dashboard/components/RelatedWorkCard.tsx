@@ -85,7 +85,7 @@ export function RelatedWorkCard({ relatedWorkspaces, isLoading }: RelatedWorkCar
                   </div>
                   <TrendingUp
                     className="h-3.5 w-3.5 shrink-0 text-(--color-success)"
-                    strokeWidth={2}
+                    strokeWidth={1.75}
                   />
                 </div>
               );

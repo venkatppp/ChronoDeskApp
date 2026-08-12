@@ -95,9 +95,9 @@ export interface AutomationRule {
   name: string;
   enabled: boolean;
   triggerType: TriggerType;
-  triggerConfig: Record<string, any>;
+  triggerConfig: Record<string, unknown>;
   actionType: ActionType;
-  actionConfig: Record<string, any>;
+  actionConfig: Record<string, unknown>;
   createdAt: string;
 }
 
@@ -105,7 +105,7 @@ export interface CreateAutomationRuleRequest {
   name: string;
   enabled: boolean;
   triggerType: TriggerType;
-  triggerConfig: Record<string, any>;
+  triggerConfig: Record<string, unknown>;
   actionType: ActionType;
-  actionConfig: Record<string, any>;
+  actionConfig: Record<string, unknown>;
 }

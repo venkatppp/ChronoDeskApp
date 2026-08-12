@@ -60,7 +60,7 @@ export function WorkspaceCard({ workspace, stats, onOpen }: WorkspaceCardProps) 
             <h3 className="truncate text-sm font-semibold text-(--color-foreground)">{workspace.name}</h3>
             {workspace.status === "archived" && (
               <Badge variant="neutral">
-                <Archive className="mr-0.5 h-2.5 w-2.5" strokeWidth={2} />
+                <Archive className="mr-0.5 h-2.5 w-2.5" strokeWidth={1.75} />
                 Archived
               </Badge>
             )}

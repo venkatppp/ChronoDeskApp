@@ -4,6 +4,7 @@ import { getTimelineRepository } from "@/services/timelineRepository";
 import { getWorkspaceRepository } from "@/services/workspaceRepository";
 import { GlassInput } from "@/components/ui/GlassInput";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
@@ -12,16 +13,16 @@ import type { Workspace } from "@/types/workspace";
 import { formatRelativeTime } from "@/utils/formatRelativeTime";
 
 const EVENT_ICONS: Record<TimelineEventType, React.ReactNode> = {
-  create: <FilePlus className="h-4 w-4" />,
-  open: <Eye className="h-4 w-4" />,
-  close: <Clock className="h-4 w-4" />,
-  edit: <FileEdit className="h-4 w-4" />,
-  move: <MoveRight className="h-4 w-4" />,
-  delete: <Trash2 className="h-4 w-4" />,
-  commit: <Clock className="h-4 w-4" />,
-  visit: <Eye className="h-4 w-4" />,
-  screenshot: <Camera className="h-4 w-4" />,
-  workspace_switch: <ArrowRightLeft className="h-4 w-4" />,
+  create: <FilePlus className="h-4 w-4" strokeWidth={1.75} />,
+  open: <Eye className="h-4 w-4" strokeWidth={1.75} />,
+  close: <Clock className="h-4 w-4" strokeWidth={1.75} />,
+  edit: <FileEdit className="h-4 w-4" strokeWidth={1.75} />,
+  move: <MoveRight className="h-4 w-4" strokeWidth={1.75} />,
+  delete: <Trash2 className="h-4 w-4" strokeWidth={1.75} />,
+  commit: <Clock className="h-4 w-4" strokeWidth={1.75} />,
+  visit: <Eye className="h-4 w-4" strokeWidth={1.75} />,
+  screenshot: <Camera className="h-4 w-4" strokeWidth={1.75} />,
+  workspace_switch: <ArrowRightLeft className="h-4 w-4" strokeWidth={1.75} />,
 };
 
 const EVENT_COLORS: Record<TimelineEventType, string> = {
@@ -398,9 +399,9 @@ export function TimelinePage() {
             const id = e.target.value;
             setSelectedWorkspaceId(id);
             localStorage.setItem("activeWorkspaceId", id);
-            try { await workspaceRepo.switchWorkspace(id); } catch {}
+            try { await workspaceRepo.switchWorkspace(id); } catch { /* no-op */ }
           }}
-          className="glass-well rounded-[var(--radius-control)] px-3 py-2 text-sm text-(--color-foreground) transition-colors focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.25),0_0_0_1px_rgba(10,132,255,0.5)] focus:outline-none"
+          className="glass-well focus-well rounded-[var(--radius-control)] px-3 py-2 text-sm text-(--color-foreground) transition-colors"
         >
           <option value="" disabled>Workspace</option>
           {workspaces.map((w) => (<option key={w.id} value={w.id}>{w.name}</option>))}
@@ -447,7 +448,7 @@ export function TimelinePage() {
           <div className="flex flex-col gap-10">
           {daySessions.map(({ day, sessions }) => (
             <section key={day} id={`day-${day}`} className="animate-fade-in">
-              <div className="sticky top-0 z-10 -mx-6 mb-4 flex items-center gap-2.5 border-b border-(--color-border-subtle) bg-(--color-background)/45 px-6 py-2 backdrop-blur-2xl lg:-mx-8 lg:px-8">
+              <div className="glass-nav sticky top-0 z-10 -mx-6 mb-4 flex items-center gap-2.5 border-b border-(--color-border-subtle) px-6 py-2 lg:-mx-8 lg:px-8">
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-(--color-accent)" />
                 <h2 className="font-(family-name:--font-display) text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-faint-foreground)">
                   {formatDayHeader(day)}
@@ -462,9 +463,9 @@ export function TimelinePage() {
                 {sessions.map((session, si) => {
                   const expanded = expandedSessions.has(session.firstEventId);
                   return (
-                    <div
+                    <Card
                       key={`${day}-${si}`}
-                      className="glass-panel overflow-hidden rounded-[var(--radius-card)] transition-colors duration-300"
+                      className="overflow-hidden transition-colors duration-300"
                     >
                       <button
                         onClick={() => toggleSession(session.firstEventId)}
@@ -492,7 +493,7 @@ export function TimelinePage() {
                               {formatDuration(session.durationMs)}
                             </span>
                             <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${session.productivity.tone}`}>
-                              <Zap className="h-3 w-3" strokeWidth={2} />
+                              <Zap className="h-3 w-3" strokeWidth={1.75} />
                               {session.productivity.label} productivity
                             </span>
                           </div>
@@ -522,47 +523,47 @@ export function TimelinePage() {
                           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-(--color-muted-foreground)">
                             {(session.counts.commit ?? 0) > 0 && (
                               <span className="inline-flex items-center gap-1">
-                                <GitCommit className="h-3 w-3 text-(--color-accent)" strokeWidth={2} />
+                                <GitCommit className="h-3 w-3 text-(--color-accent)" strokeWidth={1.75} />
                                 {session.counts.commit} commit{session.counts.commit !== 1 ? "s" : ""}
                               </span>
                             )}
                             <span className="inline-flex items-center gap-1">
-                              <FileEdit className="h-3 w-3 text-(--color-warning)" strokeWidth={2} />
+                              <FileEdit className="h-3 w-3 text-(--color-warning)" strokeWidth={1.75} />
                               {session.filesChanged.size} file{session.filesChanged.size !== 1 ? "s" : ""}
                             </span>
                             {(session.counts.create ?? 0) > 0 && (
                               <span className="inline-flex items-center gap-1">
-                                <FilePlus className="h-3 w-3 text-(--color-success)" strokeWidth={2} />
+                                <FilePlus className="h-3 w-3 text-(--color-success)" strokeWidth={1.75} />
                                 {session.counts.create} created
                               </span>
                             )}
                             {(session.counts.delete ?? 0) > 0 && (
                               <span className="inline-flex items-center gap-1">
-                                <Trash2 className="h-3 w-3 text-(--color-danger)" strokeWidth={2} />
+                                <Trash2 className="h-3 w-3 text-(--color-danger)" strokeWidth={1.75} />
                                 {session.counts.delete} deleted
                               </span>
                             )}
                             {(session.counts.workspace_switch ?? 0) > 0 && (
                               <span className="inline-flex items-center gap-1">
-                                <ArrowRightLeft className="h-3 w-3 text-(--color-accent)" strokeWidth={2} />
+                                <ArrowRightLeft className="h-3 w-3 text-(--color-accent)" strokeWidth={1.75} />
                                 Workspace switched ×{session.counts.workspace_switch}
                               </span>
                             )}
                             {(session.counts.open ?? 0) > 0 && (
                               <span className="inline-flex items-center gap-1">
-                                <Eye className="h-3 w-3" strokeWidth={2} />
+                                <Eye className="h-3 w-3" strokeWidth={1.75} />
                                 {session.counts.open} opened
                               </span>
                             )}
                             {(session.counts.visit ?? 0) > 0 && (
                               <span className="inline-flex items-center gap-1">
-                                <Eye className="h-3 w-3" strokeWidth={2} />
+                                <Eye className="h-3 w-3" strokeWidth={1.75} />
                                 {session.counts.visit} visited
                               </span>
                             )}
                             {(session.counts.screenshot ?? 0) > 0 && (
                               <span className="inline-flex items-center gap-1">
-                                <Camera className="h-3 w-3 text-(--color-warning)" strokeWidth={2} />
+                                <Camera className="h-3 w-3 text-(--color-warning)" strokeWidth={1.75} />
                                 {session.counts.screenshot} captured
                               </span>
                             )}
@@ -571,7 +572,7 @@ export function TimelinePage() {
 
                         <ChevronDown
                           className={`mt-0.5 h-4 w-4 shrink-0 text-(--color-faint-foreground) transition-transform duration-300 ease-(--ease-premium) ${expanded ? "rotate-180" : ""}`}
-                          strokeWidth={2}
+                          strokeWidth={1.75}
                         />
                       </button>
 
@@ -630,7 +631,7 @@ export function TimelinePage() {
                           </div>
                         </div>
                       )}
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
@@ -641,7 +642,7 @@ export function TimelinePage() {
           {/* Session summary rail — day index + first-day aggregate so the
               timeline reads as an activity workspace across the canvas. */}
           {daySessions.length > 0 && (
-            <aside className="glass-panel hidden self-start overflow-hidden rounded-[var(--radius-card)] p-4 xl:sticky xl:top-0 xl:block">
+            <Card className="hidden self-start overflow-hidden p-4 xl:sticky xl:top-0 xl:block">
               {(() => {
                 const head = daySessions[0];
                 const totalMs = head.sessions.reduce((a, s) => a + s.durationMs, 0);
@@ -709,14 +710,14 @@ export function TimelinePage() {
                   </>
                 );
               })()}
-            </aside>
+            </Card>
           )}
         </div>
       )}
 
       {contextMenu && (
         <div
-          className="fixed z-50 w-48 animate-scale-in overflow-hidden rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-raised) py-1 shadow-[0_4px_12px_rgba(0,0,0,0.4),0_2px_6px_rgba(0,0,0,0.2)]"
+          className="glass-panel fixed z-50 w-48 animate-scale-in overflow-hidden rounded-[var(--radius-control)] py-1"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           role="menu"
           onKeyDown={(e) => { if (e.key === "Escape") setContextMenu(null); }}

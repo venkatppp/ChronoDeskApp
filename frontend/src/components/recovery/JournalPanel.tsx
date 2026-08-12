@@ -24,7 +24,7 @@ export function JournalPanel({ entries, loading, error }: { entries: RecoveryJou
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <ScrollText className="h-4 w-4 text-(--color-muted-foreground)" />
+          <ScrollText className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           Reliability Journal
         </CardTitle>
         <CardDescription>

@@ -36,7 +36,7 @@ export function StartupTimeline({
       <CardHeader className="flex-row items-start justify-between">
         <div>
           <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-(--color-muted-foreground)" />
+            <BarChart3 className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
             Startup Timeline
           </CardTitle>
           <CardDescription>

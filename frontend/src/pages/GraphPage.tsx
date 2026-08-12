@@ -17,6 +17,8 @@ import type {
 } from "@/types/graph";
 import { useAppEvents } from "@/hooks/useAppEvents";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { GlassSurface } from "@/components/ui/GlassSurface";
 import { Network, RefreshCw, Search, X, Map, ChevronLeft, Sparkles, Hourglass, Activity, Gauge, Boxes } from "lucide-react";
 
 const GRAPH_MODES: { value: GraphMode; label: string; icon: typeof Network }[] = [
@@ -313,7 +315,7 @@ export function GraphPage() {
               onClick={() => setMode(m.value)}
               className={`flex shrink-0 items-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] px-2.5 py-1 text-xs font-medium transition-all duration-150 ease-[var(--ease-premium)] ${
                 mode === m.value
-                  ? "bg-(--color-surface-hover) text-(--color-foreground) shadow-[0_1px_2px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.06)]"
+                  ? "material-selected text-(--color-foreground)"
                   : "text-(--color-muted-foreground) hover:text-(--color-foreground)"
               }`}
             >
@@ -425,7 +427,10 @@ export function GraphPage() {
       </div>
 
       {searchResults.length > 0 && (
-        <div className="absolute left-1/2 top-24 z-30 w-80 -translate-x-1/2 overflow-hidden rounded-[var(--radius-control)] glass-panel py-1 shadow-[var(--shadow-pop)]">
+        <GlassSurface
+          material="sheet"
+          className="absolute left-1/2 top-24 z-30 w-80 -translate-x-1/2 overflow-hidden rounded-[var(--radius-control)] py-1"
+        >
           {searchResults.map((node) => (
             <button
               key={`${node.nodeType}-${node.entityId}`}
@@ -443,11 +448,11 @@ export function GraphPage() {
               </span>
             </button>
           ))}
-        </div>
+        </GlassSurface>
       )}
 
       <div className="flex flex-1 gap-0 overflow-hidden">
-        <div className="flex flex-1 flex-col overflow-hidden bg-env">
+        <div className="flex flex-1 flex-col overflow-hidden">
           {isLoading ? (
             <div className="flex flex-1 items-center justify-center">
               <div className="flex flex-col items-center gap-3">
@@ -485,7 +490,7 @@ export function GraphPage() {
           )}
         </div>
 
-        <div className="glass-panel hidden w-80 shrink-0 overflow-y-auto border-l border-(--color-border-subtle) p-4 lg:block">
+        <Card className="hidden w-80 shrink-0 overflow-y-auto border-l border-(--color-border-subtle) p-4 lg:block">
           {selectedNode && context ? (
             <div className="flex flex-col gap-4 animate-fade-in">
               <div className="flex items-start gap-2">
@@ -656,7 +661,7 @@ export function GraphPage() {
               <p className="text-xs">Select a node to explore its context.</p>
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

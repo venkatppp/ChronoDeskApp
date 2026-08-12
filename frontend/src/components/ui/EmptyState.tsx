@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { cn } from "@/utils/cn";
+import { Card } from "@/components/ui/Card";
 
 interface EmptyStateProps {
   icon: ReactNode;
@@ -20,9 +21,9 @@ export function EmptyState({
   className,
 }: EmptyStateProps) {
   return (
-    <div
+    <Card
       className={cn(
-        "glass-panel flex flex-col items-center gap-4 rounded-[var(--radius-card)] px-8 py-14 text-center",
+        "flex flex-col items-center gap-4 px-8 py-14 text-center",
         className,
       )}
     >
@@ -40,6 +41,6 @@ export function EmptyState({
       {(primaryAction || secondaryAction) && (
         <div className="flex flex-wrap items-center justify-center gap-2.5">{primaryAction}</div>
       )}
-    </div>
+    </Card>
   );
 }

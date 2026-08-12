@@ -15,7 +15,7 @@ export function WorkflowFamiliesCard({ families }: WorkflowFamiliesCardProps) {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2">
-        <GitBranch className="h-4 w-4 text-(--color-muted-foreground)" />
+        <GitBranch className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
         <h2 className="text-sm font-medium text-(--color-foreground)">Workflow families</h2>
       </div>
 

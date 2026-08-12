@@ -322,14 +322,14 @@ describe("MemoryDashboard", () => {
       expect(screen.getByText("Vector index")).toBeInTheDocument();
     });
     const { within } = await import("@testing-library/react");
-    const section = screen.getByText("Vector index").closest("section");
-    expect(section).not.toBeNull();
-    expect(within(section!).getByText("Indexed")).toBeInTheDocument();
-    expect(within(section!).getByText("2/3")).toBeInTheDocument();
-    expect(within(section!).getByText("Pending")).toBeInTheDocument();
-    expect(within(section!).getByText("1")).toBeInTheDocument();
-    expect(within(section!).getByText("local-ngram · 384d")).toBeInTheDocument();
-    expect(within(section!).getByText("80%")).toBeInTheDocument();
+    const card = screen.getByText("Vector index").closest('[class*="rounded-"]') as HTMLElement;
+    expect(card).not.toBeNull();
+    expect(within(card!).getByText("Indexed")).toBeInTheDocument();
+    expect(within(card!).getByText("2/3")).toBeInTheDocument();
+    expect(within(card!).getByText("Pending")).toBeInTheDocument();
+    expect(within(card!).getByText("1")).toBeInTheDocument();
+    expect(within(card!).getByText("local-ngram · 384d")).toBeInTheDocument();
+    expect(within(card!).getByText("80%")).toBeInTheDocument();
   });
 
   it("re-indexes on demand and refreshes the overview", async () => {

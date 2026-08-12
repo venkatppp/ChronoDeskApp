@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import type { Recommendation } from "@/types/intelligence";
 import type { ActionType } from "@/types/actions";
 import { actionRepository } from "@/services/actionRepository";
+import { GlassSurface } from "@/components/ui/GlassSurface";
+import { Card } from "@/components/ui/Card";
 
 const PRIORITY_LABELS: Record<string, { label: string; color: string; border: string; bg: string; icon: LucideIcon }> = {
   critical: {
@@ -127,9 +129,9 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
             title="Undo action"
           >
             {isExecuting ? (
-              <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} />
+              <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.75} />
             ) : (
-              <RotateCcw className="h-3 w-3" strokeWidth={2} />
+              <RotateCcw className="h-3 w-3" strokeWidth={1.75} />
             )}
             Undo
           </button>
@@ -149,7 +151,7 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
           disabled={isExecuting}
           className="flex items-center gap-1 rounded-[var(--radius-control)] border border-(--color-accent)/25 bg-(--color-accent)/10 px-2.5 py-1 text-xs font-medium text-(--color-accent) transition-colors hover:bg-(--color-accent)/20 disabled:opacity-50"
         >
-          {isExecuting ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} /> : <Archive className="h-3 w-3" strokeWidth={2} />}
+          {isExecuting ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.75} /> : <Archive className="h-3 w-3" strokeWidth={1.75} />}
           Archive
         </button>
       );
@@ -162,7 +164,7 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
           disabled={isExecuting}
           className="flex items-center gap-1 rounded-[var(--radius-control)] border border-(--color-success)/30 bg-(--color-success)/10 px-2.5 py-1 text-xs font-medium text-(--color-success) transition-colors hover:bg-(--color-success)/20 disabled:opacity-50"
         >
-          {isExecuting ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} /> : <PlayCircle className="h-3 w-3" strokeWidth={2} />}
+          {isExecuting ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.75} /> : <PlayCircle className="h-3 w-3" strokeWidth={1.75} />}
           Resume
         </button>
       );
@@ -175,7 +177,7 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
           disabled={isExecuting}
           className="flex items-center gap-1 rounded-[var(--radius-control)] border border-(--color-accent)/25 bg-(--color-accent)/10 px-2.5 py-1 text-xs font-medium text-(--color-accent) transition-colors hover:bg-(--color-accent)/20 disabled:opacity-50"
         >
-          {isExecuting ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} /> : null}
+          {isExecuting ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.75} /> : null}
           Clean
         </button>
       );
@@ -205,66 +207,71 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">Priority Queue</p>
-        <div className="flex flex-col gap-2">
-          {[0, 1].map((i) => (
-            <div key={i} className="h-28 animate-pulse rounded-[var(--radius-control)] bg-(--color-surface)" />
-          ))}
+      <GlassSurface material="chrome" className="rounded-[var(--radius-card)] p-5">
+        <div className="flex flex-col gap-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">Priority Queue</p>
+          <div className="flex flex-col gap-2">
+            {[0, 1].map((i) => (
+              <div key={i} className="h-28 animate-pulse rounded-[var(--radius-control)] bg-(--color-surface)" />
+            ))}
+          </div>
         </div>
-      </div>
+      </GlassSurface>
     );
   }
 
   if (recommendations.length === 0) {
     return (
-      <div className="flex flex-col gap-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">Priority Queue</p>
-        <div className="flex items-center justify-center rounded-[var(--radius-control)] border border-dashed border-(--color-border-subtle) px-4 py-8 text-center">
-          <div>
-            <ChevronUp className="mx-auto mb-2 h-5 w-5 text-(--color-success)" strokeWidth={2} />
-            <p className="text-sm text-(--color-muted-foreground)">All clear — no issues need attention.</p>
+      <GlassSurface material="chrome" className="rounded-[var(--radius-card)] p-5">
+        <div className="flex flex-col gap-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">Priority Queue</p>
+          <div className="flex items-center justify-center rounded-[var(--radius-control)] border border-dashed border-(--color-border-subtle) px-4 py-8 text-center">
+            <div>
+              <ChevronUp className="mx-auto mb-2 h-5 w-5 text-(--color-success)" strokeWidth={1.75} />
+              <p className="text-sm text-(--color-muted-foreground)">All clear — no issues need attention.</p>
+            </div>
           </div>
         </div>
-      </div>
+      </GlassSurface>
     );
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
-          Priority Queue
-          {dismissed.size > 0 && (
-            <span className="ml-1 text-(--color-muted-foreground)">({visible.length})</span>
-          )}
-        </p>
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-          className="glass-control rounded-[var(--radius-control)] px-1.5 py-0.5 text-[10px] text-(--color-muted-foreground) focus:outline-none"
-        >
-          <option value="priority">Priority</option>
-          <option value="effort">Effort</option>
-          <option value="impact">Impact</option>
-        </select>
-      </div>
-      <div className="flex flex-col gap-2">
-        {sorted.map((rec) => {
-          const priority = PRIORITY_LABELS[rec.priority] ?? PRIORITY_LABELS.medium;
-          const Icon = priority.icon;
+    <GlassSurface material="chrome" className="rounded-[var(--radius-card)] p-5">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
+            Priority Queue
+            {dismissed.size > 0 && (
+              <span className="ml-1 text-(--color-muted-foreground)">({visible.length})</span>
+            )}
+          </p>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            className="glass-control rounded-[var(--radius-control)] px-1.5 py-0.5 text-[10px] text-(--color-muted-foreground) focus:outline-none"
+          >
+            <option value="priority">Priority</option>
+            <option value="effort">Effort</option>
+            <option value="impact">Impact</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-2">
+          {sorted.map((rec) => {
+            const priority = PRIORITY_LABELS[rec.priority] ?? PRIORITY_LABELS.medium;
+            const Icon = priority.icon;
 
-          return (
-            <div
-              key={rec.id}
-              className={`glass-panel flex flex-col gap-3 rounded-[var(--radius-card)] border ${priority.border} p-4 transition-colors hover:border-(--color-accent)/30`}
-            >
+            return (
+              <Card
+                key={rec.id}
+                className={`flex flex-col gap-3 border p-4 transition-colors hover:border-(--color-accent)/30 ${priority.border}`}
+              >
               <div className="flex flex-wrap items-start justify-between gap-2.5">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <span
                     className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border ${priority.border} ${priority.bg} px-2.5 py-1 text-[11px] font-semibold ${priority.color}`}
                   >
-                    <Icon className="h-3 w-3" strokeWidth={2} />
+                    <Icon className="h-3 w-3" strokeWidth={1.75} />
                     {priority.label}
                   </span>
                   <h3 className="min-w-0 truncate text-sm font-medium text-(--color-foreground)">{rec.title}</h3>
@@ -280,7 +287,7 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
                       className="flex items-center gap-1 rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface-raised) px-2.5 py-1 text-xs font-medium text-(--color-accent) transition-colors hover:border-(--color-accent)/40 hover:bg-(--color-accent)/10"
                     >
                       View
-                      <ArrowRight className="h-3 w-3" strokeWidth={2} />
+                      <ArrowRight className="h-3 w-3" strokeWidth={1.75} />
                     </button>
                   )}
                   <button
@@ -304,7 +311,7 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
                   {rec.category}
                 </span>
                 <span className="inline-flex items-center gap-1 text-[10px] text-(--color-faint-foreground)">
-                  <Zap className="h-2.5 w-2.5" strokeWidth={2} />
+                  <Zap className="h-2.5 w-2.5" strokeWidth={1.75} />
                   Effort: {Math.round(rec.effort * 100)}%
                 </span>
                 <span className="inline-flex items-center gap-1 text-[10px] text-(--color-faint-foreground)">
@@ -314,18 +321,19 @@ export function RecommendationsPanel({ recommendations, isLoading, onActionSucce
                   Confidence: {Math.round(rec.confidence * 100)}%
                 </span>
               </div>
-            </div>
-          );
-        })}
+              </Card>
+            );
+          })}
+        </div>
+        {dismissed.size > 0 && (
+          <button
+            onClick={() => setDismissed(new Set())}
+            className="text-left text-[10px] text-(--color-faint-foreground) hover:text-(--color-accent)"
+          >
+            Show {dismissed.size} dismissed
+          </button>
+        )}
       </div>
-      {dismissed.size > 0 && (
-        <button
-          onClick={() => setDismissed(new Set())}
-          className="text-left text-[10px] text-(--color-faint-foreground) hover:text-(--color-accent)"
-        >
-          Show {dismissed.size} dismissed
-        </button>
-      )}
-    </div>
+    </GlassSurface>
   );
 }

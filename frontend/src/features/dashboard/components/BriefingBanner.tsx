@@ -1,5 +1,6 @@
 import { Sparkles, AlertTriangle, CheckCircle2, Clock, ArrowRight, FileText, Code } from "lucide-react";
 import type { ProductivityBrief } from "@/types/workspace";
+import { Card } from "@/components/ui/Card";
 
 interface BriefingBannerProps {
   briefing: ProductivityBrief | null;
@@ -9,7 +10,7 @@ interface BriefingBannerProps {
 export function BriefingBanner({ briefing, isLoading }: BriefingBannerProps) {
   if (isLoading) {
     return (
-      <div className="glass-panel relative overflow-hidden rounded-[var(--radius-card)] p-5">
+      <Card className="relative overflow-hidden p-5">
         <div className="animate-pulse space-y-3">
           <div className="h-5 w-48 rounded bg-(--color-surface-hover)" />
           <div className="h-4 w-96 rounded bg-(--color-surface-hover)" />
@@ -19,13 +20,13 @@ export function BriefingBanner({ briefing, isLoading }: BriefingBannerProps) {
             <div className="h-4 w-32 rounded bg-(--color-surface-hover)" />
           </div>
         </div>
-      </div>
+      </Card>
     );
   }
 
   if (!briefing || briefing.workspacesCount === 0) {
     return (
-      <div className="glass-panel relative overflow-hidden rounded-[var(--radius-card)] p-5">
+      <Card className="relative overflow-hidden p-5">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-(--color-surface-raised)">
             <Sparkles className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
@@ -37,7 +38,7 @@ export function BriefingBanner({ briefing, isLoading }: BriefingBannerProps) {
             </p>
           </div>
         </div>
-      </div>
+      </Card>
     );
   }
 
@@ -48,7 +49,7 @@ export function BriefingBanner({ briefing, isLoading }: BriefingBannerProps) {
   } = briefing;
 
   return (
-    <div className="glass-panel relative overflow-hidden rounded-[var(--radius-card)] p-5">
+    <Card className="relative overflow-hidden p-5">
       <div className="absolute right-0 top-0 h-24 w-24 opacity-[0.03]">
         <div className="h-full w-full rounded-bl-full bg-(--color-violet)" />
       </div>
@@ -70,17 +71,17 @@ export function BriefingBanner({ briefing, isLoading }: BriefingBannerProps) {
           </p>
           <div className="flex flex-wrap gap-x-6 gap-y-1">
             <span className="inline-flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-(--color-success)" strokeWidth={2} />
+              <CheckCircle2 className="h-3.5 w-3.5 text-(--color-success)" strokeWidth={1.75} />
               {healthyCount} healthy
             </span>
             {attentionCount > 0 && (
               <span className="inline-flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5 text-(--color-warning)" strokeWidth={2} />
+                <AlertTriangle className="h-3.5 w-3.5 text-(--color-warning)" strokeWidth={1.75} />
                 {attentionCount} need{attentionCount === 1 ? "s" : ""} attention
               </span>
             )}
             <span className="inline-flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-(--color-muted-foreground)" strokeWidth={2} />
+              <Clock className="h-3.5 w-3.5 text-(--color-muted-foreground)" strokeWidth={1.75} />
               {workspacesCount} active workspace{workspacesCount !== 1 ? "s" : ""}
             </span>
           </div>
@@ -116,7 +117,7 @@ export function BriefingBanner({ briefing, isLoading }: BriefingBannerProps) {
                 key={w.name}
                 className="inline-flex items-center gap-1.5 rounded-full bg-(--color-warning)/10 px-2.5 py-1 text-xs font-medium text-(--color-warning)"
               >
-                <AlertTriangle className="h-3 w-3" strokeWidth={2} />
+                <AlertTriangle className="h-3 w-3" strokeWidth={1.75} />
                 {w.name} ({w.health}%)
               </span>
             ))}
@@ -127,11 +128,11 @@ export function BriefingBanner({ briefing, isLoading }: BriefingBannerProps) {
             <span className="text-(--color-muted-foreground)">Recommended next:</span>
             <span className="inline-flex items-center gap-1 font-medium text-(--color-accent)">
               Continue {topWorkspaceName}
-              <ArrowRight className="h-3 w-3" strokeWidth={2} />
+              <ArrowRight className="h-3 w-3" strokeWidth={1.75} />
             </span>
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

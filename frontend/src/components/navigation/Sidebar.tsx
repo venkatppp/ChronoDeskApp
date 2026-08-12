@@ -58,6 +58,9 @@ interface RuntimeHealth {
  * Level 1 floating chrome — translucent glass above the canvas, with real
  * SVG-displacement refraction on Chromium and a dense frosted blur on
  * WKWebView. The environment visibly bends at its rim.
+ *
+ * Geometry: 280px floating pane, rounded-3xl, bright specular top edge,
+ * deep soft shadow — reads as a pane of glass, not a dark rectangle.
  */
 export function Sidebar() {
   const [health, setHealth] = useState<RuntimeHealth | null>(null);
@@ -91,33 +94,34 @@ export function Sidebar() {
     <GlassSurface
       material="chrome"
       as="aside"
-      className="relative z-10 flex h-full w-[222px] shrink-0 flex-col overflow-hidden rounded-2xl px-3 py-4"
+      className="relative z-10 flex h-full w-[280px] shrink-0 flex-col overflow-hidden rounded-3xl px-3.5 pb-4 pt-5"
     >
-      {/* Specular sheen along the top edge — reads as glass, not a box. */}
+      {/* Specular sheen along the top edge — the light catches the pane. */}
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent"
+        className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent"
         aria-hidden="true"
       />
 
-      <div className="mb-4 flex items-center gap-2.5 px-2 pb-3">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-(--color-surface) ring-1 ring-(--color-border-subtle) shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
-          <Command className="h-3.5 w-3.5 text-(--color-accent)" strokeWidth={1.75} />
+      {/* Brand — 15px semibold, reads as the pane's title. */}
+      <div className="mb-5 flex items-center gap-2.5 px-2 pb-3.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-(--color-accent-muted) shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] ring-1 ring-(--color-accent)/30">
+          <Command className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
         </div>
         <div className="flex flex-col leading-tight">
-          <span className="font-(family-name:--font-display) text-[13px] font-semibold tracking-tight text-(--color-foreground)">
+          <span className="font-(family-name:--font-display) text-[15px] font-semibold tracking-tight text-(--color-foreground)">
             ChronoDesk
           </span>
-          <span className="text-[10px] text-(--color-faint-foreground)">Workspace Layer</span>
+          <span className="text-[11px] text-(--color-faint-foreground)">Workspace Layer</span>
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-4 overflow-y-auto">
+      <nav className="flex flex-1 flex-col gap-5 overflow-y-auto">
         {NAV_GROUPS.map((group) => (
           <div key={group.label}>
-            <p className="mb-1 px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-(--color-faint-foreground)">
+            <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.13em] text-(--color-faint-foreground)">
               {group.label}
             </p>
-            <div className="flex flex-col gap-px">
+            <div className="flex flex-col gap-0.5">
               {group.scopes.map((item) => (
                 <NavItem key={item.to} {...item} />
               ))}
@@ -126,8 +130,10 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="mt-auto flex flex-col gap-3">
-        <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5">
+      <div className="mt-auto flex flex-col gap-3.5">
+        {/* Bottom status bar with subtle glass separation */}
+        <div className="relative flex items-center gap-2.5 rounded-xl px-2.5 py-1.5">
+          <div className="pointer-events-none absolute inset-x-1 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" aria-hidden="true" />
           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusTone.dot}`} />
           <div className="flex min-w-0 flex-col leading-tight">
             <span className="text-[11px] font-medium text-(--color-muted-foreground)">{statusTone.label}</span>
@@ -138,7 +144,7 @@ export function Sidebar() {
             </span>
           </div>
         </div>
-        <div className="flex flex-col gap-px border-t border-(--color-border-subtle) pt-2">
+        <div className="flex flex-col gap-0.5 border-t border-(--color-border-subtle) pt-2.5">
           <NavItem to="/settings" label="Settings" icon={Settings} />
         </div>
       </div>

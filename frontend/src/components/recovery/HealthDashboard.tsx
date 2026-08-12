@@ -42,7 +42,7 @@ export function HealthDashboard({ snapshot, loading, error }: { snapshot: Health
         <CardHeader className="flex-row items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-(--color-muted-foreground)" />
+              <ShieldCheck className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
               Runtime Health
             </CardTitle>
             <CardDescription>
@@ -55,7 +55,7 @@ export function HealthDashboard({ snapshot, loading, error }: { snapshot: Health
           <ProgressRing value={snapshot.overallScore} size={72} strokeWidth={6} />
           <div className="flex flex-col gap-1 text-sm">
             <p className="text-(--color-muted-foreground)">
-              <Activity className="mr-1 inline h-3.5 w-3.5" />
+              <Activity className="mr-1 inline h-3.5 w-3.5" strokeWidth={1.75} />
               Score {snapshot.overallScore.toFixed(0)}/100 · {snapshot.workers.length} worker
               {snapshot.workers.length === 1 ? "" : "s"} monitored
             </p>
@@ -70,7 +70,7 @@ export function HealthDashboard({ snapshot, loading, error }: { snapshot: Health
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-(--color-warning)" />
+              <AlertTriangle className="h-4 w-4 text-(--color-warning)" strokeWidth={1.75} />
               Open Issues
             </CardTitle>
           </CardHeader>
@@ -88,7 +88,7 @@ export function HealthDashboard({ snapshot, loading, error }: { snapshot: Health
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-(--color-muted-foreground)" />
+            <CheckCircle2 className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
             Monitored Workers
           </CardTitle>
           <CardDescription>

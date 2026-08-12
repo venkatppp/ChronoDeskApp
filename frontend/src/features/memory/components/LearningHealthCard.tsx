@@ -32,7 +32,7 @@ export function LearningHealthCard({ health }: LearningHealthCardProps) {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2">
-        <BrainCircuit className="h-4 w-4 text-(--color-muted-foreground)" />
+        <BrainCircuit className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
         <h2 className="text-sm font-medium text-(--color-foreground)">Learning health</h2>
       </div>
 
@@ -46,7 +46,7 @@ export function LearningHealthCard({ health }: LearningHealthCardProps) {
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <div>
           <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
-            <Gauge className="h-3.5 w-3.5" /> Workflow quality
+            <Gauge className="h-3.5 w-3.5" strokeWidth={1.75} /> Workflow quality
           </p>
           <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
             <div className="flex items-center justify-between">
@@ -90,7 +90,7 @@ export function LearningHealthCard({ health }: LearningHealthCardProps) {
 
         <div>
           <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
-            <Sparkles className="h-3.5 w-3.5" /> Memory utilization
+            <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} /> Memory utilization
           </p>
           <div className="mt-2 space-y-2 text-xs">
             <div className="flex items-center justify-between text-(--color-muted-foreground)">
@@ -130,7 +130,7 @@ export function LearningHealthCard({ health }: LearningHealthCardProps) {
       {health.success_trends.length > 0 && (
         <div className="mt-4">
           <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
-            <TrendingUp className="h-3.5 w-3.5" /> Success trend (14 days)
+            <TrendingUp className="h-3.5 w-3.5" strokeWidth={1.75} /> Success trend (14 days)
           </p>
           <div className="mt-2 flex h-16 items-end gap-1">
             {health.success_trends.map((trend) => {
@@ -155,7 +155,7 @@ export function LearningHealthCard({ health }: LearningHealthCardProps) {
       )}
 
       <p className="mt-3 flex items-center gap-1.5 text-[11px] text-(--color-faint-foreground)">
-        <Activity className="h-3 w-3" />
+        <Activity className="h-3 w-3" strokeWidth={1.75} />
         Confidence blends similarity, success history, replay history, freshness, and usage count
       </p>
     </Card>

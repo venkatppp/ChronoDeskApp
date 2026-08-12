@@ -294,7 +294,7 @@ describe("GraphPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /activity/i }));
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /activity/i })).toHaveClass("bg-(--color-surface-hover)");
+      expect(screen.getByRole("button", { name: /activity/i })).toHaveClass("material-selected");
     });
     fireEvent.click(screen.getAllByText("Alpha WS")[0]);
     await waitFor(() => {
@@ -382,7 +382,7 @@ describe("GraphPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /activity/i }));
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /activity/i })).toHaveClass("bg-(--color-surface-hover)");
+      expect(screen.getByRole("button", { name: /activity/i })).toHaveClass("material-selected");
     });
     fireEvent.click(screen.getAllByText("Alpha WS")[0]);
     await waitFor(() => {
@@ -405,7 +405,7 @@ describe("GraphPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /activity/i }));
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /activity/i })).toHaveClass("bg-(--color-surface-hover)");
+      expect(screen.getByRole("button", { name: /activity/i })).toHaveClass("material-selected");
     });
     fireEvent.click(screen.getAllByText("Alpha WS")[0]);
     await waitFor(() => {
@@ -433,7 +433,7 @@ describe("GraphPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /activity/i }));
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /activity/i })).toHaveClass("bg-(--color-surface-hover)");
+      expect(screen.getByRole("button", { name: /activity/i })).toHaveClass("material-selected");
     });
     fireEvent.click(screen.getAllByText("Alpha WS")[0]);
     await waitFor(() => {

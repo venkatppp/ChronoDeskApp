@@ -19,6 +19,7 @@ import {
 import { VirtualizedNodeList } from "@/features/graph/components/VirtualizedNodeList";
 import { getGraphOptimizationRepository } from "@/services/graphOptimizationRepository";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
 import type {
@@ -196,7 +197,7 @@ export function GraphPerformancePage() {
       ) : (
         <div className="flex flex-col gap-5">
           {/* Memory & cache statistics */}
-          <section className="glass-panel rounded-[var(--radius-card)] p-5">
+          <Card className="p-5">
               <div className="mb-4 flex items-center justify-between gap-2">
                 <h2 className="flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
                   <MemoryStick className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
@@ -236,10 +237,10 @@ export function GraphPerformancePage() {
                   ))}
                 </div>
               )}
-            </section>
+            </Card>
 
             {/* Integrity panel */}
-            <section className="glass-panel rounded-[var(--radius-card)] p-5">
+            <Card className="p-5">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
                   <ShieldCheck className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
@@ -310,13 +311,13 @@ export function GraphPerformancePage() {
                   {lastRepair.invalidConfidenceFixed} edges · {lastRepair.issuesResolved} issues resolved
                 </p>
               )}
-            </section>
+            </Card>
 
             {/* Orphans + consistency + benchmarks + history — paired
                 two-column composition so diagnostic surfaces use the
                 canvas instead of stacking into a wall of cards. */}
             <div className="grid items-start gap-5 xl:grid-cols-2">
-            <section className="glass-panel rounded-[var(--radius-card)] p-5">
+            <Card className="p-5">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h2 className="flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
                     <Trash2 className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
@@ -360,9 +361,9 @@ export function GraphPerformancePage() {
                     {lastCleanup.issuesResolved} issues resolved
                   </p>
                 )}
-              </section>
+</Card>
 
-              <section className="glass-panel rounded-[var(--radius-card)] p-5">
+            <Card className="p-5">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h2 className="flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
                     <HeartPulse className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
@@ -393,10 +394,10 @@ export function GraphPerformancePage() {
                     ))}
                   </div>
                 )}
-              </section>
+              </Card>
 
             {/* Benchmark viewer */}
-            <section className="glass-panel rounded-[var(--radius-card)] p-5">
+            <Card className="p-5">
               <h2 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
                 <Gauge className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
                 Benchmark viewer
@@ -433,10 +434,10 @@ export function GraphPerformancePage() {
                   ))}
                 </div>
               )}
-            </section>
+            </Card>
 
             {/* Query metrics */}
-            <section className="glass-panel rounded-[var(--radius-card)] p-5">
+            <Card className="p-5">
               <h2 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
                 <Activity className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
                 Query metrics
@@ -467,10 +468,10 @@ export function GraphPerformancePage() {
                   </div>
                 ))}
               </div>
-            </section>
+            </Card>
 
             {/* Maintenance history */}
-            <section className="glass-panel rounded-[var(--radius-card)] p-5">
+            <Card className="p-5">
               <h2 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
                 <Database className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
                 Maintenance history
@@ -496,11 +497,11 @@ export function GraphPerformancePage() {
                   </div>
                 ))}
               </div>
-            </section>
+            </Card>
             </div>
 
             {/* Virtualized node browser */}
-            <section className="glass-panel flex min-h-96 flex-col rounded-[var(--radius-card)] p-5">
+            <Card className="flex min-h-96 flex-col p-5">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
                   <Network className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
@@ -551,7 +552,7 @@ export function GraphPerformancePage() {
                   </div>
                 )}
               </div>
-            </section>
+            </Card>
           </div>
         )}
     </PageContainer>

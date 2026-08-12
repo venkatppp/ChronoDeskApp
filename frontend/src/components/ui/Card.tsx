@@ -1,29 +1,30 @@
 import { forwardRef, type HTMLAttributes } from "react";
 import { cn } from "@/utils/cn";
-import { GlassSurface } from "@/components/ui/GlassSurface";
 
 /**
- * Standard frosted glass card. Repeated surfaces (grids, lists, rails)
- * use the light frosted material rather than per-card refraction — the
- * environment still bleeds through and the glass stays unmistakable
- * without N displacement maps on screen at once.
+ * Standard content card — calm, non-glass surface for the content layer.
+ * Per Apple HIG: Liquid Glass is reserved for the functional layer
+ * (navigation, toolbars, controls, sheets). Content cards use opaque
+ * elevated surfaces with hairline borders and subtle shadows.
+ *
+ * Use `variant="glass"` ONLY for functional-layer cards that genuinely
+ * need Liquid Glass (e.g., sheet/dialog content, popover panels).
  */
-export const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <GlassSurface
-      as="div"
-      material="panel"
-      refraction={false}
-      ref={ref}
-      className={cn(
-        "rounded-[var(--radius-card)]",
-        "transition-all duration-300 ease-[var(--ease-premium)]",
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
+export interface CardProps extends HTMLAttributes<HTMLDivElement> {
+  variant?: "content" | "glass";
+}
+
+export const Card = forwardRef<HTMLDivElement, CardProps>(({ className, variant = "content", ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "rounded-[var(--radius-card)] transition-all duration-300 ease-[var(--ease-premium)]",
+      variant === "glass" ? "glass-panel" : "content-card",
+      className,
+    )}
+    {...props}
+  />
+));
 Card.displayName = "Card";
 
 export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
@@ -57,8 +58,6 @@ export const CardContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElem
 CardContent.displayName = "CardContent";
 
 export const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("flex items-center p-5 pt-0", className)} {...props} />
-  ),
+  ({ className, ...props }, ref) => <div ref={ref} className={cn("flex items-center p-5 pt-0", className)} {...props} />,
 );
 CardFooter.displayName = "CardFooter";

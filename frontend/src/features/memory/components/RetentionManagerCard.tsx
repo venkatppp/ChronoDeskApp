@@ -77,7 +77,7 @@ export function RetentionManagerCard() {
     <Card className="p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Shield className="h-4 w-4 text-(--color-muted-foreground)" />
+          <Shield className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           <h2 className="text-sm font-medium text-(--color-foreground)">Retention</h2>
         </div>
         <Button variant="secondary" size="sm" onClick={() => void runCleanup()} disabled={cleaning}>
@@ -111,7 +111,7 @@ export function RetentionManagerCard() {
             <span className="text-[10px] text-(--color-faint-foreground)">v{record.version}</span>
             {record.retention_until && (
               <span className="flex items-center gap-1 text-[10px] text-(--color-faint-foreground)">
-                <Clock className="h-3 w-3" />
+                <Clock className="h-3 w-3" strokeWidth={1.75} />
                 {new Date(record.retention_until).toLocaleDateString()}
               </span>
             )}
@@ -132,7 +132,7 @@ export function RetentionManagerCard() {
                 onClick={() => void setPolicy(record, "archived")}
                 title="Keep but out of active circulation"
               >
-                <Archive className="h-3 w-3" /> Archive
+                <Archive className="h-3 w-3" strokeWidth={1.75} /> Archive
               </Button>
               <Button
                 variant="ghost"

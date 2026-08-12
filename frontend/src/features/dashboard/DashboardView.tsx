@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Timeline as TimelineIcon, Pin, PinOff, ExternalLink, FileText, LayoutDashboard, Search, ListTree, ArrowRight, FileCode } from "lucide-react";
+import { Plus, Timeline as TimelineIcon, Pin, PinOff, ExternalLink, FileText, LayoutDashboard, Search, ListTree, ArrowRight, FileCode, TrendingUp, TrendingDown } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
 import { GlassInput } from "@/components/ui/GlassInput";
 import { GlassSurface } from "@/components/ui/GlassSurface";
 import { Dialog } from "@/components/ui/Dialog";
@@ -62,7 +63,7 @@ interface QuickAction {
 interface QuietMetricProps {
   label: string;
   value: string;
-  hint?: string;
+  hint?: React.ReactNode;
   dot?: string;
 }
 
@@ -205,14 +206,27 @@ export function DashboardView() {
 
   const activeStats = mostRecentWorkspace ? workspaceStats[mostRecentWorkspace.id] : undefined;
 
-  const trendHint = (current: number, previous: number, format?: (v: number) => string): string | undefined => {
+  const trendHint = (
+    current: number,
+    previous: number,
+    format?: (v: number) => string,
+  ): React.ReactNode | undefined => {
     if (previous <= 0) return undefined;
     const pct = ((current - previous) / previous) * 100;
     const delta = current - previous;
     if (Math.abs(pct) < 0.1) return "Same as yesterday";
-    const dir = pct > 0 ? "▲" : "▼";
-    const detail = format ? `${format(delta > 0 ? delta : -delta)}` : `${Math.abs(pct).toFixed(0)}%`;
-    return `vs yesterday ${dir} ${detail}`;
+    const up = pct > 0;
+    const detail = format ? format(delta > 0 ? delta : -delta) : `${Math.abs(pct).toFixed(0)}%`;
+    return (
+      <span className="inline-flex items-center gap-1 text-(--color-faint-foreground)">
+        {up ? (
+          <TrendingUp className="h-3 w-3 text-(--color-success)" strokeWidth={1.75} />
+        ) : (
+          <TrendingDown className="h-3 w-3 text-(--color-danger)" strokeWidth={1.75} />
+        )}
+        vs yesterday {detail}
+      </span>
+    );
   };
 
   const surfaceFiles = recentFiles.slice(0, 4);
@@ -378,57 +392,69 @@ export function DashboardView() {
         </div>
       )}
 
-      {/* Today at a glance — compact activity summary, quiet metrics on
-          the canvas. No boxes. */}
-      {todaySummary && !isLoading && (
-        <div className="flex flex-wrap items-stretch gap-x-6 gap-y-4 border-t border-(--color-border-subtle) pt-5">
-          <QuietMetric
-            label="Focus time"
-            value={formatDuration(todaySummary.totalDurationSeconds)}
-            dot="bg-(--color-accent)"
-            hint={yesterdaySummary ? trendHint(todaySummary.totalDurationSeconds, yesterdaySummary.totalDurationSeconds, formatDuration) : undefined}
-          />
-          <div className="w-px bg-(--color-border-subtle)" aria-hidden="true" />
-          <QuietMetric
-            label="Files touched"
-            value={String(todaySummary.fileCount)}
-            dot="bg-(--color-success)"
-            hint={yesterdaySummary ? trendHint(todaySummary.fileCount, yesterdaySummary.fileCount) : undefined}
-          />
-          <div className="w-px bg-(--color-border-subtle)" aria-hidden="true" />
-          <QuietMetric
-            label="Edits"
-            value={String(todaySummary.editCount)}
-            dot="bg-(--color-amber)"
-            hint={yesterdaySummary ? trendHint(todaySummary.editCount, yesterdaySummary.editCount) : undefined}
-          />
-          {activeStats && (
-            <>
+      {/* UPPER CONTENT HIERARCHY — daily context on the left, the two
+          intelligence surfaces (Predictive Intelligence + Priority Queue)
+          as floating chrome on the right, well above the fold. */}
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,23rem)]">
+        <div className="flex min-w-0 flex-col gap-6">
+          {/* Today at a glance — compact activity summary, quiet metrics on
+              the canvas. No boxes. */}
+          {todaySummary && !isLoading && (
+            <div className="flex flex-wrap items-stretch gap-x-6 gap-y-4 border-t border-(--color-border-subtle) pt-5">
+              <QuietMetric
+                label="Focus time"
+                value={formatDuration(todaySummary.totalDurationSeconds)}
+                dot="bg-(--color-accent)"
+                hint={yesterdaySummary ? trendHint(todaySummary.totalDurationSeconds, yesterdaySummary.totalDurationSeconds, formatDuration) : undefined}
+              />
               <div className="w-px bg-(--color-border-subtle)" aria-hidden="true" />
-              <div className="flex min-w-[7rem] flex-col gap-0.5">
-                <span className="text-[11px] font-medium text-(--color-faint-foreground)">Workspace health</span>
-                <div className="flex items-center gap-2">
-                  <ProgressRing value={activeStats.healthScore} size={28} strokeWidth={3} />
-                  <span className="text-[13px] font-medium text-(--color-foreground)">
-                    {activeStats.healthScore >= 70 ? "Good" : activeStats.healthScore >= 40 ? "Fair" : "Low"}
-                  </span>
-                </div>
-                <span className="text-[11px] text-(--color-faint-foreground)">
-                  {formatRelativeTime(activeStats.lastActivity)}
-                </span>
-              </div>
-            </>
+              <QuietMetric
+                label="Files touched"
+                value={String(todaySummary.fileCount)}
+                dot="bg-(--color-success)"
+                hint={yesterdaySummary ? trendHint(todaySummary.fileCount, yesterdaySummary.fileCount) : undefined}
+              />
+              <div className="w-px bg-(--color-border-subtle)" aria-hidden="true" />
+              <QuietMetric
+                label="Edits"
+                value={String(todaySummary.editCount)}
+                dot="bg-(--color-amber)"
+                hint={yesterdaySummary ? trendHint(todaySummary.editCount, yesterdaySummary.editCount) : undefined}
+              />
+              {activeStats && (
+                <>
+                  <div className="w-px bg-(--color-border-subtle)" aria-hidden="true" />
+                  <div className="flex min-w-[7rem] flex-col gap-0.5">
+                    <span className="text-[11px] font-medium text-(--color-faint-foreground)">Workspace health</span>
+                    <div className="flex items-center gap-2">
+                      <ProgressRing value={activeStats.healthScore} size={28} strokeWidth={3} />
+                      <span className="text-[13px] font-medium text-(--color-foreground)">
+                        {activeStats.healthScore >= 70 ? "Good" : activeStats.healthScore >= 40 ? "Fair" : "Low"}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-(--color-faint-foreground)">
+                      {formatRelativeTime(activeStats.lastActivity)}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {(!smartResumeSession || dismissedSmartResume) && (
+            <BriefingBanner briefing={briefing} isLoading={isLoading} />
+          )}
+
+          {dailyBriefing && !isLoading && (
+            <DailyBriefing briefing={dailyBriefing} />
           )}
         </div>
-      )}
 
-      {(!smartResumeSession || dismissedSmartResume) && (
-        <BriefingBanner briefing={briefing} isLoading={isLoading} />
-      )}
-
-      {dailyBriefing && !isLoading && (
-        <DailyBriefing briefing={dailyBriefing} />
-      )}
+        <div className="flex min-w-0 flex-col gap-4">
+          <PredictiveCard predictions={predictions} isLoading={isLoading} />
+          <RecommendationsPanel recommendations={recommendations} isLoading={isLoading} onActionSuccess={handleActionSuccess} />
+        </div>
+      </div>
 
       {/* Workspaces */}
       <section>
@@ -451,11 +477,11 @@ export function DashboardView() {
         }
 
         {!isLoading && workspaces.length === 0 && (
-          <div className="glass-panel rounded-[var(--radius-card)] px-6 py-10 text-center">
+          <Card className="px-6 py-10 text-center">
             <p className="text-sm text-(--color-muted-foreground)">
               No active workspaces yet. Create one, or watch a folder from Settings once file watching is configured.
             </p>
-          </div>
+          </Card>
         )}
 
         {!isLoading && workspaces.length > 0 && (
@@ -491,7 +517,7 @@ export function DashboardView() {
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6">
           {recentFiles.length > 0 && (
-            <GlassSurface material="panel" refraction={false} className="rounded-[var(--radius-card)] shadow-[var(--shadow-card)]">
+            <Card className="overflow-hidden">
               <div className="border-b border-(--color-border-subtle) px-5 py-3.5">
                 <h2 className="flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
                   <FileText className="h-3.5 w-3.5 text-(--color-muted-foreground)" strokeWidth={1.75} />
@@ -528,17 +554,15 @@ export function DashboardView() {
                   );
                 })}
               </div>
-            </GlassSurface>
+            </Card>
           )}
 
           <RecentActivityFeed events={recentActivity} isLoading={isLoading} />
         </div>
 
         <div className="flex flex-col gap-4">
-          <PredictiveCard predictions={predictions} isLoading={isLoading} />
           <ContextMemoryCard snapshot={latestSnapshot} isLoading={isLoading} />
           <RelatedWorkCard relatedWorkspaces={relatedWorkspaces} isLoading={isLoading} />
-          <RecommendationsPanel recommendations={recommendations} isLoading={isLoading} onActionSuccess={handleActionSuccess} />
         </div>
       </div>
 

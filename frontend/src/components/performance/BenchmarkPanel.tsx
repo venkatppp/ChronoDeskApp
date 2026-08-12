@@ -52,7 +52,7 @@ export function BenchmarkPanel({
       <CardHeader className="flex-row items-start justify-between gap-4">
         <div>
           <CardTitle className="flex items-center gap-2">
-            <FlaskConical className="h-4 w-4 text-(--color-accent)" />
+            <FlaskConical className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
             Benchmark Engine
           </CardTitle>
           <CardDescription>
@@ -110,9 +110,9 @@ export function BenchmarkPanel({
               {benchmarks.map((benchmark) => (
                 <div key={benchmark.name} className="flex items-center gap-2 py-2 text-xs">
                   {benchmark.ok ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-(--color-success)" />
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-(--color-success)" strokeWidth={1.75} />
                   ) : (
-                    <XCircle className="h-3.5 w-3.5 shrink-0 text-(--color-danger)" />
+                    <XCircle className="h-3.5 w-3.5 shrink-0 text-(--color-danger)" strokeWidth={1.75} />
                   )}
                   <span className="w-44 truncate font-medium" style={{ color: benchmarkColor(benchmark.category) }}>
                     {benchmark.name}

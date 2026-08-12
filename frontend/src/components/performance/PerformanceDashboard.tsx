@@ -71,7 +71,7 @@ export function PerformanceDashboard() {
         <CardHeader className="flex-row items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-(--color-muted-foreground)" />
+              <Activity className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
               Live Profiling
             </CardTitle>
             <CardDescription>
@@ -96,7 +96,7 @@ export function PerformanceDashboard() {
               disabled={loading}
               className="flex items-center gap-1.5 rounded-[var(--radius-control)] border border-(--color-border-subtle) px-2.5 py-1 text-xs text-(--color-muted-foreground) transition-colors hover:text-(--color-foreground)"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} strokeWidth={1.75} />
               Refresh
             </button>
           </div>
@@ -146,7 +146,7 @@ export function PerformanceDashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-(--color-danger)" />
+              <Activity className="h-4 w-4 text-(--color-danger)" strokeWidth={1.75} />
               Slowest Operations
             </CardTitle>
             <CardDescription>Top latency outliers from the live window</CardDescription>
@@ -171,7 +171,7 @@ export function PerformanceDashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <History className="h-4 w-4 text-(--color-muted-foreground)" />
+              <History className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
               Recent History
             </CardTitle>
             <CardDescription>Persisted samples, benchmark runs, and startup launches</CardDescription>

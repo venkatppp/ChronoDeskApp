@@ -25,6 +25,7 @@ import { SnapshotManagerCard } from "@/features/memory/components/SnapshotManage
 import { StorageStatsCard } from "@/features/memory/components/StorageStatsCard";
 import { WorkflowFamiliesCard } from "@/features/memory/components/WorkflowFamiliesCard";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { GlassInput } from "@/components/ui/GlassInput";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -165,14 +166,14 @@ function RecommendationCard({
           title="Accept this recommendation"
           className="flex items-center gap-1 rounded-md border border-(--color-emerald)/30 bg-(--color-emerald)/12 px-2 py-1 text-[11px] font-medium text-(--color-emerald) transition-opacity hover:opacity-80"
         >
-          <Check className="h-3 w-3" /> Accept
+          <Check className="h-3 w-3" strokeWidth={1.75} /> Accept
         </button>
         <button
           onClick={() => onFeedback(false)}
           title="Reject this recommendation"
           className="flex items-center gap-1 rounded-md border border-(--color-danger)/30 bg-(--color-danger)/12 px-2 py-1 text-[11px] font-medium text-(--color-danger) transition-opacity hover:opacity-80"
         >
-          <X className="h-3 w-3" /> Reject
+          <X className="h-3 w-3" strokeWidth={1.75} /> Reject
         </button>
         <span className="text-[11px] text-(--color-faint-foreground)">
           {recommendation.replay_count} replay(s)
@@ -318,9 +319,9 @@ export function MemoryDashboard() {
         </div>
       )}
 
-      <section className="grid items-start gap-8 lg:grid-cols-2">
+      <div className="grid items-start gap-8 lg:grid-cols-2">
         {/* 1. SEARCH — the primary interaction */}
-        <section className="glass-panel rounded-[var(--radius-card)] p-5">
+        <Card className="p-5">
           <SectionHeading icon={<Search className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Semantic search" />
           <p className="mt-1 text-xs text-(--color-muted-foreground)">
             Find past goals and sessions the way you would ask — not by keyword.
@@ -348,10 +349,10 @@ export function MemoryDashboard() {
               ))}
             </div>
           )}
-        </section>
+        </Card>
 
         {/* 2. RECOMMEND — the second most valuable interaction */}
-        <section className="glass-panel rounded-[var(--radius-card)] p-5">
+        <Card className="p-5">
           <SectionHeading icon={<TrendingUp className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Recommend workflows" />
           <p className="mt-1 text-xs text-(--color-muted-foreground)">
             Describe a goal and ChronoDesk plans it from the workflows it has already learned.
@@ -405,12 +406,12 @@ export function MemoryDashboard() {
               ))}
             </div>
           )}
-        </section>
-      </section>
+        </Card>
+      </div>
 
-      <section className="grid items-start gap-8 lg:grid-cols-2">
+      <div className="grid items-start gap-8 lg:grid-cols-2">
         {/* 3. RECENT MEMORIES */}
-        <section className="space-y-3">
+        <div className="space-y-3">
           <SectionHeading icon={<History className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Recent memories" />
           <div className="space-y-2">
             {recent.length === 0 && (
@@ -422,10 +423,10 @@ export function MemoryDashboard() {
               <RecordCard key={hit.record.id} hit={hit} />
             ))}
           </div>
-        </section>
+        </div>
 
         {/* 4. LEARNED CONTEXT */}
-        <section className="space-y-3">
+        <div className="space-y-3">
           {workflows.length > 0 && (
             <>
               <SectionHeading icon={<BrainCircuit className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Learned workflows" />
@@ -448,20 +449,20 @@ export function MemoryDashboard() {
               </div>
             </>
           )}
-        </section>
-      </section>
+        </div>
+      </div>
 
       {stats && (
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <StatCard label="Total runs" value={stats.total_records} />
           <StatCard label="Successful" value={stats.successful} />
           <StatCard label="Failed" value={stats.failed} />
           <StatCard label="Replays" value={stats.total_replays} />
           <StatCard label="Learned workflows" value={stats.learned_workflows} />
-        </section>
+        </div>
       )}
 
-      <section className="space-y-5">
+      <div className="space-y-5">
         <div>
           <SectionHeading icon={<BrainCircuit className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Learning health" />
           <p className="mt-1.5 text-xs text-(--color-muted-foreground)">
@@ -473,9 +474,9 @@ export function MemoryDashboard() {
           <MemoryAgingCard summary={aging} />
           <FailurePatternsCard patterns={failurePatterns} />
         </div>
-      </section>
+      </div>
 
-      <section className="space-y-5 border-t border-(--color-border-subtle) pt-8">
+      <div className="space-y-5 border-t border-(--color-border-subtle) pt-8">
         <div>
           <SectionHeading icon={<Database className="h-3.5 w-3.5" strokeWidth={1.75} />} title="Memory lifecycle" />
           <p className="mt-1.5 text-xs text-(--color-muted-foreground)">
@@ -483,7 +484,7 @@ export function MemoryDashboard() {
           </p>
         </div>
         {indexStatus && (
-          <section className="glass-panel rounded-[var(--radius-card)] p-5">
+          <Card className="p-5">
             <div className="flex items-center justify-between gap-2">
               <h3 className="flex items-center gap-2 text-[13px] font-semibold text-(--color-foreground)">
                 <Database className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
@@ -513,7 +514,7 @@ export function MemoryDashboard() {
                 }
               />
             </div>
-          </section>
+          </Card>
         )}
         <div className="grid gap-4 lg:grid-cols-2">
           <StorageStatsCard stats={storageStats} />
@@ -521,7 +522,7 @@ export function MemoryDashboard() {
           <SnapshotManagerCard />
           <LineageExplorerCard />
         </div>
-      </section>
+      </div>
 
       <WorkflowFamiliesCard families={families} />
       <DuplicateGroupsCard groups={duplicates} onMerged={runMergeDuplicates} />

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Search, X, Loader2 } from "lucide-react";
+import { GlassInput } from "@/components/ui/GlassInput";
 
 interface SearchBarProps {
   onSearch: (query: string) => void;
@@ -34,21 +35,14 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
 
   return (
     <div className="group relative w-full">
-      <div className="pointer-events-none absolute inset-y-0 left-0 flex w-12 items-center justify-center rounded-l-[var(--radius-control)] text-(--color-faint-foreground) transition-colors group-focus-within:text-(--color-accent)">
-        {isLoading ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
-        ) : (
-          <Search className="h-5 w-5" strokeWidth={1.75} />
-        )}
-      </div>
-      <input
+      <GlassInput
         id="search-input"
-        type="text"
+        size="lg"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search files and workspaces…"
         aria-label="Search files and workspaces"
-        className="glass-well h-14 w-full rounded-[var(--radius-control)] pl-12 pr-12 text-[15px] text-(--color-foreground) outline-none transition-all duration-200 ease-[var(--ease-premium)] placeholder:text-(--color-faint-foreground) focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.25),0_0_0_1px_rgba(10,132,255,0.5)]"
+        icon={isLoading ? <Loader2 className="h-5 w-5 animate-spin" strokeWidth={1.75} /> : <Search className="h-5 w-5" strokeWidth={1.75} />}
       />
       {query && (
         <button
@@ -57,7 +51,7 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
           aria-label="Clear search"
           title="Clear"
         >
-          <X className="h-4 w-4" strokeWidth={2} />
+          <X className="h-4 w-4" strokeWidth={1.75} />
         </button>
       )}
     </div>

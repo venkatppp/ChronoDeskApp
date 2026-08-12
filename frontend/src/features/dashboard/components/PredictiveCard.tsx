@@ -1,5 +1,5 @@
 import { Brain, TrendingUp, FileText, Zap, Clock, Activity, Target } from "lucide-react";
-import { Card } from "@/components/ui/Card";
+import { GlassSurface } from "@/components/ui/GlassSurface";
 import { Badge } from "@/components/ui/Badge";
 import type { PredictionsSummary } from "@/types/predictive";
 
@@ -28,7 +28,7 @@ function formatDuration(seconds: number): string {
 export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) {
   if (isLoading) {
     return (
-      <Card className="p-4">
+      <GlassSurface material="chrome" className="rounded-[var(--radius-card)] p-5">
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-raised)">
             <Brain className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
@@ -44,7 +44,7 @@ export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) 
             </div>
           </div>
         </div>
-      </Card>
+      </GlassSurface>
     );
   }
 
@@ -56,7 +56,7 @@ export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) 
     !predictions.sessionContinuation
   )) {
     return (
-      <Card className="p-4">
+      <GlassSurface material="chrome" className="rounded-[var(--radius-card)] p-5">
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-hover)">
             <Brain className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
@@ -71,18 +71,18 @@ export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) 
             </p>
           </div>
         </div>
-      </Card>
+      </GlassSurface>
     );
   }
 
   return (
-    <Card className="p-4">
+    <GlassSurface material="chrome" className="rounded-[var(--radius-card)] p-5">
       <div className="flex flex-col gap-3">
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-(--color-surface-raised)">
             <Brain className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           </div>
-            <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1">
               <p className="text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
                 Predictive Intelligence
               </p>
@@ -131,7 +131,7 @@ export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) 
                   <p className="truncate text-sm font-medium text-(--color-foreground)">
                     {predictions.nextWorkspace.workspaceName}
                   </p>
-                  <TrendingUp className="h-3 w-3 shrink-0 text-(--color-success)" strokeWidth={2} />
+                  <TrendingUp className="h-3 w-3 shrink-0 text-(--color-success)" strokeWidth={1.75} />
                   <span className="text-xs text-(--color-faint-foreground)">
                     {Math.round(predictions.nextWorkspace.confidence * 100)}%
                   </span>
@@ -212,6 +212,6 @@ export function PredictiveCard({ predictions, isLoading }: PredictiveCardProps) 
           )}
         </div>
       </div>
-    </Card>
+    </GlassSurface>
   );
 }

@@ -22,7 +22,7 @@ export function MemoryAgingCard({ summary }: MemoryAgingCardProps) {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2">
-        <Hourglass className="h-4 w-4 text-(--color-muted-foreground)" />
+        <Hourglass className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
         <h2 className="text-sm font-medium text-(--color-foreground)">Memory aging</h2>
       </div>
 
@@ -47,7 +47,7 @@ export function MemoryAgingCard({ summary }: MemoryAgingCardProps) {
       </div>
 
       <p className="mt-3 flex items-center gap-1.5 text-[11px] text-(--color-faint-foreground)">
-        <Timer className="h-3 w-3" />
+        <Timer className="h-3 w-3" strokeWidth={1.75} />
         Memories decay over 30 days and archive after 180 — aged knowledge ranks lower
       </p>
     </Card>

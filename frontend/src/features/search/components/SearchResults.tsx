@@ -1,6 +1,7 @@
 import { FileCode, FileJson, FileText, Folder, Star, Loader2 } from "lucide-react";
 import type { SearchResult } from "@/types/search";
 import { cn } from "@/utils/cn";
+import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 interface SearchResultsProps {
@@ -51,10 +52,10 @@ export function SearchResults({ results, isLoading, onSelect }: SearchResultsPro
   return (
     <div className="flex flex-col gap-3 pb-8">
       <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-(--color-faint-foreground)">
-        <Loader2 className="h-3 w-3" strokeWidth={2} />
+        <Loader2 className="h-3 w-3" strokeWidth={1.75} />
         {results.length} result{results.length !== 1 ? "s" : ""}
       </div>
-      <div className="glass-panel divide-y divide-(--color-border-subtle) overflow-hidden rounded-[var(--radius-card)]">
+      <Card className="divide-y divide-(--color-border-subtle) overflow-hidden">
         {results.map((result) => {
           const isWorkspace = result.entityType === "workspace";
           return (
@@ -86,7 +87,7 @@ export function SearchResults({ results, isLoading, onSelect }: SearchResultsPro
                     {result.entityType}
                   </span>
                   <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] font-medium text-(--color-faint-foreground)">
-                    <Star className="h-3 w-3 fill-(--color-warning) text-(--color-warning)" />
+                    <Star className="h-3 w-3 fill-(--color-warning) text-(--color-warning)" strokeWidth={1.75} />
                     {(result.rank * 100).toFixed(0)}
                   </span>
                 </div>
@@ -97,7 +98,7 @@ export function SearchResults({ results, isLoading, onSelect }: SearchResultsPro
             </button>
           );
         })}
-      </div>
+      </Card>
     </div>
   );
 }

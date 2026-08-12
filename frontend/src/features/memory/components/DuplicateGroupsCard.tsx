@@ -34,7 +34,7 @@ export function DuplicateGroupsCard({ groups, onMerged }: DuplicateGroupsCardPro
     <Card className="p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Copy className="h-4 w-4 text-(--color-muted-foreground)" />
+          <Copy className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           <h2 className="text-sm font-medium text-(--color-foreground)">Duplicate memories</h2>
         </div>
         <button

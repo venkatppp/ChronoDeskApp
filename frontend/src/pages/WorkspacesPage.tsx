@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { Dialog } from "@/components/ui/Dialog";
+import { Card } from "@/components/ui/Card";
 import { detectLanguage } from "@/features/dashboard/components/WorkspaceCard";
 
 const STATUS_STYLES: Record<WorkspaceStatus, { dot: string; label: string; tile: string }> = {
@@ -149,8 +150,8 @@ export function WorkspacesPage() {
       await workspaceRepo.createWorkspace({ name });
       await fetchWorkspaces();
       closeCreateDialog();
-    } catch (err: any) {
-      setCreateError(err?.message || "Failed to create workspace. Please try again.");
+    } catch (err: unknown) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create workspace. Please try again.");
     } finally {
       setIsCreating(false);
     }
@@ -186,8 +187,8 @@ export function WorkspacesPage() {
       await workspaceRepo.updateWorkspace(ws.id, input);
       await fetchWorkspaces();
       closeEditDialog();
-    } catch (err: any) {
-      setUpdateError(err?.message || "Failed to update workspace.");
+    } catch (err: unknown) {
+      setUpdateError(err instanceof Error ? err.message : "Failed to update workspace.");
     } finally {
       setIsUpdating(false);
     }
@@ -294,9 +295,9 @@ export function WorkspacesPage() {
               const statusStyle = STATUS_STYLES[workspace.status];
               const lang = detectLanguage(workspace.rootPath);
               return (
-                <div
+                <Card
                   key={workspace.id}
-                  className="glass-panel group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] p-5 transition-all duration-300 ease-[var(--ease-premium)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)]"
+                  className="group relative flex flex-col overflow-hidden p-5 transition-all duration-300 ease-[var(--ease-premium)] hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(0,0,0,0.25),0_2px_6px_rgba(0,0,0,0.2)]"
                 >
                   <div className="mb-4 flex items-start justify-between">
                     <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${statusStyle.tile}`}>
@@ -397,7 +398,7 @@ export function WorkspacesPage() {
                       <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/open:translate-x-0.5" strokeWidth={1.75} />
                     </button>
                   </div>
-                </div>
+                </Card>
               );
             })}
         </div>

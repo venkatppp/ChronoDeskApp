@@ -1,6 +1,7 @@
 import { Bookmark, Trash2, Calendar } from "lucide-react";
 import type { SavedSearch } from "@/types/search";
 import { formatRelativeTime } from "@/utils/formatRelativeTime";
+import { Card } from "@/components/ui/Card";
 import { SectionLabel } from "@/components/ui/SectionLabel";
 
 interface SavedSearchesProps {
@@ -17,7 +18,7 @@ export function SavedSearches({
   if (savedSearches.length === 0) return null;
 
   return (
-    <section className="glass-panel rounded-[var(--radius-card)] p-5">
+    <Card className="p-5">
       <SectionLabel icon={<Bookmark className="h-3.5 w-3.5" strokeWidth={1.75} />}>
         Saved Searches
       </SectionLabel>
@@ -50,6 +51,6 @@ export function SavedSearches({
           </div>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }

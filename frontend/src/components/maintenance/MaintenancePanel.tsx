@@ -29,7 +29,7 @@ export function MaintenancePanel({
         <CardHeader className="flex-row items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Wrench className="h-4 w-4 text-(--color-accent)" />
+              <Wrench className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
               Maintenance pass
             </CardTitle>
             <CardDescription>
@@ -38,7 +38,7 @@ export function MaintenancePanel({
             </CardDescription>
           </div>
           <Button variant="secondary" disabled={acting} onClick={onRun}>
-            <Gauge className="h-4 w-4" />
+            <Gauge className="h-4 w-4" strokeWidth={1.75} />
             Run maintenance
           </Button>
         </CardHeader>

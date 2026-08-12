@@ -50,7 +50,7 @@ export function BackupPanel({
         <CardHeader className="flex-row items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <DatabaseBackup className="h-4 w-4 text-(--color-muted-foreground)" />
+              <DatabaseBackup className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
               Back up now
             </CardTitle>
             <CardDescription>
@@ -59,7 +59,7 @@ export function BackupPanel({
             </CardDescription>
           </div>
           <Button variant="secondary" disabled={acting} onClick={onBackup}>
-            <DatabaseBackup className="h-4 w-4" />
+            <DatabaseBackup className="h-4 w-4" strokeWidth={1.75} />
             Back up now
           </Button>
         </CardHeader>
@@ -70,9 +70,9 @@ export function BackupPanel({
           <CardContent className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               {pending.ok ? (
-                <CheckCircle2 className="h-4 w-4 text-(--color-success)" />
+                <CheckCircle2 className="h-4 w-4 text-(--color-success)" strokeWidth={1.75} />
               ) : (
-                <ShieldAlert className="h-4 w-4 text-(--color-warning)" />
+                <ShieldAlert className="h-4 w-4 text-(--color-warning)" strokeWidth={1.75} />
               )}
               <p className="text-sm font-medium text-(--color-foreground)">
                 {pending.ok ? "Restore staged" : "Staged restore needs attention"}
@@ -84,7 +84,7 @@ export function BackupPanel({
             </p>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="secondary" disabled={acting} onClick={onCancelRestore}>
-                <XCircle className="h-4 w-4" />
+                <XCircle className="h-4 w-4" strokeWidth={1.75} />
                 Cancel staged restore
               </Button>
             </div>
@@ -144,7 +144,7 @@ export function BackupPanel({
                   </div>
                   {restorable && (
                     <Button size="sm" variant="secondary" disabled={acting} onClick={() => onRestore(run.id)}>
-                      <RotateCcw className="h-4 w-4" />
+                      <RotateCcw className="h-4 w-4" strokeWidth={1.75} />
                       Restore
                     </Button>
                   )}

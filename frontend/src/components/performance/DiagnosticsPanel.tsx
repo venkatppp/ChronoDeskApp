@@ -68,7 +68,7 @@ export function DiagnosticsPanel({
         <CardHeader className="flex-row items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-(--color-muted-foreground)" />
+              <Activity className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
               System Diagnostics
             </CardTitle>
             <CardDescription>
@@ -83,7 +83,7 @@ export function DiagnosticsPanel({
             disabled={loading}
             className="flex items-center gap-1.5 rounded-[var(--radius-control)] border border-(--color-border-subtle) px-2.5 py-1 text-xs text-(--color-muted-foreground) transition-colors hover:text-(--color-foreground)"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} strokeWidth={1.75} />
             Refresh
           </button>
         </CardHeader>
@@ -124,21 +124,21 @@ export function DiagnosticsPanel({
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                 <div className="flex flex-col gap-3">
                   <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
-                    <Cpu className="h-3.5 w-3.5" /> CPU utilization
+                    <Cpu className="h-3.5 w-3.5" strokeWidth={1.75} /> CPU utilization
                     <span className="ml-auto tabular-nums text-(--color-muted-foreground)">
                       {diagnostics.cpu.usagePercent.toFixed(1)}%
                     </span>
                   </p>
                   <ProgressBar percent={diagnostics.cpu.usagePercent} tone={cpuTone} />
                   <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
-                    <MemoryStick className="h-3.5 w-3.5" /> Memory utilization
+                    <MemoryStick className="h-3.5 w-3.5" strokeWidth={1.75} /> Memory utilization
                     <span className="ml-auto tabular-nums text-(--color-muted-foreground)">
                       {diagnostics.memory.percent.toFixed(1)}%
                     </span>
                   </p>
                   <ProgressBar percent={diagnostics.memory.percent} tone={memoryTone} />
                   <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
-                    <Database className="h-3.5 w-3.5" /> Graph query cache
+                    <Database className="h-3.5 w-3.5" strokeWidth={1.75} /> Graph query cache
                     <span className="ml-auto tabular-nums text-(--color-muted-foreground)">
                       {formatBytes(diagnostics.cache.graphCacheSizeBytes)}
                     </span>
@@ -154,7 +154,7 @@ export function DiagnosticsPanel({
 
                 <div className="flex flex-col gap-2">
                   <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
-                    <Users className="h-3.5 w-3.5" /> Processes & threads
+                    <Users className="h-3.5 w-3.5" strokeWidth={1.75} /> Processes & threads
                   </p>
                   <p className="text-sm text-(--color-muted-foreground)">
                     <span className="tabular-nums text-(--color-foreground)">{diagnostics.threads.processCount}</span>{" "}
@@ -163,7 +163,7 @@ export function DiagnosticsPanel({
                     threads (0 on macOS — platform limitation)
                   </p>
                   <p className="mt-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-(--color-faint-foreground)">
-                    <Zap className="h-3.5 w-3.5" /> Background workers
+                    <Zap className="h-3.5 w-3.5" strokeWidth={1.75} /> Background workers
                   </p>
                   {diagnostics.workers.length === 0 ? (
                     <p className="text-sm text-(--color-muted-foreground)">No worker telemetry yet.</p>
@@ -203,7 +203,7 @@ export function DiagnosticsPanel({
         <CardHeader className="flex-row items-start justify-between gap-4">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Lightbulb className="h-4 w-4 text-(--color-warning)" />
+              <Lightbulb className="h-4 w-4 text-(--color-warning)" strokeWidth={1.75} />
               Optimization Recommendations
             </CardTitle>
             <CardDescription>
@@ -220,7 +220,7 @@ export function DiagnosticsPanel({
               }}
               className="flex items-center gap-1.5 rounded-[var(--radius-control)] border border-(--color-border-subtle) px-2.5 py-1 text-xs text-(--color-muted-foreground) transition-colors hover:text-(--color-foreground)"
             >
-              <Sparkles className="h-3.5 w-3.5" />
+              <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />
               Analyze
             </button>
             <button
@@ -232,7 +232,7 @@ export function DiagnosticsPanel({
               }}
               className="glass-accent flex items-center gap-1.5 rounded-[var(--radius-control)] px-2.5 py-1 text-xs font-medium text-(--color-accent-foreground)"
             >
-              {optimizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+              {optimizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} /> : <Zap className="h-3.5 w-3.5" strokeWidth={1.75} />}
               Analyze & apply
             </button>
           </div>
@@ -248,15 +248,15 @@ export function DiagnosticsPanel({
           )}
           {optimizer && optimizer.recommendations.length === 0 && (
             <p className="flex items-center gap-2 text-sm text-(--color-success)">
-              <CheckCircle2 className="h-4 w-4" /> No optimization opportunities detected.
+              <CheckCircle2 className="h-4 w-4" strokeWidth={1.75} /> No optimization opportunities detected.
             </p>
           )}
           {optimizer?.recommendations.map((recommendation) => {
             const applied = optimizer.applied.includes(recommendation.id) || appliedIds.has(recommendation.id);
             return (
-              <div
+              <Card
                 key={recommendation.id}
-                className="glass-panel flex items-start gap-3 rounded-[var(--radius-card)] p-3"
+                className="flex items-start gap-3 p-3"
               >
                 <AlertTriangle
                   className={
@@ -266,6 +266,7 @@ export function DiagnosticsPanel({
                         ? "mt-0.5 h-4 w-4 shrink-0 text-(--color-warning)"
                         : "mt-0.5 h-4 w-4 shrink-0 text-(--color-accent)"
                   }
+                  strokeWidth={1.75}
                 />
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <div className="flex flex-wrap items-center gap-2">
@@ -299,7 +300,7 @@ export function DiagnosticsPanel({
                     Apply
                   </button>
                 )}
-              </div>
+              </Card>
             );
           })}
         </CardContent>

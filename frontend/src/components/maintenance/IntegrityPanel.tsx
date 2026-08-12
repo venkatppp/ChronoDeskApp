@@ -29,7 +29,7 @@ export function IntegrityPanel({
         <CardHeader className="flex-row items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-(--color-accent)" />
+              <ShieldCheck className="h-4 w-4 text-(--color-accent)" strokeWidth={1.75} />
               Database integrity
             </CardTitle>
             <CardDescription>
@@ -38,7 +38,7 @@ export function IntegrityPanel({
             </CardDescription>
           </div>
           <Button variant="secondary" disabled={acting} onClick={onRun}>
-            <ScanSearch className="h-4 w-4" />
+            <ScanSearch className="h-4 w-4" strokeWidth={1.75} />
             Run integrity check
           </Button>
         </CardHeader>
@@ -52,12 +52,12 @@ export function IntegrityPanel({
               <div className="flex items-center gap-2">
                 {report.ok ? (
                   <>
-                    <ShieldCheck className="h-4 w-4 text-(--color-success)" />
+                    <ShieldCheck className="h-4 w-4 text-(--color-success)" strokeWidth={1.75} />
                     <Badge variant="success">healthy</Badge>
                   </>
                 ) : (
                   <>
-                    <ShieldAlert className="h-4 w-4 text-(--color-danger)" />
+                    <ShieldAlert className="h-4 w-4 text-(--color-danger)" strokeWidth={1.75} />
                     <Badge variant="warning">issues found</Badge>
                   </>
                 )}
@@ -98,7 +98,7 @@ export function IntegrityPanel({
                 </div>
               )}
               <p className="flex items-center gap-2 text-xs text-(--color-muted-foreground)">
-                <Activity className="h-3 w-3" />
+                <Activity className="h-3 w-3" strokeWidth={1.75} />
                 checked {report.checkedAt}
               </p>
             </div>

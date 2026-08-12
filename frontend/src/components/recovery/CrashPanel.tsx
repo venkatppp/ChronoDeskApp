@@ -13,7 +13,7 @@ export function CrashPanel({ crashes, loading, error }: { crashes: CrashReport[]
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Bug className="h-4 w-4 text-(--color-muted-foreground)" />
+          <Bug className="h-4 w-4 text-(--color-muted-foreground)" strokeWidth={1.75} />
           Crash Reports
         </CardTitle>
         <CardDescription>
@@ -38,7 +38,7 @@ export function CrashPanel({ crashes, loading, error }: { crashes: CrashReport[]
                 <div className="flex items-center gap-2">
                   {crash.wasRecovered ? (
                     <Badge variant="success">
-                      <CheckCircle2 className="h-3 w-3" /> recovered
+                      <CheckCircle2 className="h-3 w-3" strokeWidth={1.75} /> recovered
                     </Badge>
                   ) : (
                     <Badge variant="warning">open</Badge>

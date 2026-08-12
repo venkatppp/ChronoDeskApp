@@ -5,7 +5,7 @@
   "identifier": "com.chronodesk.app",
   "build": {
     "beforeDevCommand": "cd ../frontend && npm run dev",
-    "beforeBuildCommand": "cd ../frontend && npm run build",
+    "beforeBuildCommand": "cd frontend 2>/dev/null || cd ../frontend; npm run build",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../frontend/dist"
   },

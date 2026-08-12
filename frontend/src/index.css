@@ -72,15 +72,15 @@
    * edge, a hairline glass border, and a deep soft drop shadow.
    * No chromatic tint fill — color arrives from behind the glass.
    * ------------------------------------------------------------------ */
-  --glass-tint-top: rgba(255, 255, 255, 0.1);
-  --glass-tint-mid: rgba(255, 255, 255, 0.045);
-  --glass-tint-bottom: rgba(255, 255, 255, 0.018);
-  --glass-tint-strong: rgba(20, 22, 30, 0.16);
+  --glass-tint-top: rgba(255, 255, 255, 0.08);
+  --glass-tint-mid: rgba(255, 255, 255, 0.035);
+  --glass-tint-bottom: rgba(255, 255, 255, 0.015);
+  --glass-tint-strong: rgba(20, 22, 30, 0.12);
   --glass-edge: rgba(255, 255, 255, 0.14);
-  --glass-specular: rgba(255, 255, 255, 0.5);
+  --glass-specular: rgba(255, 255, 255, 0.55);
   --glass-specular-soft: rgba(255, 255, 255, 0.18);
-  --glass-edge-dark: rgba(0, 0, 0, 0.4);
-  --glass-underlight: rgba(255, 255, 255, 0.05);
+  --glass-edge-dark: rgba(0, 0, 0, 0.5);
+  --glass-underlight: rgba(255, 255, 255, 0.06);
 
   /* Ambient light — neutral-slate fields the glass visibly distorts.
      Saturation is deliberately LOW: glass reads neutral; color stays
@@ -319,8 +319,8 @@
    underlight from below, hairline glass border, deep soft shadow. */
 @utility glass-chrome {
   background: linear-gradient(180deg, var(--glass-tint-top), var(--glass-tint-mid) 45%, var(--glass-tint-bottom));
-  -webkit-backdrop-filter: blur(28px) saturate(130%);
-  backdrop-filter: blur(28px) saturate(130%);
+  -webkit-backdrop-filter: blur(32px) saturate(130%);
+  backdrop-filter: blur(32px) saturate(130%);
   box-shadow:
     inset 0 1px 1px var(--glass-specular),
     inset 0 -8px 20px var(--glass-underlight),
@@ -334,8 +334,8 @@
    sits closer to the canvas so content dominates, not the box. */
 @utility glass-surface {
   background: linear-gradient(180deg, var(--glass-tint-mid), var(--glass-tint-bottom) 70%);
-  -webkit-backdrop-filter: blur(18px) saturate(122%);
-  backdrop-filter: blur(18px) saturate(122%);
+  -webkit-backdrop-filter: blur(22px) saturate(122%);
+  backdrop-filter: blur(22px) saturate(122%);
   box-shadow:
     inset 0 1px 0 var(--glass-specular-soft),
     inset 0 -1px 0 var(--glass-edge-dark),
@@ -346,8 +346,8 @@
    blur, faint specular, NO rim — repeated cards must not gain weight. */
 @utility glass-panel {
   background: linear-gradient(180deg, var(--glass-tint-mid), var(--glass-tint-bottom) 75%);
-  -webkit-backdrop-filter: blur(14px) saturate(118%);
-  backdrop-filter: blur(14px) saturate(118%);
+  -webkit-backdrop-filter: blur(16px) saturate(118%);
+  backdrop-filter: blur(16px) saturate(118%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 12px 26px rgba(0, 0, 0, 0.2);
@@ -357,8 +357,8 @@
    interior sinks. Dark inner top, hairline edge, no float. */
 @utility glass-well {
   background: linear-gradient(180deg, var(--glass-tint-bottom), rgba(0, 0, 0, 0.14));
-  -webkit-backdrop-filter: blur(10px) saturate(118%);
-  backdrop-filter: blur(10px) saturate(118%);
+  -webkit-backdrop-filter: blur(12px) saturate(118%);
+  backdrop-filter: blur(12px) saturate(118%);
   box-shadow:
     inset 0 1px 2px rgba(0, 0, 0, 0.3),
     inset 0 0 0 1px rgba(255, 255, 255, 0.06);
@@ -369,8 +369,8 @@
    shadow — quiet enough to repeat without stacking boxes. */
 @utility glass-control {
   background: linear-gradient(180deg, var(--glass-tint-mid), var(--glass-tint-bottom) 72%);
-  -webkit-backdrop-filter: blur(10px) saturate(116%);
-  backdrop-filter: blur(10px) saturate(116%);
+  -webkit-backdrop-filter: blur(12px) saturate(116%);
+  backdrop-filter: blur(12px) saturate(116%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     inset 0 -1px 0 rgba(0, 0, 0, 0.2),
@@ -380,16 +380,16 @@
 /* NAV — sidebar rows: no glass of their own; the surface only appears on
    hover/active (raised material), so the rail reads as chrome, not tiles. */
 @utility glass-nav {
-  -webkit-backdrop-filter: blur(8px) saturate(110%);
-  backdrop-filter: blur(8px) saturate(110%);
+  -webkit-backdrop-filter: blur(10px) saturate(110%);
+  backdrop-filter: blur(10px) saturate(110%);
 }
 
 /* SHEET — dialogs/sheets: the thickest pane. Strongest blur, bright
    specular rim all around, deep shadow; clearly the topmost object. */
 @utility glass-sheet {
   background: linear-gradient(180deg, var(--glass-tint-top), var(--glass-tint-mid) 40%, var(--glass-tint-bottom));
-  -webkit-backdrop-filter: blur(36px) saturate(132%);
-  backdrop-filter: blur(36px) saturate(132%);
+  -webkit-backdrop-filter: blur(40px) saturate(132%);
+  backdrop-filter: blur(40px) saturate(132%);
   box-shadow:
     inset 0 1px 1px var(--glass-specular),
     inset 0 -8px 20px var(--glass-underlight),
@@ -427,8 +427,8 @@
 /* Compatibility alias — legacy `.glass` == chrome material. */
 @utility glass {
   background: linear-gradient(180deg, var(--glass-tint-top), var(--glass-tint-mid) 45%, var(--glass-tint-bottom));
-  -webkit-backdrop-filter: blur(28px) saturate(130%);
-  backdrop-filter: blur(28px) saturate(130%);
+  -webkit-backdrop-filter: blur(32px) saturate(130%);
+  backdrop-filter: blur(32px) saturate(130%);
   box-shadow:
     inset 0 1px 1px var(--glass-specular),
     inset 0 -8px 20px var(--glass-underlight),
@@ -442,6 +442,59 @@
    engines; the inline blur it applies matches this material. */
 .lg-fallback {
   /* The JS owns the inline backdrop-filter; nothing extra needed. */
+}
+
+/* ========================================================================
+ * CONTENT LAYER — calm, premium dark surfaces for data. Deliberately
+ * opaque-ish (no backdrop-filter, no refraction): content sits ON the
+ * glass, never inside it. Hairline border + soft elevation only.
+ * ====================================================================== */
+
+@utility content-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 16px rgba(0, 0, 0, 0.12);
+}
+
+.light .content-card {
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 16px rgba(0, 0, 0, 0.05);
+}
+
+/* Focused input wells — one recipe instead of per-field arbitrary
+   shadows: inset darkening + a hairline macOS-blue ring. */
+@utility focus-well {
+  &:focus,
+  &:focus-within {
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(10, 132, 255, 0.5);
+    outline: none;
+  }
+}
+
+/* Respect macOS "Reduce Transparency": surfaces become near-opaque so
+   content stays legible without the environment bleeding through. */
+@media (prefers-reduced-transparency: reduce) {
+  .glass-chrome,
+  .glass-surface,
+  .glass-panel,
+  .glass-sheet,
+  .glass-control,
+  .glass-well {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass-chrome,
+  .glass-surface,
+  .glass-panel,
+  .glass-sheet {
+    background: rgba(14, 16, 24, 0.96);
+  }
+  .light .glass-chrome,
+  .light .glass-surface,
+  .light .glass-panel,
+  .light .glass-sheet {
+    background: rgba(245, 245, 247, 0.97);
+  }
 }
 
 /* ========================================================================

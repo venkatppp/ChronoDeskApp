@@ -63,14 +63,15 @@ export interface LiquidGlassInstance {
 }
 
 const DEFAULTS: Required<LiquidGlassOptions> = {
-  // Reference optics, tuned subtler for an app shell: a gentle magnifying
-  // bulge at the rim with a barely-there prism fringe. Visible on large
-  // surfaces, never dramatic.
-  scale: -96,
-  chroma: 4,
+  // Reference optics tuned for an app shell: a magnifying bulge at the
+  // rim with a faint prism fringe. -112/+5 is the "chrome" default from
+  // the handoff — visible lensing on large floating surfaces, never
+  // dramatic on small controls.
+  scale: -112,
+  chroma: 5,
   border: 0.06,
   mapBlur: 12,
-  blur: 4,
+  blur: 8,
   saturate: 1.5,
   radius: null,
   fallbackBlur: 24,
