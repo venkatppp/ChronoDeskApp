@@ -50,6 +50,7 @@ export function LineageExplorerCard() {
       }
       setLineage(result);
     } catch (err) {
+      setNotFound(true);
       console.error("Lineage lookup failed:", err);
     }
   }, [memoryId]);
