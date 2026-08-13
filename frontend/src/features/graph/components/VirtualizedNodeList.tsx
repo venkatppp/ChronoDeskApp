@@ -74,7 +74,7 @@ export function VirtualizedNodeList({
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="min-h-0 flex-1 overflow-y-auto rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface)"
+        className="min-h-0 max-h-[480px] flex-1 overflow-y-auto rounded-[var(--radius-control)] border border-(--color-border-subtle) bg-(--color-surface)"
         data-testid="virtualized-node-list"
       >
         <div style={{ height: nodes.length * rowHeight, position: "relative" }}>
