@@ -424,12 +424,12 @@ function computeStructureLayout(
   let leafIndex = 0;
   const place = (n: StructureNode, depth: number): PlacedSNode => {
     const kids = visibleChildren(n, expanded);
+    const placed = kids.map((k) => place(k, depth + 1));
     let y: number;
     let clusterMinY = y = 0;
     let clusterMaxY = 0;
     let clusterMaxDepth = depth;
     if (kids.length > 0) {
-      const placed = kids.map((k) => place(k, depth + 1));
       clusterMinY = Math.min(...placed.map((p) => p.y)) - 22;
       clusterMaxY = Math.max(...placed.map((p) => p.y)) + 22;
       clusterMaxDepth = Math.max(...placed.map((p) => p.clusterMaxDepth));
@@ -453,6 +453,7 @@ function computeStructureLayout(
       clusterMaxY,
       clusterMaxDepth,
       leafCount: leaves,
+      children: placed,
     };
   };
 
