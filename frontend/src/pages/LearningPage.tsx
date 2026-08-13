@@ -115,7 +115,7 @@ export default function LearningPage() {
     return (
       <PageContainer>
         <div className="flex flex-col items-center gap-4 rounded-[var(--radius-card)] border border-(--color-danger)/20 bg-(--color-danger)/5 px-6 py-20 text-center">
-          <XCircle className="h-10 w-10 text-(--color-danger)" strokeWidth={1.5} />
+          <XCircle className="h-10 w-10 text-(--color-danger)" strokeWidth={1.75} />
           <p className="max-w-md text-sm text-(--color-muted-foreground)">{error}</p>
           <Button variant="outline" size="sm" onClick={loadInsights}>
             Retry
@@ -330,7 +330,7 @@ export default function LearningPage() {
         </Card>
       </div>
 
-      <div className="grid items-start gap-6 xl:grid-cols-2">
+      <div className="grid items-start gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
