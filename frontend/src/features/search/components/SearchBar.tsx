@@ -1,22 +1,35 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Search, X, Loader2 } from "lucide-react";
 import { GlassInput } from "@/components/ui/GlassInput";
 
 interface SearchBarProps {
   onSearch: (query: string) => void;
   isLoading?: boolean;
+  /** External query to reflect (e.g. history/saved-search selection). */
+  value?: string;
 }
 
 /** Prominent Liquid Glass search field — the page's primary interaction. */
-export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
+export function SearchBar({ onSearch, isLoading, value }: SearchBarProps) {
   const [query, setQuery] = useState("");
+
+  const onSearchRef = useRef(onSearch);
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  });
+
+  useEffect(() => {
+    if (value !== undefined && document.activeElement !== document.getElementById("search-input")) {
+      setQuery(value);
+    }
+  }, [value]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      onSearch(query);
+      onSearchRef.current(query);
     }, 300);
     return () => clearTimeout(timeoutId);
-  }, [query, onSearch]);
+  }, [query]);
 
   const handleClear = useCallback(() => {
     setQuery("");

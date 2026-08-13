@@ -138,7 +138,7 @@ export function SearchView() {
 
       <div className="sticky top-0 z-20 -mx-6 px-6 pt-1 pb-3 lg:-mx-8 lg:px-8">
         <GlassSurface material="chrome" className="flex flex-col rounded-2xl px-4 py-3.5">
-          <SearchBar onSearch={handleSearch} isLoading={isLoading} />
+          <SearchBar onSearch={handleSearch} isLoading={isLoading} value={query} />
           <FilterPanel
             entityTypes={entityTypes}
             onEntityTypesChange={handleEntityTypesChange}
