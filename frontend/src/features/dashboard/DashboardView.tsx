@@ -257,7 +257,7 @@ export function DashboardView() {
   );
 
   return (
-    <div className="flex w-full flex-col gap-8 px-6 py-7 lg:px-8">
+    <div className="flex w-full flex-col gap-6 px-6 py-7 lg:px-8">
       {/* Greeting — large, calm, directly on the canvas. No box. */}
       <section>
         <div className="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
@@ -359,6 +359,64 @@ export function DashboardView() {
         </GlassSurface>
       )}
 
+      {/* Workspaces — moved upward to occupy the empty central area */}
+<section> className="flex flex-1"
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-(--color-faint-foreground)">
+            <LayoutDashboard className="h-3.5 w-3.5" strokeWidth={1.75} />
+            Workspaces
+          </h2>
+          <span className="text-xs text-(--color-faint-foreground)">
+            {workspaces.length} active
+          </span>
+        </div>
+
+        {isLoading &&
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-32 animate-pulse rounded-[var(--radius-card)] bg-(--color-surface)" />
+            ))}
+          </div>
+        }
+
+        {!isLoading && workspaces.length === 0 && (
+          <Card className="px-6 py-10 text-center">
+            <p className="text-sm text-(--color-muted-foreground)">
+              No active workspaces yet. Create one, or watch a folder from Settings once file watching is configured.
+            </p>
+          </Card>
+        )}
+
+        {!isLoading && workspaces.length > 0 && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {[...pinnedWorkspaces, ...unpinnedWorkspaces].map((w) => (
+              <div key={w.id} className="group relative">
+                <WorkspaceCard
+                  workspace={w}
+                  stats={workspaceStats[w.id]}
+                  onOpen={async (ws) => {
+                    try {
+                      await workspaceRepo.switchWorkspace(ws.id);
+                      localStorage.setItem("activeWorkspaceId", ws.id);
+                      navigate("/timeline");
+                    } catch {
+                      /* no-op */
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => togglePin(w.id)}
+                  className="absolute right-2 top-2 z-10 rounded p-1.5 text-(--color-faint-foreground) opacity-0 transition-opacity hover:text-(--color-accent) group-hover:opacity-100"
+                  aria-label={pinnedIds.has(w.id) ? "Unpin workspace" : "Pin workspace"}
+                >
+                  {pinnedIds.has(w.id) ? <PinOff className="h-3.5 w-3.5" strokeWidth={1.75} /> : <Pin className="h-3.5 w-3.5" strokeWidth={1.75} />}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       {!isLoading && !(smartResumeSession && !dismissedSmartResume) && !resumeWorkspace && (
         <GlassSurface material="surface" className="rounded-3xl">
           <div className="flex flex-col gap-6 p-7 lg:flex-row lg:items-center lg:justify-between">
@@ -455,64 +513,6 @@ export function DashboardView() {
           <RecommendationsPanel recommendations={recommendations} isLoading={isLoading} onActionSuccess={handleActionSuccess} />
         </div>
       </div>
-
-      {/* Workspaces */}
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-(--color-faint-foreground)">
-            <LayoutDashboard className="h-3.5 w-3.5" strokeWidth={1.75} />
-            Workspaces
-          </h2>
-          <span className="text-xs text-(--color-faint-foreground)">
-            {workspaces.length} active
-          </span>
-        </div>
-
-        {isLoading &&
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-32 animate-pulse rounded-[var(--radius-card)] bg-(--color-surface)" />
-            ))}
-          </div>
-        }
-
-        {!isLoading && workspaces.length === 0 && (
-          <Card className="px-6 py-10 text-center">
-            <p className="text-sm text-(--color-muted-foreground)">
-              No active workspaces yet. Create one, or watch a folder from Settings once file watching is configured.
-            </p>
-          </Card>
-        )}
-
-        {!isLoading && workspaces.length > 0 && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {[...pinnedWorkspaces, ...unpinnedWorkspaces].map((w) => (
-              <div key={w.id} className="group relative">
-                <WorkspaceCard
-                  workspace={w}
-                  stats={workspaceStats[w.id]}
-                  onOpen={async (ws) => {
-                    try {
-                      await workspaceRepo.switchWorkspace(ws.id);
-                      localStorage.setItem("activeWorkspaceId", ws.id);
-                      navigate("/timeline");
-                    } catch {
-                      /* no-op */
-                    }
-                  }}
-                />
-                <button
-                  onClick={() => togglePin(w.id)}
-                  className="absolute right-2 top-2 z-10 rounded p-1.5 text-(--color-faint-foreground) opacity-0 transition-opacity hover:text-(--color-accent) group-hover:opacity-100"
-                  aria-label={pinnedIds.has(w.id) ? "Unpin workspace" : "Pin workspace"}
-                >
-                  {pinnedIds.has(w.id) ? <PinOff className="h-3.5 w-3.5" strokeWidth={1.75} /> : <Pin className="h-3.5 w-3.5" strokeWidth={1.75} />}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
 
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6">
