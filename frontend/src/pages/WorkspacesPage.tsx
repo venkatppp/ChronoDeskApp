@@ -297,7 +297,7 @@ export function WorkspacesPage() {
               return (
                 <Card
                   key={workspace.id}
-                  className="group relative flex flex-col overflow-hidden p-5 transition-all duration-300 ease-[var(--ease-premium)] hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(0,0,0,0.25),0_2px_6px_rgba(0,0,0,0.2)]"
+                  className="group relative flex flex-col overflow-hidden p-5 transition-all duration-300 ease-[var(--ease-premium)] hover:shadow-[0_12px_24px_rgba(0,0,0,0.25),0_2px_6px_rgba(0,0,0,0.2)]"
                 >
                   <div className="mb-4 flex items-start justify-between">
                     <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${statusStyle.tile}`}>
