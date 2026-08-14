@@ -63,30 +63,31 @@ impl Debouncer {
     /// Records a new event for `path`, coalescing with any pending event
     /// for the same path rather than emitting immediately.
     ///
-    /// Merge rule: a `Created` immediately followed by a `Removed`
-    /// within the window cancels out entirely — a file created and
-    /// deleted before the debounce window elapses never existed as far
-    /// as the timeline is concerned. Any other combination keeps the
-    /// *latest* kind and resets the window.
+    /// Merge rule: a `Removed` is terminal for the window — it is never
+    /// cancelled out (a duplicate late `Create` on macOS must not make a
+    /// real deletion disappear) and no later event kind can overwrite it
+    /// (the trailing `Modify` burst FSEvents delivers right after a
+    /// deletion must not become a bogus edit for a file that no longer
+    /// exists). Any other combination keeps the *latest* kind and resets
+    /// the window.
     pub async fn push(&self, path: PathBuf, kind: DebouncedEventKind) {
         let mut pending = self.pending.lock().await;
 
-        let cancels_out = matches!(
-            pending.get(&path),
-            Some(existing) if existing.kind == DebouncedEventKind::Created && kind == DebouncedEventKind::Removed
-        );
+        let merged_kind = match (pending.get(&path), kind) {
+            (_, DebouncedEventKind::Removed) => DebouncedEventKind::Removed,
+            (Some(existing), _) if existing.kind == DebouncedEventKind::Removed => {
+                DebouncedEventKind::Removed
+            }
+            _ => kind,
+        };
 
-        if cancels_out {
-            pending.remove(&path);
-        } else {
-            pending.insert(
-                path,
-                PendingEvent {
-                    kind,
-                    last_seen: Instant::now(),
-                },
-            );
-        }
+        pending.insert(
+            path,
+            PendingEvent {
+                kind: merged_kind,
+                last_seen: Instant::now(),
+            },
+        );
     }
 
     /// Removes and returns every pending event whose debounce window has
@@ -190,23 +191,45 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn created_then_removed_within_the_window_cancels_out() {
+    async fn removed_is_terminal_and_not_cancelled_by_a_stale_create() {
         let debouncer = Debouncer::new(Duration::from_millis(50));
 
+        debouncer
+            .push(path("/a.txt"), DebouncedEventKind::Created)
+            .await;
+        // The create is drained (recorded) before the deletion burst.
+        tokio::time::sleep(Duration::from_millis(60)).await;
+        assert_eq!(debouncer.drain_ready().await.len(), 1);
+
+        // macOS FSEvents can re-deliver a duplicate Create microseconds
+        // before the Remove (plus a trailing Modify) at deletion time.
         debouncer
             .push(path("/a.txt"), DebouncedEventKind::Created)
             .await;
         debouncer
             .push(path("/a.txt"), DebouncedEventKind::Removed)
             .await;
+        debouncer
+            .push(path("/a.txt"), DebouncedEventKind::Modified)
+            .await;
 
         assert!(
-            debouncer.is_empty().await,
-            "a file created and removed within the window should leave no pending event"
+            !debouncer.is_empty().await,
+            "a removal within the window must stay pending"
         );
 
         tokio::time::sleep(Duration::from_millis(60)).await;
-        assert!(debouncer.drain_ready().await.is_empty());
+        let ready = debouncer.drain_ready().await;
+        assert_eq!(
+            ready.len(),
+            1,
+            "the burst must coalesce into a single event"
+        );
+        assert_eq!(
+            ready[0].kind,
+            DebouncedEventKind::Removed,
+            "the removal must win over the trailing Modify"
+        );
     }
 
     #[tokio::test]

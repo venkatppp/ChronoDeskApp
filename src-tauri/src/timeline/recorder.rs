@@ -55,9 +55,17 @@ impl TimelineRecorder {
             }
         }
 
-        let file_id = match activity.file_path() {
-            Some(path) => Some(self.resolve_file(workspace_id, path).await?),
-            None => None,
+        let file_id = match (&activity, activity.file_path()) {
+            // A deleted file's `files` row is removed after the event is
+            // recorded below; a path that was never indexed must not get
+            // a row created for it, so resolve without creating.
+            (TimelineActivity::FileDeleted { .. }, Some(path)) => self
+                .file_repository
+                .find_by_workspace_and_path(workspace_id, path)
+                .await?
+                .map(|existing| existing.id),
+            (_, Some(path)) => Some(self.resolve_file(workspace_id, path).await?),
+            (_, None) => None,
         };
 
         let (event_type, metadata) = activity.to_event_type_and_metadata();
@@ -72,6 +80,15 @@ impl TimelineRecorder {
                 metadata,
             })
             .await?;
+
+        // The deletion event is recorded first (its FK references the
+        // row); the row itself is then removed so deleted files stop
+        // showing up in searches, file lists and duplicate scans. The
+        // `ON DELETE SET NULL` foreign key and the `search_index` delete
+        // trigger clean up the references.
+        if let (TimelineActivity::FileDeleted { .. }, Some(id)) = (&activity, file_id) {
+            self.file_repository.delete(id).await?;
+        }
 
         tracing::info!(
             workspace_id = %workspace_id,
@@ -226,6 +243,98 @@ mod tests {
             files.len(),
             1,
             "the second event must not create a duplicate file row"
+        );
+    }
+
+    #[tokio::test]
+    async fn recording_file_deleted_removes_the_file_row_but_keeps_the_event() {
+        let (database, _guard) = test_database().await;
+        let workspace_repo = WorkspaceRepository::new(database.pool().clone());
+        let workspace = workspace_repo
+            .create(CreateWorkspaceInput {
+                name: "Delete Target".to_string(),
+                description: None,
+                root_path: None,
+            })
+            .await
+            .unwrap();
+        let file_repository = FileRepository::new(database.pool().clone());
+        let timeline_repository = TimelineRepository::new(database.pool().clone());
+        let recorder = TimelineRecorder::new(file_repository.clone(), timeline_repository.clone());
+
+        recorder
+            .record(
+                workspace.id,
+                TimelineActivity::FileCreated {
+                    path: "/repo/gone.rs".to_string(),
+                },
+                Utc::now(),
+            )
+            .await
+            .expect("record create should succeed");
+        recorder
+            .record(
+                workspace.id,
+                TimelineActivity::FileDeleted {
+                    path: "/repo/gone.rs".to_string(),
+                },
+                Utc::now(),
+            )
+            .await
+            .expect("record delete should succeed");
+
+        let files = file_repository
+            .list_by_workspace(workspace.id)
+            .await
+            .unwrap();
+        assert!(
+            files.is_empty(),
+            "the deleted file's row must not linger as a ghost"
+        );
+
+        let events = timeline_repository
+            .list_by_workspace(workspace.id, None)
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 2, "both events must remain recorded");
+    }
+
+    #[tokio::test]
+    async fn recording_deleted_for_a_never_indexed_path_creates_no_row() {
+        let (database, _guard) = test_database().await;
+        let workspace_repo = WorkspaceRepository::new(database.pool().clone());
+        let workspace = workspace_repo
+            .create(CreateWorkspaceInput {
+                name: "Delete Target".to_string(),
+                description: None,
+                root_path: None,
+            })
+            .await
+            .unwrap();
+        let file_repository = FileRepository::new(database.pool().clone());
+        let recorder = TimelineRecorder::new(
+            file_repository.clone(),
+            TimelineRepository::new(database.pool().clone()),
+        );
+
+        recorder
+            .record(
+                workspace.id,
+                TimelineActivity::FileDeleted {
+                    path: "/repo/never-seen.rs".to_string(),
+                },
+                Utc::now(),
+            )
+            .await
+            .expect("record delete should succeed");
+
+        let files = file_repository
+            .list_by_workspace(workspace.id)
+            .await
+            .unwrap();
+        assert!(
+            files.is_empty(),
+            "a deleted path that was never indexed must not create a file row"
         );
     }
 
