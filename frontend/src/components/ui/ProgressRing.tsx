@@ -23,7 +23,14 @@ export function ProgressRing({ value, size = 44, strokeWidth = 4, className, lab
     clamped >= 70 ? "var(--color-success)" : clamped >= 40 ? "var(--color-accent)" : "var(--color-warning)";
 
   return (
-    <div className={cn("relative inline-flex items-center justify-center", className)}>
+    <div
+      className={cn("relative inline-flex items-center justify-center", className)}
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(clamped)}
+      aria-label={label ?? undefined}
+    >
       <svg width={size} height={size} className="-rotate-90">
         <circle
           cx={size / 2}

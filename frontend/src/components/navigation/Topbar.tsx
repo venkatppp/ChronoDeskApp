@@ -1,4 +1,5 @@
 import { Search, Sun, Moon } from "lucide-react";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import { GlassSurface } from "@/components/ui/GlassSurface";
 import { GlassInput } from "@/components/ui/GlassInput";
@@ -33,6 +34,19 @@ export function Topbar() {
 
   const title = ROUTE_TITLES[location.pathname] ?? "ChronoDesk";
 
+  // The visible ⌘K hint on the search field is a real shortcut: pressing
+  // ⌘K anywhere jumps to Search (which then owns the input's focus).
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        navigate("/search");
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [navigate]);
+
   return (
     <GlassSurface
       material="chrome"
@@ -52,7 +66,7 @@ export function Topbar() {
       </div>
 
       {/* macOS-style search field — an inset well in the chrome. */}
-      <div className="relative flex h-8 w-64">
+      <div className="relative flex h-8 w-52 min-w-0 md:w-64">
         <GlassInput
           size="md"
           placeholder="Search"
@@ -64,9 +78,10 @@ export function Topbar() {
           readOnly
           tabIndex={0}
           role="button"
+          aria-keyshortcuts="Meta+K"
           aria-label="Search files and workspaces"
         />
-        <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-[5px] border border-(--color-border-subtle) bg-(--color-surface-raised) px-1.5 py-0.5 text-[10px] font-medium text-(--color-faint-foreground)">
+        <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-[5px] border border-(--color-border-subtle) bg-(--color-surface-raised) px-1.5 py-0.5 text-[10px] font-medium text-(--color-faint-foreground) sm:block">
           ⌘K
         </kbd>
       </div>

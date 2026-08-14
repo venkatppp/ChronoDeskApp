@@ -360,7 +360,7 @@ export function DashboardView() {
       )}
 
       {/* Workspaces — moved upward to occupy the empty central area */}
-<section> className="flex flex-1"
+      <section className="flex flex-1 flex-col">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-(--color-faint-foreground)">
             <LayoutDashboard className="h-3.5 w-3.5" strokeWidth={1.75} />

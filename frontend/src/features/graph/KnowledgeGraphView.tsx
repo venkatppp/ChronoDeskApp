@@ -44,17 +44,17 @@ const NODE_RADIUS: Record<GraphNodeType, number> = {
   autonomous_session: 31,
 };
 
-/* Calm semantic palette — macOS-muted hues, no neon. Workspace = system
-   blue, file = steel blue, reports = green, runs = muted orange,
-   memory/semantic = violet. Saturation stays low enough for the canvas
-   to read as an environment, not a command center. */
+/* Calm semantic palette — macOS-muted derivatives of the design tokens
+   (blue/cyan/emerald/orange/violet in index.css), tuned low-saturation so
+   the canvas reads as an environment, not a command center. Kept as hex
+   because node fills compose alpha from the raw hue (`tone + "14"`). */
 const NODE_COLORS: Record<GraphNodeType, string> = {
-  workspace: "#4d9fff",
-  file: "#7fa9c4",
-  planner_report: "#63c98f",
-  execution: "#d9a05b",
-  memory_record: "#a78bdc",
-  autonomous_session: "#b39ddb",
+  workspace: "#4d9fff", // token blue, muted
+  file: "#7fa9c4", // token cyan, muted
+  planner_report: "#63c98f", // token emerald, muted
+  execution: "#d9a05b", // token orange, muted
+  memory_record: "#a78bdc", // token violet, muted
+  autonomous_session: "#b39ddb", // token violet, lighter
 };
 
 const NODE_RING: Record<string, number> = {
@@ -614,8 +614,8 @@ function renderStructure(
               width={n.w}
               height={n.h}
               rx={n.h / 2}
-              fill={isSel ? bg : n.tone === "#8e8e93" ? "rgba(8,8,10,0.7)" : bg}
-              stroke={isSel ? "#f4f4f6" : stroke}
+              fill={isSel ? bg : n.tone === "#8e8e93" ? "rgba(255,255,255,0.07)" : bg}
+              stroke={isSel ? "var(--color-foreground)" : stroke}
               strokeOpacity={isSel ? 1 : 0.42}
               strokeWidth={isSel ? 1.5 : 1}
               className="transition-all duration-300 ease-[var(--ease-premium)]"
@@ -628,7 +628,7 @@ function renderStructure(
             <text
               x={30}
               y={n.h / 2 + 0.5}
-              fill={n.kind === "folder" && !isSel ? "#c9c9d1" : "#f4f4f6"}
+              fill={n.kind === "folder" && !isSel ? "var(--color-muted-foreground)" : "var(--color-foreground)"}
               fontSize={n.kind === "folder" ? 11 : 10.5}
               fontWeight={n.kind === "folder" ? 600 : 550}
               className="pointer-events-none select-none"
@@ -654,7 +654,7 @@ function renderStructure(
                     height={12}
                     strokeWidth={2.25}
                     style={{
-                      color: active ? "#060609" : n.tone,
+                      color: active ? "var(--color-background)" : n.tone,
                       transform: active ? "rotate(90deg)" : "rotate(0deg)",
                       transition: "transform 0.28s cubic-bezier(0.32,0.08,0.24,1)",
                       transformOrigin: "center",
@@ -662,7 +662,7 @@ function renderStructure(
                   />
                 )}
                 {!multiple && (
-                  <text x={n.w - 10.5} y={n.h / 2 + 3.5} textAnchor="middle" fontSize={8} fontWeight={700} fill="#a3a3ad" className="pointer-events-none select-none">
+                  <text x={n.w - 10.5} y={n.h / 2 + 3.5} textAnchor="middle" fontSize={8} fontWeight={700} fill="var(--color-faint-foreground)" className="pointer-events-none select-none">
                     {active ? "−" : `${Math.min(childCount, 99)}`}
                   </text>
                 )}
@@ -1251,7 +1251,7 @@ export function KnowledgeGraphView({
                     <circle
                       r={r + 5}
                       fill="none"
-                      stroke="#f4f4f6"
+                      stroke="var(--color-foreground)"
                       strokeOpacity={0.65}
                       strokeWidth={1.25}
                       className="pointer-events-none"
@@ -1261,8 +1261,8 @@ export function KnowledgeGraphView({
 
                 <circle
                   r={r}
-                  fill={dimmed ? "#0a0a0d" : `url(#grad-${node.nodeType})`}
-                  stroke={isSelected ? "#f4f4f6" : dimmed ? "#26262e" : col}
+                  fill={dimmed ? "var(--color-background)" : `url(#grad-${node.nodeType})`}
+                  stroke={isSelected ? "var(--color-foreground)" : dimmed ? "var(--color-border)" : col}
                   strokeWidth={isSelected ? 1.75 : neighbor ? 1.75 : 1.25}
                   className="transition-all duration-500 ease-[var(--ease-premium)]"
                   style={{ opacity: dimmed ? 0.28 : 1 }}
@@ -1275,7 +1275,7 @@ export function KnowledgeGraphView({
                       height={r * iconScale}
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke={isSelected ? "#0a0a0d" : "#ffffff"}
+                      stroke={isSelected ? "var(--color-background)" : "#ffffff"}
                       strokeWidth="1.9"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -1288,7 +1288,7 @@ export function KnowledgeGraphView({
                   <text
                     y={r + 15}
                     textAnchor="middle"
-                    fill={dimmed ? "#3a3a44" : hovered ? "#f4f4f6" : "#a3a3ad"}
+                    fill={dimmed ? "var(--color-faint-foreground)" : hovered ? "var(--color-foreground)" : "var(--color-faint-foreground)"}
                     fontSize={9.5}
                     fontWeight={650}
                     className="pointer-events-none transition-colors duration-300"
@@ -1448,6 +1448,7 @@ export function KnowledgeGraphView({
             onClick={() => applyZoom(1.28)}
             className="rounded-[var(--radius-control)] p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
             title="Zoom in"
+            aria-label="Zoom in"
           >
             <ZoomIn className="h-4 w-4" strokeWidth={1.75} />
           </button>
@@ -1458,6 +1459,7 @@ export function KnowledgeGraphView({
             onClick={() => applyZoom(1 / 1.28)}
             className="rounded-[var(--radius-control)] p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
             title="Zoom out"
+            aria-label="Zoom out"
           >
             <ZoomOut className="h-4 w-4" strokeWidth={1.75} />
           </button>
@@ -1466,6 +1468,7 @@ export function KnowledgeGraphView({
           onClick={fitToView}
           className="glass-control rounded-[var(--radius-control)] border border-(--color-border) p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
           title="Fit to view"
+          aria-label="Fit to view"
         >
           <Maximize className="h-4 w-4" strokeWidth={1.75} />
         </button>
@@ -1473,6 +1476,7 @@ export function KnowledgeGraphView({
           onClick={resetView}
           className="glass-control rounded-[var(--radius-control)] border border-(--color-border) p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
           title="Reset view"
+          aria-label="Reset view"
         >
           <LocateFixed className="h-4 w-4" strokeWidth={1.75} />
         </button>
@@ -1484,6 +1488,7 @@ export function KnowledgeGraphView({
               : "border-(--color-border) text-(--color-muted-foreground) hover:bg-(--color-surface-hover) hover:text-(--color-foreground)"
           }`}
           title="Search"
+          aria-label="Search graph nodes"
         >
           <Search className="h-4 w-4" strokeWidth={1.75} />
         </button>

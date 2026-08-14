@@ -44,7 +44,7 @@ export function SegmentedControl<T extends string>({
             aria-pressed={isActive}
             onClick={() => onChange(option.value)}
             className={cn(
-              "flex shrink-0 items-center gap-1.5 rounded-[calc(var(--radius-control)-3px)] px-3 py-1 text-[13px] font-medium transition-all duration-150 ease-[var(--ease-premium)]",
+              "flex shrink-0 items-center gap-1.5 rounded-[calc(var(--radius-control)-3px)] px-3 py-1 text-[13px] font-medium transition-all duration-150 ease-[var(--ease-premium)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent)/60",
               isActive
                 ? "bg-(--color-surface-hover) text-(--color-foreground) shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_1px_2px_rgba(0,0,0,0.35)]"
                 : "text-(--color-muted-foreground) hover:text-(--color-foreground)",

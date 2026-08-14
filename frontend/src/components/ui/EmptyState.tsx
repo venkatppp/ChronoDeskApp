@@ -39,7 +39,10 @@ export function EmptyState({
         )}
       </div>
       {(primaryAction || secondaryAction) && (
-        <div className="flex flex-wrap items-center justify-center gap-2.5">{primaryAction}</div>
+        <div className="flex flex-wrap items-center justify-center gap-2.5">
+          {secondaryAction}
+          {primaryAction}
+        </div>
       )}
     </Card>
   );

@@ -254,16 +254,27 @@
     font-family: var(--font-sans);
     font-weight: 400;
     letter-spacing: -0.011em;
+    line-height: 1.5;
+    font-optical-sizing: auto;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
-  /* Visible keyboard focus everywhere, per accessibility floor. */
+  /* Visible keyboard focus everywhere, per accessibility floor. The ring
+     uses a 3px offset so adjacent elements keep their own chrome visible. */
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
     border-radius: 4px;
+  }
+
+  /* Interactive rows that draw their own focus treatment (list rows,
+     segmented segments, nav items) fall back to the ring above; text
+     links get a softer underline-style focus. */
+  a:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 
   ::selection {
@@ -296,6 +307,11 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
+    }
+
+    /* The drifting environment orbs become static light fields. */
+    .env-orb {
+      animation: none !important;
     }
   }
 }
@@ -479,7 +495,9 @@
   .glass-panel,
   .glass-sheet,
   .glass-control,
-  .glass-well {
+  .glass-well,
+  .glass-nav,
+  .glass-accent {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -489,11 +507,52 @@
   .glass-sheet {
     background: rgba(14, 16, 24, 0.96);
   }
+  .glass-control,
+  .glass-well {
+    background: rgba(14, 16, 24, 0.9);
+  }
+  .glass-accent {
+    background: linear-gradient(180deg, rgba(10, 132, 255, 0.85), rgba(10, 132, 255, 0.72));
+  }
   .light .glass-chrome,
   .light .glass-surface,
   .light .glass-panel,
   .light .glass-sheet {
     background: rgba(245, 245, 247, 0.97);
+  }
+  .light .glass-control,
+  .light .glass-well {
+    background: rgba(245, 245, 247, 0.94);
+  }
+}
+
+/* "Increase Contrast" — near-solid surfaces with a defined rim so the
+   material never collapses into the canvas. */
+@media (prefers-contrast: more) {
+  .glass-chrome,
+  .glass-surface,
+  .glass-panel,
+  .glass-sheet,
+  .glass-control,
+  .glass-well {
+    background: rgba(14, 16, 24, 0.92);
+  }
+  .light .glass-chrome,
+  .light .glass-surface,
+  .light .glass-panel,
+  .light .glass-sheet,
+  .light .glass-control,
+  .light .glass-well {
+    background: rgba(245, 245, 247, 0.95);
+  }
+  .glass-chrome,
+  .glass-surface,
+  .glass-panel,
+  .glass-sheet,
+  .glass-control,
+  .glass-well,
+  .content-card {
+    border: 1px solid var(--color-border);
   }
 }
 

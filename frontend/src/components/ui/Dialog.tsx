@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/utils/cn";
 import { GlassSurface } from "@/components/ui/GlassSurface";
 
@@ -15,8 +15,13 @@ interface DialogProps {
 /**
  * macOS-style sheet dialog on liquid glass. Owns the backdrop, Escape
  * handling, and focus-on-open so pages never duplicate dialog chrome.
+ * Focus moves into the sheet when it opens and returns to the element
+ * that opened it when it closes.
  */
 export function Dialog({ open, onClose, title, description, children, footer, className }: DialogProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -25,6 +30,18 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+    const panel = panelRef.current;
+    const focusTarget = panel?.querySelector<HTMLElement>("input, [tabindex], button");
+    (focusTarget ?? panel)?.focus();
+    return () => {
+      previouslyFocusedRef.current?.focus?.();
+      previouslyFocusedRef.current = null;
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -41,16 +58,18 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
       <GlassSurface
         material="sheet"
         className={cn(
-          "w-full max-w-md animate-scale-in rounded-2xl p-5",
+          "w-full max-w-md animate-scale-in rounded-2xl p-5 outline-none",
           className,
         )}
       >
-        <h2 className="font-(family-name:--font-display) text-lg font-semibold tracking-tight text-(--color-foreground)">
-          {title}
-        </h2>
-        {description && <p className="mt-1 text-sm text-(--color-muted-foreground)">{description}</p>}
-        <div className="mt-4">{children}</div>
-        {footer && <div className="mt-5 flex justify-end gap-2">{footer}</div>}
+        <div ref={panelRef}>
+          <h2 className="font-(family-name:--font-display) text-lg font-semibold tracking-tight text-(--color-foreground)">
+            {title}
+          </h2>
+          {description && <p className="mt-1 text-sm text-(--color-muted-foreground)">{description}</p>}
+          <div className="mt-4">{children}</div>
+          {footer && <div className="mt-5 flex justify-end gap-2">{footer}</div>}
+        </div>
       </GlassSurface>
     </div>
   );
