@@ -71,6 +71,28 @@ impl WorkspaceService {
         self.workspace_repository.find_by_root_path(root_path).await
     }
 
+    /// Looks up the most recently active manually-created workspace (no
+    /// filesystem root bound) with exactly `name`, if any. Used to adopt
+    /// an existing filesystem-less workspace as a watched folder's
+    /// workspace rather than creating a duplicate-named one.
+    pub async fn find_unbound_by_name(
+        &self,
+        name: &str,
+    ) -> Result<Option<Workspace>, DatabaseError> {
+        self.workspace_repository.find_unbound_by_name(name).await
+    }
+
+    /// Binds a filesystem root to an existing workspace — the adoption
+    /// step that turns a manually-created, filesystem-less workspace into
+    /// a watched folder's workspace.
+    pub async fn set_workspace_root_path(
+        &self,
+        id: Uuid,
+        root_path: &str,
+    ) -> Result<Workspace, DatabaseError> {
+        self.workspace_repository.set_root_path(id, root_path).await
+    }
+
     /// Creates a workspace and records its creation as the first entry in
     /// its own timeline, so the Timeline screen's history (blueprint §10)
     /// starts on day one instead of on whatever the first *file* event

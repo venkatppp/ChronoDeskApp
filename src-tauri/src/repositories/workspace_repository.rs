@@ -238,6 +238,53 @@ impl WorkspaceRepository {
         row.map(Workspace::try_from).transpose()
     }
 
+    /// Looks up the most recently active manually-created workspace —
+    /// one with no filesystem root bound (`root_path IS NULL`) — whose
+    /// name exactly matches `name`, if any. The workspace manager uses
+    /// this to adopt an existing filesystem-less workspace as a watched
+    /// folder's workspace instead of creating a duplicate-named one.
+    pub async fn find_unbound_by_name(
+        &self,
+        name: &str,
+    ) -> Result<Option<Workspace>, DatabaseError> {
+        let row: Option<WorkspaceRow> = sqlx::query_as(&format!(
+            "SELECT {SELECT_COLUMNS} FROM workspaces
+             WHERE root_path IS NULL AND name = ?
+             ORDER BY last_active_at DESC LIMIT 1"
+        ))
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        row.map(Workspace::try_from).transpose()
+    }
+
+    /// Binds a filesystem root to an existing workspace — the adoption
+    /// step that turns a manually-created, filesystem-less workspace into
+    /// a watched folder's workspace. Uniqueness of `root_path` across
+    /// workspaces is enforced by the partial unique index from
+    /// `migrations/0002_workspace_root_path.sql`.
+    ///
+    /// # Errors
+    /// - [`DatabaseError::NotFound`] if `id` doesn't exist.
+    /// - [`DatabaseError::Constraint`] if `root_path` is already claimed
+    ///   by another workspace.
+    pub async fn set_root_path(&self, id: Uuid, root_path: &str) -> Result<Workspace, DatabaseError> {
+        let result = sqlx::query("UPDATE workspaces SET root_path = ?, updated_at = ? WHERE id = ?")
+            .bind(root_path)
+            .bind(Utc::now())
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(DatabaseError::not_found("workspace", id.to_string()));
+        }
+
+        tracing::info!(workspace_id = %id, root_path, "workspace root path bound");
+        self.get_by_id(id).await
+    }
+
     /// Returns the single most recently active `status = active`
     /// workspace, if any — the workspace a "resume where you left off"
     /// action on app launch would restore.

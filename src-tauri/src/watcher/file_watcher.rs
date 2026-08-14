@@ -17,11 +17,12 @@ use tokio::time::interval;
 
 use crate::app_events::{self, AppEventEmitter, NoopEmitter};
 use crate::errors::WatcherError;
+use crate::models::Workspace;
 use crate::timeline::{TimelineActivity, TimelineEngine};
 use crate::workspace::WorkspaceManager;
 
 use super::debounce::{DebouncedEvent, DebouncedEventKind, Debouncer};
-use super::event_handler::normalize;
+use super::event_handler::{is_ignored, normalize};
 
 /// How long a path's events must be quiet before the debouncer emits a
 /// coalesced event for it.
@@ -73,6 +74,11 @@ impl FileWatcher {
     /// once the watch is registered — spawning the background tasks is
     /// fast and non-blocking; this does not wait for the first event.
     ///
+    /// Also kicks off an asynchronous initial scan of `root`'s existing
+    /// contents ([`FileWatcher::spawn_initial_scan`]), so a newly watched
+    /// folder's pre-existing files are indexed immediately instead of
+    /// waiting for the first future filesystem event.
+    ///
     /// # Errors
     /// - [`WatcherError::InvalidPath`] if `root` doesn't exist or isn't a
     ///   directory.
@@ -92,7 +98,12 @@ impl FileWatcher {
         }
 
         let handle = self.spawn_watch(canonical.clone());
-        active.insert(canonical, handle);
+        active.insert(canonical.clone(), handle);
+
+        // Index what's already there — notify only reports changes that
+        // happen after the OS watch is registered, so without this scan
+        // a watched folder with existing files would stay empty forever.
+        self.spawn_initial_scan(canonical);
         Ok(())
     }
 
@@ -176,16 +187,51 @@ impl FileWatcher {
             pipeline_task,
         }
     }
+
+    /// Scans `root`'s existing contents and indexes every non-ignored
+    /// file into the workspace [`WorkspaceManager`] resolves for it.
+    ///
+    /// Runs entirely in the background so [`FileWatcher::watch`] returns
+    /// immediately; `notify` only reports changes that happen after the
+    /// OS watch is registered, so without this initial pass a folder
+    /// that already contains files would never populate its workspace.
+    ///
+    /// Every touched workspace gets a final `workspace:updated` event so
+    /// open frontends refresh their file counts without a manual reload.
+    fn spawn_initial_scan(&self, root: PathBuf) {
+        let workspace_manager = self.workspace_manager.clone();
+        let timeline_engine = self.timeline_engine.clone();
+        let event_emitter = self.event_emitter.clone();
+        tokio::spawn(async move {
+            let mut touched: Vec<Workspace> = Vec::new();
+            let indexed = index_existing_files(&workspace_manager, &timeline_engine, &root, &mut touched).await;
+            for workspace in &touched {
+                app_events::emit(
+                    event_emitter.as_ref(),
+                    app_events::EVENT_WORKSPACE_UPDATED,
+                    workspace,
+                );
+            }
+            tracing::info!(
+                path = %root.display(),
+                files = indexed,
+                workspaces = touched.len(),
+                "initial directory scan complete",
+            );
+        });
+    }
 }
 
 /// Resolves the workspace a single debounced event belongs to, records
 /// the matching timeline activity, and emits the pipeline's final
 /// "EventEmitter → Frontend" stage: `file:changed`, `timeline:event_added`,
 /// and `workspace:updated` (the workspace's `last_active_at` changed as
-/// part of recording activity against it). A path with no detectable
-/// workspace (blueprint §2.2's heuristics found nothing) is silently
-/// skipped — see [`WorkspaceManager::resolve_workspace_for_path`] — not
-/// treated as an error, and emits nothing.
+/// part of recording activity against it). A path that resolves to no
+/// workspace — which, since the watch root is an implicit workspace
+/// root, now only happens if the event path falls outside `watch_root`
+/// — is silently skipped (see
+/// [`WorkspaceManager::resolve_workspace_for_path`]), not treated as an
+/// error, and emits nothing.
 async fn process_event(
     workspace_manager: &WorkspaceManager,
     timeline_engine: &TimelineEngine,
@@ -237,6 +283,95 @@ async fn process_event(
     );
 
     Ok(())
+}
+
+/// Iterative recursive walk of `root` (an explicit stack, so deeply
+/// nested trees can't overflow the task's call stack), registering every
+/// non-ignored file into the workspace [`WorkspaceManager`] resolves for
+/// it via [`TimelineEngine::register_file`] — file artifacts only, no
+/// timeline events, since pre-existing files weren't "created" now.
+///
+/// Inaccessible directories/entries and per-file failures are logged and
+/// skipped — a scan must never fail the watch it runs under. Returns the
+/// number of files indexed; `touched` collects the distinct workspaces
+/// that gained artifacts (for the caller's `workspace:updated` events).
+async fn index_existing_files(
+    workspace_manager: &WorkspaceManager,
+    timeline_engine: &TimelineEngine,
+    root: &Path,
+    touched: &mut Vec<Workspace>,
+) -> usize {
+    let mut indexed = 0;
+    let mut stack = vec![root.to_path_buf()];
+
+    while let Some(dir) = stack.pop() {
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(err) => {
+                tracing::warn!(path = %dir.display(), error = %err, "initial scan: skipping unreadable directory");
+                continue;
+            }
+        };
+
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(err) => {
+                    tracing::warn!(path = %dir.display(), error = %err, "initial scan: skipping unreadable entry");
+                    continue;
+                }
+            };
+
+            let path = entry.path();
+            if is_ignored(&path) {
+                continue;
+            }
+
+            let file_type = match entry.file_type() {
+                Ok(file_type) => file_type,
+                Err(err) => {
+                    tracing::warn!(path = %path.display(), error = %err, "initial scan: skipping entry with unknown type");
+                    continue;
+                }
+            };
+
+            if file_type.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if !file_type.is_file() {
+                continue;
+            }
+
+            let canonical = std::fs::canonicalize(&path).unwrap_or(path);
+            let workspace = match workspace_manager
+                .resolve_workspace_for_path(&canonical, root)
+                .await
+            {
+                Ok(Some(workspace)) => workspace,
+                Ok(None) => continue,
+                Err(err) => {
+                    tracing::warn!(path = %canonical.display(), error = %err, "initial scan: workspace resolution failed");
+                    continue;
+                }
+            };
+
+            if let Err(err) = timeline_engine
+                .register_file(workspace.id, &canonical.to_string_lossy())
+                .await
+            {
+                tracing::warn!(path = %canonical.display(), error = %err, "initial scan: failed to index file");
+                continue;
+            }
+
+            indexed += 1;
+            if !touched.iter().any(|w| w.id == workspace.id) {
+                touched.push(workspace);
+            }
+        }
+    }
+
+    indexed
 }
 
 /// Owns the OS-level watch for one directory, reconnecting automatically
@@ -488,5 +623,104 @@ mod tests {
         );
 
         watcher.unwatch(&canonical_root).await.unwrap();
+    }
+
+    /// The bug this guards against: adding a watched folder that already
+    /// contains files used to leave its workspace at 0 files, because
+    /// `notify` only reports changes after the watch is registered. The
+    /// initial scan must index the pre-existing tree (nested files
+    /// included, ignored paths excluded) with no fake timeline events,
+    /// and a remove/re-add must not duplicate the indexed rows.
+    #[tokio::test]
+    async fn adding_a_watch_indexes_pre_existing_files_without_duplicates() {
+        let (database, _db_guard) = test_database().await;
+        let file_repository = FileRepository::new(database.pool().clone());
+        let workspace_repository = WorkspaceRepository::new(database.pool().clone());
+        let workspace_manager = WorkspaceManager::new(WorkspaceService::new(
+            workspace_repository.clone(),
+            TimelineRepository::new(database.pool().clone()),
+        ));
+        let timeline_repository = TimelineRepository::new(database.pool().clone());
+        let timeline_engine = TimelineEngine::new(TimelineService::new(
+            TimelineRecorder::new(
+                FileRepository::new(database.pool().clone()),
+                timeline_repository.clone(),
+            ),
+            timeline_repository.clone(),
+        ));
+        let watcher = FileWatcher::new(workspace_manager, timeline_engine);
+
+        let root = tempdir().unwrap();
+        let canonical_root =
+            std::fs::canonicalize(root.path()).unwrap_or_else(|_| root.path().to_path_buf());
+        fs::create_dir_all(canonical_root.join("src")).unwrap();
+        fs::write(canonical_root.join("src/main.rs"), "fn main() {}").unwrap();
+        fs::write(canonical_root.join("README.md"), "# hi").unwrap();
+        // Ignored content must be skipped by the scan, matching the
+        // live-event ignore filter.
+        fs::create_dir_all(canonical_root.join("node_modules/pkg")).unwrap();
+        fs::write(canonical_root.join("node_modules/pkg/index.js"), "x").unwrap();
+        fs::write(canonical_root.join(".DS_Store"), "").unwrap();
+
+        watcher.watch(canonical_root.clone()).await.unwrap();
+
+        let root_path_str = canonical_root.to_string_lossy().into_owned();
+        // The workspace has no project markers, so it is created via the
+        // watch-root fallback — exactly the "loose folder" case that used
+        // to stay at zero files.
+        let workspace = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(ws) = workspace_repository
+                    .find_by_root_path(&root_path_str)
+                    .await
+                    .unwrap()
+                {
+                    let files = file_repository.list_by_workspace(ws.id).await.unwrap();
+                    if files.len() == 2 {
+                        return ws;
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        })
+        .await
+        .expect("initial scan should index the pre-existing files within the timeout");
+
+        let files = file_repository.list_by_workspace(workspace.id).await.unwrap();
+        let mut paths: Vec<String> = files.iter().map(|f| f.path_or_url.clone()).collect();
+        paths.sort();
+        assert_eq!(
+            paths,
+            vec![
+                format!("{}/README.md", canonical_root.display()),
+                format!("{}/src/main.rs", canonical_root.display()),
+            ],
+            "nested files must be indexed and ignored paths must not"
+        );
+
+        let events = timeline_repository
+            .list_by_workspace(workspace.id, None)
+            .await
+            .unwrap();
+        assert!(
+            events
+                .iter()
+                .all(|e| e.event_type == crate::models::TimelineEventType::WorkspaceSwitch),
+            "indexing pre-existing files must not fabricate file timeline events \
+             (only the workspace-creation switch may exist)"
+        );
+
+        // Remove and re-add the same path: the second scan must reuse the
+        // existing rows, not duplicate them.
+        watcher.unwatch(&canonical_root).await.unwrap();
+        watcher.watch(canonical_root.clone()).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+
+        let files_after = file_repository.list_by_workspace(workspace.id).await.unwrap();
+        assert_eq!(
+            files_after.len(),
+            2,
+            "re-adding a watch path must not duplicate file artifacts"
+        );
     }
 }

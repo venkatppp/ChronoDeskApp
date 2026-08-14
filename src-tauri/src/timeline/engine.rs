@@ -51,6 +51,17 @@ impl TimelineEngine {
             .await
     }
 
+    /// Indexes a pre-existing file under `workspace_id` — a `files` row
+    /// with no timeline event. The file watcher's initial directory scan
+    /// calls this for every existing file found when a watch starts.
+    pub async fn register_file(
+        &self,
+        workspace_id: Uuid,
+        path: &str,
+    ) -> Result<(), DatabaseError> {
+        self.service.register_file(workspace_id, path).await
+    }
+
     /// Lists the most recent events for a workspace, newest first —
     /// exposed through `commands::timeline` for the Timeline screen.
     pub async fn recent_events(

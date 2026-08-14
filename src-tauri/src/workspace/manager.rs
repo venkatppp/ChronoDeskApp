@@ -33,19 +33,30 @@ impl WorkspaceManager {
     /// Given a file path that just had activity under `watch_root`,
     /// finds or creates the workspace it belongs to and marks it opened.
     ///
-    /// Returns `Ok(None)` — not an error — if no ancestor directory
-    /// within `watch_root` clears the detection threshold (blueprint
-    /// §2.2's heuristics in [`super::heuristics`]), e.g. a stray file
-    /// sitting directly in a watched root with no project markers
-    /// anywhere above it. The watcher pipeline should simply skip
-    /// recording a timeline event in that case rather than inventing a
-    /// workspace for every loose file.
+    /// Returns `Ok(None)` — not an error — only if `file_path` isn't
+    /// under `watch_root` at all. When no ancestor directory within
+    /// `watch_root` clears the marker-detection threshold (blueprint
+    /// §2.2's heuristics in [`super::heuristics`]) — e.g. a loose file
+    /// sitting directly in a watched root with no project markers above
+    /// it — `watch_root` itself is treated as an implicit workspace
+    /// root: the user explicitly opted into watching that folder, so its
+    /// files belong to it rather than being silently dropped.
     pub async fn resolve_workspace_for_path(
         &self,
         file_path: &Path,
         watch_root: &Path,
     ) -> Result<Option<Workspace>, DatabaseError> {
-        let Some(detected) = detector::detect_workspace_root(file_path, watch_root) else {
+        let Some(detected) = detector::detect_workspace_root(file_path, watch_root).or_else(|| {
+            if file_path.starts_with(watch_root) {
+                Some(detector::DetectedWorkspaceRoot {
+                    path: watch_root.to_path_buf(),
+                    markers: Vec::new(),
+                    suggested_name: super::heuristics::suggest_name(watch_root),
+                })
+            } else {
+                None
+            }
+        }) else {
             return Ok(None);
         };
 
@@ -71,6 +82,30 @@ impl WorkspaceManager {
         if let Some(existing) = self.workspace_service.find_by_root_path(&root_path).await? {
             tracing::debug!(workspace_id = %existing.id, root_path, "matched existing workspace");
             return self.workspace_service.open_workspace(existing.id).await;
+        }
+
+        // Implicit watch-root workspaces (the detector found no markers,
+        // so `detected.path` is the watched folder itself) may already
+        // exist as manually-created, filesystem-less workspaces — e.g. the
+        // user typed the folder's name into the dashboard before adding
+        // the folder to Watched Folders. Adopt that workspace by binding
+        // the root path instead of creating a duplicate-named one.
+        if detected.markers.is_empty() {
+            if let Some(manual) = self
+                .workspace_service
+                .find_unbound_by_name(&detected.suggested_name)
+                .await?
+            {
+                tracing::info!(
+                    workspace_id = %manual.id,
+                    root_path,
+                    "adopted manually-created workspace as the watch-root workspace"
+                );
+                self.workspace_service
+                    .set_workspace_root_path(manual.id, &root_path)
+                    .await?;
+                return self.workspace_service.open_workspace(manual.id).await;
+            }
         }
 
         tracing::info!(
@@ -99,6 +134,7 @@ impl WorkspaceManager {
 mod tests {
     use super::*;
     use crate::database::test_database;
+    use crate::models::CreateWorkspaceInput;
     use crate::repositories::{TimelineRepository, WorkspaceRepository};
     use std::fs;
     use tempfile::tempdir;
@@ -162,17 +198,63 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn returns_none_for_a_loose_file_with_no_project_markers() {
+    async fn falls_back_to_the_watch_root_when_no_project_markers_exist() {
         let (manager, _db_guard) = manager().await;
         let watch_root = tempdir().unwrap();
         let loose_file = watch_root.path().join("notes.txt");
         fs::write(&loose_file, "").unwrap();
 
-        let result = manager
+        let workspace = manager
             .resolve_workspace_for_path(&loose_file, watch_root.path())
             .await
-            .unwrap();
+            .expect("resolve should succeed")
+            .expect("the watch root is an implicit workspace root");
 
-        assert!(result.is_none());
+        assert_eq!(
+            workspace.root_path.as_deref(),
+            Some(watch_root.path().to_string_lossy().as_ref())
+        );
+    }
+
+    #[tokio::test]
+    async fn fallback_adopts_an_existing_unbound_workspace_with_the_same_name() {
+        let (database, _db_guard) = test_database().await;
+        let workspace_repository = WorkspaceRepository::new(database.pool().clone());
+        let manager = WorkspaceManager::new(WorkspaceService::new(
+            workspace_repository.clone(),
+            TimelineRepository::new(database.pool().clone()),
+        ));
+        let watch_root = tempdir().unwrap();
+        let folder_name = watch_root
+            .path()
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let manual = workspace_repository
+            .create(CreateWorkspaceInput {
+                name: folder_name.clone(),
+                description: None,
+                root_path: None,
+            })
+            .await
+            .unwrap();
+        let loose_file = watch_root.path().join("notes.txt");
+        fs::write(&loose_file, "").unwrap();
+
+        let workspace = manager
+            .resolve_workspace_for_path(&loose_file, watch_root.path())
+            .await
+            .expect("resolve should succeed")
+            .expect("the watch root is an implicit workspace root");
+
+        assert_eq!(
+            workspace.id, manual.id,
+            "the existing filesystem-less workspace must be adopted, not duplicated"
+        );
+        assert_eq!(
+            workspace.root_path.as_deref(),
+            Some(watch_root.path().to_string_lossy().as_ref())
+        );
     }
 }

@@ -62,6 +62,19 @@ impl TimelineService {
             .await
     }
 
+    /// Indexes a pre-existing file under `workspace_id`: ensures the
+    /// `files` row exists without recording a timeline event. The file
+    /// watcher's initial directory scan calls this for every file found
+    /// when a watch starts, so pre-existing content populates the
+    /// workspace without fabricating "created now" events.
+    pub async fn register_file(
+        &self,
+        workspace_id: Uuid,
+        path: &str,
+    ) -> Result<(), DatabaseError> {
+        self.recorder.register_file(workspace_id, path).await.map(|_| ())
+    }
+
     /// Lists the most recent events for a workspace, newest first.
     ///
     /// `limit` is clamped to `1..=MAX_LIST_LIMIT`: `None` or a

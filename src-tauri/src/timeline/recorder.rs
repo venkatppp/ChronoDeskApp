@@ -88,7 +88,11 @@ impl TimelineRecorder {
     /// yet distinguish tabs/notes/screenshots from real filesystem files,
     /// only [`crate::watcher`] does that distinction, and Phase 3 only
     /// watches the filesystem — the first time this path is seen.
-    async fn resolve_file(&self, workspace_id: Uuid, path: &str) -> Result<Uuid, DatabaseError> {
+    pub(crate) async fn resolve_file(
+        &self,
+        workspace_id: Uuid,
+        path: &str,
+    ) -> Result<Uuid, DatabaseError> {
         if let Some(existing) = self
             .file_repository
             .find_by_workspace_and_path(workspace_id, path)
@@ -109,6 +113,32 @@ impl TimelineRecorder {
 
         Ok(created.id)
     }
+
+    /// Ensures a `files` row exists for `path` under `workspace_id`
+    /// without recording a timeline event — the initial directory scan
+    /// runs when a watch starts, and a pre-existing file wasn't
+    /// "created" right now, so it gets indexed but no fake event. Reuses
+    /// [`TimelineRecorder::resolve_file`], so a later live event (or a
+    /// re-scan after remove/re-add) reuses the same row instead of
+    /// duplicating it.
+    ///
+    /// # Errors
+    /// [`DatabaseError::InvalidInput`] if `path` is inside an excluded
+    /// directory (same defense-in-depth as [`TimelineRecorder::record`]).
+    pub(crate) async fn register_file(
+        &self,
+        workspace_id: Uuid,
+        path: &str,
+    ) -> Result<Uuid, DatabaseError> {
+        if crate::watcher::event_handler::is_ignored(std::path::Path::new(path)) {
+            tracing::debug!(path = %path, "skipping ignored path in file registration");
+            return Err(DatabaseError::InvalidInput(format!(
+                "path is inside an excluded directory: {path}"
+            )));
+        }
+
+        self.resolve_file(workspace_id, path).await
+    }
 }
 
 #[cfg(test)]
@@ -116,7 +146,7 @@ mod tests {
     use super::*;
     use crate::database::test_database;
     use crate::models::CreateWorkspaceInput;
-    use crate::repositories::WorkspaceRepository;
+    use crate::repositories::{TimelineRepository, WorkspaceRepository};
 
     async fn recorder_with_workspace() -> (TimelineRecorder, FileRepository, Uuid, tempfile::TempDir)
     {
@@ -209,6 +239,71 @@ mod tests {
             .unwrap();
 
         assert_eq!(event.file_id, None);
+    }
+
+    #[tokio::test]
+    async fn register_file_indexes_a_row_without_a_timeline_event() {
+        let (database, _guard) = test_database().await;
+        let workspace_repo = WorkspaceRepository::new(database.pool().clone());
+        let workspace = workspace_repo
+            .create(CreateWorkspaceInput {
+                name: "Scan Target".to_string(),
+                description: None,
+                root_path: None,
+            })
+            .await
+            .unwrap();
+        let file_repository = FileRepository::new(database.pool().clone());
+        let timeline_repository = TimelineRepository::new(database.pool().clone());
+        let recorder = TimelineRecorder::new(file_repository.clone(), timeline_repository.clone());
+
+        // Registering the same path twice (e.g. a re-scan after
+        // remove/re-add) must reuse the row, not duplicate it.
+        recorder
+            .register_file(workspace.id, "/repo/old.py")
+            .await
+            .unwrap();
+        recorder
+            .register_file(workspace.id, "/repo/old.py")
+            .await
+            .unwrap();
+
+        let files = file_repository.list_by_workspace(workspace.id).await.unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path_or_url, "/repo/old.py");
+
+        assert!(
+            timeline_repository
+                .list_by_workspace(workspace.id, None)
+                .await
+                .unwrap()
+                .is_empty(),
+            "indexing a pre-existing file must not fabricate a timeline event"
+        );
+    }
+
+    #[tokio::test]
+    async fn register_file_rejects_ignored_paths() {
+        let (database, _guard) = test_database().await;
+        let workspace_repo = WorkspaceRepository::new(database.pool().clone());
+        let workspace = workspace_repo
+            .create(CreateWorkspaceInput {
+                name: "Scan Target".to_string(),
+                description: None,
+                root_path: None,
+            })
+            .await
+            .unwrap();
+        let recorder = TimelineRecorder::new(
+            FileRepository::new(database.pool().clone()),
+            TimelineRepository::new(database.pool().clone()),
+        );
+
+        let result = recorder
+            .register_file(workspace.id, "/repo/node_modules/x/index.js")
+            .await;
+
+        assert!(matches!(result, Err(DatabaseError::InvalidInput(_))));
     }
 
     #[tokio::test]
