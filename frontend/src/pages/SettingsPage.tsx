@@ -32,6 +32,7 @@ export function SettingsPage() {
 
   const fetchWatchPaths = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const paths = await invoke<string[]>("list_watch_paths");
       setWatchPaths(paths);
@@ -65,6 +66,7 @@ export function SettingsPage() {
       fetchWatchPaths();
     } catch (err) {
       console.error("Failed to add watch path:", err);
+      setError("Failed to add watched folder.");
     }
   };
 
@@ -74,6 +76,7 @@ export function SettingsPage() {
       fetchWatchPaths();
     } catch (err) {
       console.error("Failed to remove watch path:", err);
+      setError("Failed to remove watched folder.");
     }
   };
 
