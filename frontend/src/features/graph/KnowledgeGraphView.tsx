@@ -642,8 +642,8 @@ function renderStructure(
                   cx={n.w - 11}
                   cy={n.h / 2}
                   r={9}
-                  fill={active ? n.tone : "rgba(255,255,255,0.06)"}
-                  stroke={active ? n.tone : "rgba(255,255,255,0.15)"}
+                  fill={active ? n.tone : "var(--color-surface-raised)"}
+                  stroke={active ? n.tone : "var(--color-border)"}
                   strokeWidth={1}
                 />
                 {multiple && (
@@ -662,7 +662,7 @@ function renderStructure(
                   />
                 )}
                 {!multiple && (
-                  <text x={n.w - 10.5} y={n.h / 2 + 3.5} textAnchor="middle" fontSize={8} fontWeight={700} fill="var(--color-faint-foreground)" className="pointer-events-none select-none">
+                  <text x={n.w - 10.5} y={n.h / 2 + 3.5} textAnchor="middle" fontSize={8} fontWeight={700} fill="var(--color-muted-foreground)" className="pointer-events-none select-none">
                     {active ? "−" : `${Math.min(childCount, 99)}`}
                   </text>
                 )}
@@ -1267,7 +1267,7 @@ export function KnowledgeGraphView({
                   className="transition-all duration-500 ease-[var(--ease-premium)]"
                   style={{ opacity: dimmed ? 0.28 : 1 }}
                 />
-                <circle r={r} fill="none" stroke={hovered ? "#ffffff" : "none"} strokeWidth={hovered ? 0.75 : 0} strokeDasharray="2 5" className="transition-all duration-200" style={{ opacity: hovered ? 0.8 : 0 }} />
+                <circle r={r} fill="none" stroke={hovered ? "var(--color-foreground)" : "none"} strokeWidth={hovered ? 0.75 : 0} strokeDasharray="2 5" className="transition-all duration-200" style={{ opacity: hovered ? 0.8 : 0 }} />
                 <foreignObject x={-r * 0.4} y={-r * 0.4} width={r * 0.8} height={r * 0.8} className="pointer-events-none">
                   <div className="flex h-full w-full items-center justify-center" style={{ opacity: dimmed ? 0.28 : 1 }}>
                     <svg
@@ -1275,7 +1275,7 @@ export function KnowledgeGraphView({
                       height={r * iconScale}
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke={isSelected ? "var(--color-background)" : "#ffffff"}
+                      stroke="var(--color-foreground)"
                       strokeWidth="1.9"
                       strokeLinecap="round"
                       strokeLinejoin="round"
