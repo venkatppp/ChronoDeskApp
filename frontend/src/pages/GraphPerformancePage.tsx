@@ -171,7 +171,7 @@ export function GraphPerformancePage() {
             <span className="h-1 w-1 rounded-full bg-(--color-faint-foreground)" />
             Graph
           </p>
-          <h1 className="font-(family-name:--font-display) text-xl font-semibold tracking-tight">Graph Performance &amp; Scale</h1>
+          <h1 className="font-(family-name:--font-display) text-[1.75rem] font-semibold tracking-tight">Graph Performance &amp; Scale</h1>
           <p className="text-sm text-(--color-muted-foreground)">
             Pagination, virtualization, integrity, repair, benchmarks, and operational health for the knowledge graph.
           </p>

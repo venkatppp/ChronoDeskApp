@@ -260,7 +260,7 @@ export function GraphPage() {
             <span className="h-1 w-1 rounded-full bg-(--color-faint-foreground)" />
             Graph
           </p>
-          <h1 className="font-(family-name:--font-display) text-xl font-semibold tracking-tight">Knowledge Graph</h1>
+          <h1 className="font-(family-name:--font-display) text-[1.75rem] font-semibold tracking-tight">Knowledge Graph</h1>
           <p className="text-sm text-(--color-muted-foreground)">
             Typed graph across workspaces, files, planner reports, executions, memory, and sessions.
           </p>

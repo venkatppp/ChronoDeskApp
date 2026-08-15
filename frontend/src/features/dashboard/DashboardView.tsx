@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { GlassInput } from "@/components/ui/GlassInput";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { GlassSurface } from "@/components/ui/GlassSurface";
 import { Dialog } from "@/components/ui/Dialog";
 import { ProgressRing } from "@/components/ui/ProgressRing";
@@ -258,26 +259,19 @@ export function DashboardView() {
 
   return (
     <div className="flex w-full flex-col gap-6 px-6 py-7 lg:px-8">
-      {/* Greeting — large, calm, directly on the canvas. No box. */}
-      <section>
-        <div className="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-(--color-faint-foreground)">
-              {todayLabel}
-              {resumeWorkspace ? ` — ${resumeWorkspace.name}` : ""}
-            </p>
-            <h1 className="mt-2 font-(family-name:--font-display) text-5xl font-semibold tracking-[-0.03em] text-(--color-foreground)">
-              {greeting}.
-            </h1>
-            <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-(--color-muted-foreground)">
-              {resumeWorkspace
-                ? `Pick up where you left off in ${resumeWorkspace.name}, or start something new.`
-                : "Everything you were working on, picked up where you left off."}
-            </p>
-          </div>
-
-          {/* Quick actions — a quiet toolbar, not a row of cards */}
-          <div className="flex flex-wrap items-center gap-1.5">
+      {/* Greeting — same header rhythm as every other stage. */}
+      <PageHeader
+        eyebrow={
+          todayLabel + (resumeWorkspace ? ` — ${resumeWorkspace.name}` : "")
+        }
+        title={`${greeting}.`}
+        description={
+          resumeWorkspace
+            ? `Pick up where you left off in ${resumeWorkspace.name}, or start something new.`
+            : "Everything you were working on, picked up where you left off."
+        }
+        actions={
+          <>
             {quickActions.map((action) => (
               <button
                 key={action.label}
@@ -293,9 +287,9 @@ export function DashboardView() {
                 )}
               </button>
             ))}
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       {/* Continue Working — the hero glass surface. Level 1 chrome with
           refraction; the environment visibly bends behind it. */}
