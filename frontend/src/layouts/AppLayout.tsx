@@ -10,7 +10,8 @@ import { Topbar } from "@/components/navigation/Topbar";
 export function AppLayout() {
   return (
     <div className="relative flex h-screen w-screen overflow-hidden bg-(--color-background) text-(--color-foreground)">
-      {/* Level 0 — environmental canvas: light fields, orbs, grain, vignette. */}
+      {/* environmental canvas */}
+  
       <div className="pointer-events-none absolute inset-0 bg-env" aria-hidden="true" />
       {[
         "env-orb env-orb-blue",
