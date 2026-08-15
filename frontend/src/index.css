@@ -77,27 +77,30 @@
   --glass-tint-bottom: rgba(255, 255, 255, 0.015);
   --glass-tint-strong: rgba(20, 22, 30, 0.12);
   --glass-edge: rgba(255, 255, 255, 0.14);
-  --glass-specular: rgba(255, 255, 255, 0.55);
+  --glass-specular: rgba(255, 255, 255, 0.7);
   --glass-specular-soft: rgba(255, 255, 255, 0.18);
   --glass-edge-dark: rgba(0, 0, 0, 0.5);
   --glass-underlight: rgba(255, 255, 255, 0.06);
+  /* Base pane fill — Apple's glass keeps a visible neutral fill even over
+     pure black (Control Center panels read as dark gray, not invisible).
+     The white tint gradient above it only adds the lit top. */
+  --glass-base: rgba(24, 28, 36, 0.42);
 
   /* Ambient light — neutral-slate fields the glass visibly distorts.
      Saturation is deliberately LOW: glass reads neutral; color stays
      atmospheric, not painted. */
-  --ambient-blue: rgba(120, 165, 255, 0.07);
-  --ambient-cyan: rgba(140, 210, 255, 0.05);
-  --ambient-violet: rgba(175, 150, 255, 0.05);
-  --ambient-emerald: rgba(130, 220, 170, 0.035);
-  --ambient-warm: rgba(255, 205, 140, 0.03);
-  --ambient-core: rgba(150, 175, 235, 0.045);
+--ambient-blue: rgba(120, 165, 255, 0.15);
+  --ambient-cyan: rgba(140, 210, 255, 0.12);
+  --ambient-violet: rgba(175, 150, 255, 0.12);
+  --ambient-emerald: rgba(130, 220, 170, 0.085);
+  --ambient-warm: rgba(255, 205, 140, 0.075);
+  --ambient-core: rgba(150, 175, 235, 0.11);
 
-  /* Orb bodies — larger, softer shapes that drift behind the glass. */
-  --orb-blue: rgba(120, 165, 255, 0.08);
-  --orb-cyan: rgba(140, 210, 255, 0.055);
-  --orb-violet: rgba(175, 150, 255, 0.055);
-  --orb-emerald: rgba(130, 220, 170, 0.035);
-  --orb-warm: rgba(255, 205, 140, 0.03);
+  --orb-blue: rgba(120, 165, 255, 0.2);
+  --orb-cyan: rgba(140, 210, 255, 0.16);
+  --orb-violet: rgba(175, 150, 255, 0.16);
+  --orb-emerald: rgba(130, 220, 170, 0.1);
+  --orb-warm: rgba(255, 205, 140, 0.09);
 
   /* Geometry — macOS radii. */
   --radius-card: 0.875rem;
@@ -233,15 +236,18 @@
   --color-danger-foreground: #ffffff;
 
   /* Frosted white glass. */
-  --glass-tint-top: rgba(255, 255, 255, 0.82);
-  --glass-tint-mid: rgba(255, 255, 255, 0.6);
-  --glass-tint-bottom: rgba(255, 255, 255, 0.42);
+  --glass-tint-top: rgba(255, 255, 255, 0.5);
+  --glass-tint-mid: rgba(255, 255, 255, 0.36);
+  --glass-tint-bottom: rgba(255, 255, 255, 0.26);
   --glass-tint-strong: rgba(255, 255, 255, 0.78);
   --glass-edge: rgba(255, 255, 255, 0.95);
   --glass-specular: rgba(255, 255, 255, 1);
   --glass-specular-soft: rgba(255, 255, 255, 0.65);
   --glass-edge-dark: rgba(0, 0, 0, 0.06);
   --glass-underlight: rgba(255, 255, 255, 0.4);
+  /* Light glass must stay translucent (Apple's ~0.4) so the pastel canvas
+     shows through - near-opaque white reads as flat paper, not glass. */
+  --glass-base: rgba(255, 255, 255, 0.3);
 
   --ambient-blue: rgba(0, 113, 227, 0.06);
   --ambient-cyan: rgba(40, 170, 255, 0.05);
@@ -358,11 +364,12 @@
    surfaces, dialogs. The reference card recipe: bright specular top edge,
    underlight from below, hairline glass border, deep soft shadow. */
 @utility glass-chrome {
-  background: linear-gradient(180deg, var(--glass-tint-top), var(--glass-tint-mid) 45%, var(--glass-tint-bottom));
-  -webkit-backdrop-filter: blur(32px) saturate(130%);
-  backdrop-filter: blur(32px) saturate(130%);
+  background: linear-gradient(180deg, var(--glass-tint-top), var(--glass-tint-mid) 45%, var(--glass-tint-bottom)), var(--glass-base);
+  -webkit-backdrop-filter: blur(32px) saturate(160%) brightness(1.06);
+  backdrop-filter: blur(32px) saturate(160%) brightness(1.06);
   box-shadow:
     inset 0 1px 1px var(--glass-specular),
+    inset 0 0 6px 0 rgba(255, 255, 255, 0.05),
     inset 0 -8px 20px var(--glass-underlight),
     inset 0 0 0 1px rgba(255, 255, 255, 0.12),
     inset 0 -1px 0 var(--glass-edge-dark),
@@ -373,9 +380,9 @@
 /* Level 2 — SURFACE. Large hero panels: softer than chrome, fewer edges,
    sits closer to the canvas so content dominates, not the box. */
 @utility glass-surface {
-  background: linear-gradient(180deg, var(--glass-tint-mid), var(--glass-tint-bottom) 70%);
-  -webkit-backdrop-filter: blur(22px) saturate(122%);
-  backdrop-filter: blur(22px) saturate(122%);
+  background: linear-gradient(180deg, var(--glass-tint-mid), var(--glass-tint-bottom) 70%), var(--glass-base);
+  -webkit-backdrop-filter: blur(22px) saturate(150%) brightness(1.06);
+  backdrop-filter: blur(22px) saturate(150%) brightness(1.06);
   box-shadow:
     inset 0 1px 0 var(--glass-specular-soft),
     inset 0 -1px 0 var(--glass-edge-dark),
@@ -385,9 +392,9 @@
 /* Level 3 — PANEL. Quiet secondary surfaces (cards, list rails). Thinner
    blur, faint specular, NO rim — repeated cards must not gain weight. */
 @utility glass-panel {
-  background: linear-gradient(180deg, var(--glass-tint-mid), var(--glass-tint-bottom) 75%);
-  -webkit-backdrop-filter: blur(16px) saturate(118%);
-  backdrop-filter: blur(16px) saturate(118%);
+  background: linear-gradient(180deg, var(--glass-tint-mid), var(--glass-tint-bottom) 75%), var(--glass-base);
+  -webkit-backdrop-filter: blur(16px) saturate(140%) brightness(1.05);
+  backdrop-filter: blur(16px) saturate(140%) brightness(1.05);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 12px 26px rgba(0, 0, 0, 0.2);
@@ -396,9 +403,9 @@
 /* Level 4 — WELL. Inset input/field wells: light enters the pane, the
    interior sinks. Dark inner top, hairline edge, no float. */
 @utility glass-well {
-  background: linear-gradient(180deg, var(--glass-tint-bottom), rgba(0, 0, 0, 0.14));
-  -webkit-backdrop-filter: blur(12px) saturate(118%);
-  backdrop-filter: blur(12px) saturate(118%);
+  background: linear-gradient(180deg, var(--glass-tint-bottom), rgba(0, 0, 0, 0.14)), var(--glass-base);
+  -webkit-backdrop-filter: blur(12px) saturate(145%) brightness(1.04);
+  backdrop-filter: blur(12px) saturate(145%) brightness(1.04);
   box-shadow:
     inset 0 1px 2px rgba(0, 0, 0, 0.3),
     inset 0 0 0 1px rgba(255, 255, 255, 0.06);
@@ -408,9 +415,9 @@
    compact blur, bright top specular so they catch the light, whisper of
    shadow — quiet enough to repeat without stacking boxes. */
 @utility glass-control {
-  background: linear-gradient(180deg, var(--glass-tint-mid), var(--glass-tint-bottom) 72%);
-  -webkit-backdrop-filter: blur(12px) saturate(116%);
-  backdrop-filter: blur(12px) saturate(116%);
+  background: linear-gradient(180deg, var(--glass-tint-mid), var(--glass-tint-bottom) 72%), var(--glass-base);
+  -webkit-backdrop-filter: blur(12px) saturate(140%) brightness(1.05);
+  backdrop-filter: blur(12px) saturate(140%) brightness(1.05);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     inset 0 -1px 0 rgba(0, 0, 0, 0.2),
@@ -427,11 +434,12 @@
 /* SHEET — dialogs/sheets: the thickest pane. Strongest blur, bright
    specular rim all around, deep shadow; clearly the topmost object. */
 @utility glass-sheet {
-  background: linear-gradient(180deg, var(--glass-tint-top), var(--glass-tint-mid) 40%, var(--glass-tint-bottom));
-  -webkit-backdrop-filter: blur(40px) saturate(132%);
-  backdrop-filter: blur(40px) saturate(132%);
+  background: linear-gradient(180deg, var(--glass-tint-top), var(--glass-tint-mid) 40%, var(--glass-tint-bottom)), var(--glass-base);
+  -webkit-backdrop-filter: blur(40px) saturate(165%) brightness(1.07);
+  backdrop-filter: blur(40px) saturate(165%) brightness(1.07);
   box-shadow:
     inset 0 1px 1px var(--glass-specular),
+    inset 0 0 8px 0 rgba(255, 255, 255, 0.06),
     inset 0 -8px 20px var(--glass-underlight),
     inset 0 0 0 1px rgba(255, 255, 255, 0.13),
     inset 0 -1px 0 var(--glass-edge-dark),
@@ -444,8 +452,8 @@
    The blue is restrained: the pane lets the environment through. */
 @utility glass-accent {
   background: linear-gradient(180deg, rgba(10, 132, 255, 0.48), rgba(10, 132, 255, 0.28));
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
-  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(165%) brightness(1.06);
+  backdrop-filter: blur(12px) saturate(165%) brightness(1.06);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.45),
     inset 0 -1px 0 rgba(0, 0, 0, 0.2),
@@ -466,9 +474,9 @@
 
 /* Compatibility alias — legacy `.glass` == chrome material. */
 @utility glass {
-  background: linear-gradient(180deg, var(--glass-tint-top), var(--glass-tint-mid) 45%, var(--glass-tint-bottom));
-  -webkit-backdrop-filter: blur(32px) saturate(130%);
-  backdrop-filter: blur(32px) saturate(130%);
+  background: linear-gradient(180deg, var(--glass-tint-top), var(--glass-tint-mid) 45%, var(--glass-tint-bottom)), var(--glass-base);
+  -webkit-backdrop-filter: blur(32px) saturate(160%) brightness(1.06);
+  backdrop-filter: blur(32px) saturate(160%) brightness(1.06);
   box-shadow:
     inset 0 1px 1px var(--glass-specular),
     inset 0 -8px 20px var(--glass-underlight),
@@ -803,4 +811,22 @@
 @utility separator {
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--color-border-subtle) 12%, var(--color-border-subtle) 88%, transparent);
+}
+
+/* Light canvas boost - near-white pastels on their own read as flat paper;
+   raise the light fields so frosted glass has color to sample (Apple keeps
+   light mode airy, not white). */
+.light {
+  --ambient-blue: rgba(0, 113, 227, 0.16);
+  --ambient-cyan: rgba(40, 170, 255, 0.14);
+  --ambient-violet: rgba(137, 68, 171, 0.13);
+  --ambient-emerald: rgba(36, 138, 61, 0.09);
+  --ambient-warm: rgba(201, 52, 0, 0.08);
+  --ambient-core: rgba(0, 113, 227, 0.1);
+
+  --orb-blue: rgba(0, 113, 227, 0.22);
+  --orb-cyan: rgba(40, 170, 255, 0.18);
+  --orb-violet: rgba(137, 68, 171, 0.18);
+  --orb-emerald: rgba(36, 138, 61, 0.12);
+  --orb-warm: rgba(201, 52, 0, 0.1);
 }
