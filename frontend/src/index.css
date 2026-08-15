@@ -738,11 +738,14 @@
   opacity: 1;
 }
 
+/* Light theme: the surfaces are already pale, so the glare must be a
+   whisper of sheen, never a bright spot — a hard white radial here reads
+   as a glaring lens flare against near-white glass. */
 .light .glare::after {
   background: radial-gradient(
     220px circle at var(--gx, 22%) var(--gy, 0%),
-    rgba(255, 255, 255, 0.85),
-    rgba(255, 255, 255, 0.35) 42%,
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0.10) 42%,
     transparent 72%
   );
 }

@@ -97,7 +97,7 @@ export function StatCard({
           ? "text-(--color-danger)"
           : "text-(--color-accent)";
   return (
-    <div className="rounded-[var(--radius-card)] border border-(--color-border-subtle) bg-(--color-surface) p-4">
+    <div className="content-card rounded-[var(--radius-card)] p-4">
       <p className="text-[11px] uppercase tracking-wide text-(--color-faint-foreground)">{label}</p>
       <p className={cn("mt-1 font-(family-name:--font-display) text-2xl font-semibold tabular-nums", toneClass)}>
         {value}

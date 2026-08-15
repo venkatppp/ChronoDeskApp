@@ -166,7 +166,7 @@ export function LineageExplorerCard() {
             <textarea
               readOnly
               value={exportText}
-              className="mt-2 h-40 w-full resize-y rounded-[var(--radius-control)] border border-(--color-border) bg-(--color-surface) p-2 font-mono text-[10px] text-(--color-foreground)"
+              className="glass-well mt-2 h-40 w-full resize-y rounded-[var(--radius-control)] p-2 font-mono text-[10px] text-(--color-foreground)"
             />
           </details>
         )}

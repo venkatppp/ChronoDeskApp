@@ -27,7 +27,7 @@ export function AppLayout() {
       {/* Floating chrome — the topbar spans the window's top edge (traffic
           lights float on the glass under the overlay titlebar); sidebar +
           content float beneath it over the canvas. */}
-      <div className="relative z-10 flex h-full min-h-0 min-w-0 flex-col">
+      <div className="relative z-10 flex h-full w-full min-h-0 min-w-0 flex-col">
         <Topbar />
         <div className="flex min-h-0 min-w-0 flex-1 gap-3 p-3">
           <Sidebar />
