@@ -282,7 +282,7 @@ export function DashboardView() {
               <button
                 key={action.label}
                 onClick={action.action}
-                className="inline-flex h-8 items-center gap-2 rounded-[var(--radius-control)] px-3 text-[13px] font-medium text-(--color-muted-foreground) transition-all duration-150 ease-[var(--ease-premium)] hover:bg-(--color-surface-hover) hover:text-(--color-foreground) focus-visible:border-(--color-accent) active:scale-[0.98]"
+                className="inline-flex h-8 items-center gap-2 rounded-[var(--radius-control)] px-3 text-[13px] font-medium text-(--color-muted-foreground) transition-all duration-100 ease-out hover:bg-(--color-surface-hover) hover:text-(--color-foreground) focus-visible:border-(--color-accent) motion-safe:active:scale-[0.97]"
               >
                 {action.icon}
                 <span>{action.label}</span>

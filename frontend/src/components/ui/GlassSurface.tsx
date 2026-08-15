@@ -1,6 +1,7 @@
 import { forwardRef, useRef, type HTMLAttributes, type ElementType } from "react";
 import { cn } from "@/utils/cn";
 import { useLiquidGlass } from "@/hooks/useLiquidGlass";
+import { useGlare } from "@/hooks/useGlare";
 import type { LiquidGlassOptions } from "@/lib/liquidGlass";
 
 /**
@@ -38,6 +39,12 @@ export interface GlassSurfaceProps extends HTMLAttributes<HTMLElement> {
   refraction?: boolean;
   /** Optional optics overrides, e.g. { scale: -80 } for a more dramatic rim. */
   optics?: Partial<LiquidGlassOptions>;
+  /**
+   * Cursor-tracked specular glare ("light play"). Defaults on for
+   * chrome/surface/sheet; small materials stay quiet. Disabled under
+   * prefers-reduced-motion.
+   */
+  glare?: boolean;
 }
 
 const MATERIAL_CLASS: Record<GlassMaterial, string> = {
@@ -60,17 +67,29 @@ const REFRACTS_BY_DEFAULT: Record<GlassMaterial, boolean> = {
   sheet: true,
 };
 
+const GLARES_BY_DEFAULT: Record<GlassMaterial, boolean> = {
+  chrome: true,
+  surface: true,
+  panel: false,
+  well: false,
+  control: false,
+  nav: false,
+  sheet: true,
+};
+
 /**
  * The single reusable Liquid Glass surface. Owns the optics lifecycle
  * (mount/unmount + resize) and the material dressing in one primitive so
  * no page ever re-implements glass styling.
  */
 export const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
-  ({ as: Tag = "div", className, material = "panel", refraction, optics, children, ...props }, forwardedRef) => {
+  ({ as: Tag = "div", className, material = "panel", refraction, glare, optics, children, ...props }, forwardedRef) => {
     const localRef = useRef<HTMLElement | null>(null);
 
     const wantsRefraction = refraction ?? REFRACTS_BY_DEFAULT[material];
+    const wantsGlare = glare ?? GLARES_BY_DEFAULT[material];
     useLiquidGlass(localRef, wantsRefraction ? optics : { maxArea: 0 });
+    useGlare(localRef);
 
     const setRef = (node: HTMLElement | null) => {
       localRef.current = node;
@@ -80,7 +99,11 @@ export const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
 
     const TagElement = Tag as ElementType;
     return (
-      <TagElement ref={setRef} className={cn(MATERIAL_CLASS[material], className)} {...props}>
+      <TagElement
+        ref={setRef}
+        className={cn(MATERIAL_CLASS[material], wantsGlare && "glare", className)}
+        {...props}
+      >
         {children}
       </TagElement>
     );

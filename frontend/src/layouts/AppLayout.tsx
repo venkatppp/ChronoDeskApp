@@ -24,11 +24,13 @@ export function AppLayout() {
       <div className="pointer-events-none absolute inset-0 bg-grain opacity-[0.045]" aria-hidden="true" />
       <div className="pointer-events-none absolute inset-0 bg-vignette" aria-hidden="true" />
 
-      {/* Floating chrome — sidebar + toolbar hover above the canvas. */}
-      <div className="relative z-10 flex min-h-0 min-w-0 flex-1 gap-3 p-3">
-        <Sidebar />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-          <Topbar />
+      {/* Floating chrome — the topbar spans the window's top edge (traffic
+          lights float on the glass under the overlay titlebar); sidebar +
+          content float beneath it over the canvas. */}
+      <div className="relative z-10 flex h-full min-h-0 min-w-0 flex-col">
+        <Topbar />
+        <div className="flex min-h-0 min-w-0 flex-1 gap-3 p-3">
+          <Sidebar />
           <main className="scroll-edge-fade min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-xl animate-(--animate-fade-in)">
             <Outlet />
           </main>

@@ -47,7 +47,7 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-(--color-overlay) p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-(--color-overlay) p-6 backdrop-blur-[6px] animate-(--animate-overlay-in)"
       role="dialog"
       aria-modal="true"
       aria-label={typeof title === "string" ? title : undefined}
@@ -58,7 +58,7 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
       <GlassSurface
         material="sheet"
         className={cn(
-          "w-full max-w-md animate-scale-in rounded-2xl p-5 outline-none",
+          "w-full max-w-md animate-(--animate-scale-spring) rounded-2xl p-5 outline-none",
           className,
         )}
       >

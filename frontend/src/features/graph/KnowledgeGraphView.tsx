@@ -1446,7 +1446,7 @@ export function KnowledgeGraphView({
         <div className="glass-control flex flex-col items-center gap-1 rounded-[var(--radius-control)] border border-(--color-border) p-1">
           <button
             onClick={() => applyZoom(1.28)}
-            className="rounded-[var(--radius-control)] p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
+            className="rounded-[var(--radius-control)] p-2 text-(--color-muted-foreground) transition-all duration-100 ease-out hover:bg-(--color-surface-hover) hover:text-(--color-foreground) motion-safe:active:scale-[0.97]"
             title="Zoom in"
             aria-label="Zoom in"
           >
@@ -1457,7 +1457,7 @@ export function KnowledgeGraphView({
           </span>
           <button
             onClick={() => applyZoom(1 / 1.28)}
-            className="rounded-[var(--radius-control)] p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
+            className="rounded-[var(--radius-control)] p-2 text-(--color-muted-foreground) transition-all duration-100 ease-out hover:bg-(--color-surface-hover) hover:text-(--color-foreground) motion-safe:active:scale-[0.97]"
             title="Zoom out"
             aria-label="Zoom out"
           >
@@ -1466,7 +1466,7 @@ export function KnowledgeGraphView({
         </div>
         <button
           onClick={fitToView}
-          className="glass-control rounded-[var(--radius-control)] border border-(--color-border) p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
+          className="glass-control rounded-[var(--radius-control)] border border-(--color-border) p-2 text-(--color-muted-foreground) transition-all duration-100 ease-out hover:bg-(--color-surface-hover) hover:text-(--color-foreground) motion-safe:active:scale-[0.97]"
           title="Fit to view"
           aria-label="Fit to view"
         >
@@ -1474,7 +1474,7 @@ export function KnowledgeGraphView({
         </button>
         <button
           onClick={resetView}
-          className="glass-control rounded-[var(--radius-control)] border border-(--color-border) p-2 text-(--color-muted-foreground) transition-all duration-150 hover:bg-(--color-surface-hover) hover:text-(--color-foreground) active:scale-90"
+          className="glass-control rounded-[var(--radius-control)] border border-(--color-border) p-2 text-(--color-muted-foreground) transition-all duration-100 ease-out hover:bg-(--color-surface-hover) hover:text-(--color-foreground) motion-safe:active:scale-[0.97]"
           title="Reset view"
           aria-label="Reset view"
         >
@@ -1482,7 +1482,7 @@ export function KnowledgeGraphView({
         </button>
         <button
           onClick={() => setShowSearch((p) => !p)}
-          className={`glass-control rounded-[var(--radius-control)] border p-2 transition-all duration-150 active:scale-90 ${
+          className={`glass-control rounded-[var(--radius-control)] border p-2 transition-all duration-100 ease-out motion-safe:active:scale-[0.97] ${
             showSearch
               ? "border-(--color-accent)/50 bg-(--color-accent)/10 text-(--color-accent)"
               : "border-(--color-border) text-(--color-muted-foreground) hover:bg-(--color-surface-hover) hover:text-(--color-foreground)"

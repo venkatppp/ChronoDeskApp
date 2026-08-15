@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
     const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
     setReduced(mql.matches);
     const handler = (e: MediaQueryListEvent) => setReduced(e.matches);

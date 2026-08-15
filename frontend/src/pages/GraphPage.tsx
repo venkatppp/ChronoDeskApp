@@ -251,7 +251,10 @@ export function GraphPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="glass-chrome relative z-10 flex shrink-0 items-center justify-between gap-4 border-b border-(--color-border-subtle) px-6 py-4">
+      <GlassSurface
+        material="chrome"
+        className="relative z-10 flex shrink-0 items-center justify-between gap-4 border-b border-(--color-border-subtle) px-6 py-4"
+      >
         <div>
           <p className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-faint-foreground)">
             <span className="h-1 w-1 rounded-full bg-(--color-faint-foreground)" />
@@ -305,9 +308,12 @@ export function GraphPage() {
             )}
           </div>
         )}
-      </div>
+      </GlassSurface>
 
-      <div className="glass-chrome relative z-10 flex shrink-0 items-center gap-3 border-b border-(--color-border-subtle) px-6 py-2.5">
+      <GlassSurface
+        material="chrome"
+        className="relative z-10 flex shrink-0 items-center gap-3 border-b border-(--color-border-subtle) px-6 py-2.5"
+      >
         <div className="glass-control flex shrink-0 items-center gap-0.5 rounded-[var(--radius-control)] p-0.5">
           {GRAPH_MODES.map((m) => (
             <button
@@ -424,7 +430,7 @@ export function GraphPage() {
             Decay
           </button>
         </div>
-      </div>
+      </GlassSurface>
 
       {searchResults.length > 0 && (
         <GlassSurface

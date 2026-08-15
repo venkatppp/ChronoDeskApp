@@ -5,6 +5,7 @@ import { GlassSurface } from "@/components/ui/GlassSurface";
 import { GlassInput } from "@/components/ui/GlassInput";
 import { useTheme } from "@/hooks/useTheme";
 import { useNavigate, useLocation } from "react-router-dom";
+import { cn } from "@/utils/cn";
 
 const ROUTE_TITLES: Record<string, string> = {
   "/": "Dashboard",
@@ -25,12 +26,23 @@ const ROUTE_TITLES: Record<string, string> = {
  * Floating macOS-style toolbar — the same chrome material as the sidebar,
  * hovering above the canvas with a specular top edge and a native-feeling
  * search field.
+ *
+ * Spans the window's top edge: under the macOS overlay titlebar the traffic
+ * lights float on this glass (reserved by the left padding), and the bar
+ * itself drags the window (`data-tauri-drag-region`). Non-macOS platforms
+ * simply get a full-width toolbar with no traffic-light reservation.
  */
 export function Topbar() {
   const { resolvedTheme, setPreference } = useTheme();
   const isLight = resolvedTheme === "light";
   const navigate = useNavigate();
   const location = useLocation();
+
+  const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  const isMacOS =
+    isTauri &&
+    typeof navigator !== "undefined" &&
+    /Mac/i.test(navigator.platform || navigator.userAgent);
 
   const title = ROUTE_TITLES[location.pathname] ?? "ChronoDesk";
 
@@ -51,7 +63,11 @@ export function Topbar() {
     <GlassSurface
       material="chrome"
       as="header"
-      className="relative z-10 flex h-12 shrink-0 items-center gap-3 overflow-hidden rounded-2xl px-4"
+      data-tauri-drag-region
+      className={cn(
+        "relative z-10 flex h-12 shrink-0 select-none items-center gap-3 overflow-hidden px-4",
+        isMacOS ? "rounded-b-2xl pl-[76px]" : "rounded-b-2xl",
+      )}
     >
       {/* Specular top edge — matches the sidebar's light catch. */}
       <div
@@ -59,8 +75,8 @@ export function Topbar() {
         aria-hidden="true"
       />
 
-      <div className="flex min-w-0 flex-1 items-center">
-        <span className="font-(family-name:--font-display) truncate text-[13px] font-semibold tracking-tight text-(--color-foreground)">
+      <div className="flex min-w-0 flex-1 items-center" data-tauri-drag-region>
+        <span className="font-(family-name:--font-display) truncate text-[13px] font-semibold tracking-tight text-(--color-foreground)" data-tauri-drag-region>
           {title}
         </span>
       </div>

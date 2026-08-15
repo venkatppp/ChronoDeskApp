@@ -115,6 +115,8 @@
 
   --animate-fade-in: fade-in 0.28s var(--ease-premium);
   --animate-scale-in: scale-in 0.22s cubic-bezier(0.28, 0.9, 0.32, 1);
+  --animate-scale-spring: scale-spring-in 0.4s cubic-bezier(0.3, 1.35, 0.4, 1);
+  --animate-overlay-in: overlay-in 0.2s ease-out;
   --animate-slide-up: slide-up 0.3s var(--ease-premium);
   --animate-slide-down: slide-down 0.2s var(--ease-premium);
   --animate-grow-bar: grow-bar 0.6s var(--ease-premium);
@@ -138,6 +140,28 @@
     to {
       opacity: 1;
       transform: scale(1);
+    }
+  }
+
+  /* Springy sheet entrance — slightly overshoots before settling. */
+  @keyframes scale-spring-in {
+    from {
+      opacity: 0;
+      transform: scale(0.94);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* Backdrop fade for overlays/dialogs. */
+  @keyframes overlay-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
     }
   }
 
@@ -676,6 +700,89 @@
     var(--color-surface) 70%
   );
   background-size: 200% 100%;
+}
+
+/* ========================================================================
+ * CURSOR-TRACKED GLARE — Apple's "light play": a soft specular highlight
+ * that follows the pointer across a glass surface, like light catching a
+ * real pane. The --gx/--gy custom properties are driven by the useGlare
+ * hook (pointermove, rAF-throttled); under prefers-reduced-motion the
+ * glare holds still at its resting bias position instead of tracking.
+ *
+ * Applied via GlassSurface's `glare` prop (chrome/surface/sheet by
+ * default) — a ::after overlay so children keep their own layers.
+ * ====================================================================== */
+.glare {
+  position: relative;
+}
+
+.glare::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(
+    220px circle at var(--gx, 22%) var(--gy, 0%),
+    rgba(255, 255, 255, 0.10),
+    rgba(255, 255, 255, 0.04) 42%,
+    transparent 72%
+  );
+  opacity: 0;
+  transition: opacity 320ms ease;
+}
+
+.glare:hover::after,
+.glare:focus-within::after {
+  opacity: 1;
+}
+
+.light .glare::after {
+  background: radial-gradient(
+    220px circle at var(--gx, 22%) var(--gy, 0%),
+    rgba(255, 255, 255, 0.85),
+    rgba(255, 255, 255, 0.35) 42%,
+    transparent 72%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glare::after {
+    transition: none;
+    opacity: 0;
+  }
+}
+
+/* Hover illumination — interactive glass cards catch a brighter specular
+   top edge when hovered (restrained: no color shift, only light). */
+@utility glass-hover {
+  transition:
+    transform 240ms cubic-bezier(0.32, 0.08, 0.24, 1),
+    box-shadow 240ms cubic-bezier(0.32, 0.08, 0.24, 1);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.32),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+      0 22px 52px rgba(0, 0, 0, 0.5),
+      0 6px 16px rgba(0, 0, 0, 0.3);
+  }
+
+  &:active {
+    transform: translateY(0) scale(0.98);
+  }
+}
+
+.light .glass-hover:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.05),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+    0 18px 46px rgba(23, 31, 56, 0.14),
+    0 4px 12px rgba(23, 31, 56, 0.09);
 }
 
 /* Scrollable list panel with inset fade. */
