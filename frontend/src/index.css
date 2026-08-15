@@ -24,7 +24,7 @@
   --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
 
   /* Canvas — deep black with the faintest blue cast. */
-  --color-background: #05060a;
+  --color-background: #08080c;
   --color-surface: rgba(255, 255, 255, 0.045);
   --color-surface-hover: rgba(255, 255, 255, 0.08);
   --color-surface-raised: rgba(255, 255, 255, 0.11);
@@ -72,35 +72,35 @@
    * edge, a hairline glass border, and a deep soft drop shadow.
    * No chromatic tint fill — color arrives from behind the glass.
    * ------------------------------------------------------------------ */
-  --glass-tint-top: rgba(255, 255, 255, 0.08);
-  --glass-tint-mid: rgba(255, 255, 255, 0.035);
-  --glass-tint-bottom: rgba(255, 255, 255, 0.015);
+  --glass-tint-top: rgba(255, 255, 255, 0.15);
+  --glass-tint-mid: rgba(255, 255, 255, 0.08);
+  --glass-tint-bottom: rgba(255, 255, 255, 0.04);
   --glass-tint-strong: rgba(20, 22, 30, 0.12);
   --glass-edge: rgba(255, 255, 255, 0.14);
-  --glass-specular: rgba(255, 255, 255, 0.7);
+  --glass-specular: rgba(255, 255, 255, 0.9);
   --glass-specular-soft: rgba(255, 255, 255, 0.18);
   --glass-edge-dark: rgba(0, 0, 0, 0.5);
   --glass-underlight: rgba(255, 255, 255, 0.06);
   /* Base pane fill — Apple's glass keeps a visible neutral fill even over
      pure black (Control Center panels read as dark gray, not invisible).
      The white tint gradient above it only adds the lit top. */
-  --glass-base: rgba(24, 28, 36, 0.42);
+  --glass-base: rgba(24, 28, 36, 0.48);
 
   /* Ambient light — neutral-slate fields the glass visibly distorts.
      Saturation is deliberately LOW: glass reads neutral; color stays
      atmospheric, not painted. */
-  --ambient-blue: rgba(120, 165, 255, 0.15);
-  --ambient-cyan: rgba(140, 210, 255, 0.12);
-  --ambient-violet: rgba(175, 150, 255, 0.12);
-  --ambient-emerald: rgba(130, 220, 170, 0.085);
-  --ambient-warm: rgba(255, 205, 140, 0.075);
-  --ambient-core: rgba(150, 175, 235, 0.11);
+  --ambient-blue: rgba(120, 165, 255, 0.22);
+  --ambient-cyan: rgba(140, 210, 255, 0.18);
+  --ambient-violet: rgba(175, 150, 255, 0.18);
+  --ambient-emerald: rgba(130, 220, 170, 0.13);
+  --ambient-warm: rgba(255, 205, 140, 0.11);
+  --ambient-core: rgba(150, 175, 235, 0.15);
 
-  --orb-blue: rgba(120, 165, 255, 0.2);
-  --orb-cyan: rgba(140, 210, 255, 0.16);
-  --orb-violet: rgba(175, 150, 255, 0.16);
-  --orb-emerald: rgba(130, 220, 170, 0.1);
-  --orb-warm: rgba(255, 205, 140, 0.09);
+  --orb-blue: rgba(120, 165, 255, 0.3);
+  --orb-cyan: rgba(140, 210, 255, 0.22);
+  --orb-violet: rgba(175, 150, 255, 0.22);
+  --orb-emerald: rgba(130, 220, 170, 0.15);
+  --orb-warm: rgba(255, 205, 140, 0.14);
 
   /* Geometry — macOS radii. */
   --radius-card: 0.875rem;
@@ -109,9 +109,9 @@
   --radius-pill: 999px;
 
   /* Elevation — soft black shadows, luminous top edge. No glows. */
-  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 14px 36px rgba(0, 0, 0, 0.38);
-  --shadow-float: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 24px 60px rgba(0, 0, 0, 0.5), 0 6px 16px rgba(0, 0, 0, 0.3);
-  --shadow-pop: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 14px 36px rgba(0, 0, 0, 0.5);
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 14px 36px rgba(0, 0, 0, 0.48);
+  --shadow-float: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 24px 60px rgba(0, 0, 0, 0.6), 0 6px 16px rgba(0, 0, 0, 0.4);
+  --shadow-pop: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 14px 36px rgba(0, 0, 0, 0.6);
 
   /* The one easing curve used everywhere. */
   --ease-premium: cubic-bezier(0.32, 0.08, 0.24, 1);
@@ -236,25 +236,25 @@
   --color-danger-foreground: #ffffff;
 
   /* Frosted white glass. */
-  --glass-tint-top: rgba(255, 255, 255, 0.5);
-  --glass-tint-mid: rgba(255, 255, 255, 0.36);
-  --glass-tint-bottom: rgba(255, 255, 255, 0.26);
+  --glass-tint-top: rgba(255, 255, 255, 0.7);
+  --glass-tint-mid: rgba(255, 255, 255, 0.5);
+  --glass-tint-bottom: rgba(255, 255, 255, 0.4);
   --glass-tint-strong: rgba(255, 255, 255, 0.78);
-  --glass-edge: rgba(255, 255, 255, 0.95);
+  --glass-edge: rgba(255, 255, 255, 1);
   --glass-specular: rgba(255, 255, 255, 1);
-  --glass-specular-soft: rgba(255, 255, 255, 0.65);
-  --glass-edge-dark: rgba(0, 0, 0, 0.06);
+  --glass-specular-soft: rgba(255, 255, 255, 0.85);
+  --glass-edge-dark: rgba(0, 0, 0, 0.15);
   --glass-underlight: rgba(255, 255, 255, 0.4);
   /* Light glass must stay translucent (Apple's ~0.4) so the pastel canvas
      shows through — near-opaque white reads as flat paper, not glass. */
-  --glass-base: rgba(255, 255, 255, 0.3);
+  --glass-base: rgba(255, 255, 255, 0.4);
 
-  --ambient-blue: rgba(0, 113, 227, 0.10);
-  --ambient-cyan: rgba(40, 170, 255, 0.09);
-  --ambient-violet: rgba(137, 68, 171, 0.085);
-  --ambient-emerald: rgba(36, 138, 61, 0.06);
-  --ambient-warm: rgba(201, 52, 0, 0.05);
-  --ambient-core: rgba(0, 113, 227, 0.06);
+  --ambient-blue: rgba(0, 113, 227, 0.18);
+  --ambient-cyan: rgba(40, 170, 255, 0.16);
+  --ambient-violet: rgba(137, 68, 171, 0.14);
+  --ambient-emerald: rgba(36, 138, 61, 0.1);
+  --ambient-warm: rgba(201, 52, 0, 0.09);
+  --ambient-core: rgba(0, 113, 227, 0.1);
 
   --orb-blue: rgba(0, 113, 227, 0.14);
   --orb-cyan: rgba(40, 170, 255, 0.12);
