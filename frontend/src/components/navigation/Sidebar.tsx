@@ -136,7 +136,7 @@ export function Sidebar() {
           <div className="pointer-events-none absolute inset-x-1 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" aria-hidden="true" />
           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusTone.dot}`} />
           <div className="flex min-w-0 flex-col leading-tight">
-            <span className="text-[11px] font-medium text-(--color-muted-foreground)">{statusTone.label}</span>
+            <span className="text-[11px] font-medium text-(--color-foreground) text-on-glass">{statusTone.label}</span>
             <span className="truncate text-[10px] text-(--color-faint-foreground)">
               {health
                 ? `${health.workersActive} component${health.workersActive === 1 ? "" : "s"} · ${Math.round(health.uptimeSeconds / 60)}m uptime`

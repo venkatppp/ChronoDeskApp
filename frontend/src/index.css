@@ -89,7 +89,7 @@
   /* Ambient light — neutral-slate fields the glass visibly distorts.
      Saturation is deliberately LOW: glass reads neutral; color stays
      atmospheric, not painted. */
---ambient-blue: rgba(120, 165, 255, 0.15);
+  --ambient-blue: rgba(120, 165, 255, 0.15);
   --ambient-cyan: rgba(140, 210, 255, 0.12);
   --ambient-violet: rgba(175, 150, 255, 0.12);
   --ambient-emerald: rgba(130, 220, 170, 0.085);
@@ -246,21 +246,21 @@
   --glass-edge-dark: rgba(0, 0, 0, 0.06);
   --glass-underlight: rgba(255, 255, 255, 0.4);
   /* Light glass must stay translucent (Apple's ~0.4) so the pastel canvas
-     shows through - near-opaque white reads as flat paper, not glass. */
+     shows through — near-opaque white reads as flat paper, not glass. */
   --glass-base: rgba(255, 255, 255, 0.3);
 
-  --ambient-blue: rgba(0, 113, 227, 0.06);
-  --ambient-cyan: rgba(40, 170, 255, 0.05);
-  --ambient-violet: rgba(137, 68, 171, 0.045);
-  --ambient-emerald: rgba(36, 138, 61, 0.035);
-  --ambient-warm: rgba(201, 52, 0, 0.03);
-  --ambient-core: rgba(0, 113, 227, 0.035);
+  --ambient-blue: rgba(0, 113, 227, 0.10);
+  --ambient-cyan: rgba(40, 170, 255, 0.09);
+  --ambient-violet: rgba(137, 68, 171, 0.085);
+  --ambient-emerald: rgba(36, 138, 61, 0.06);
+  --ambient-warm: rgba(201, 52, 0, 0.05);
+  --ambient-core: rgba(0, 113, 227, 0.06);
 
-  --orb-blue: rgba(0, 113, 227, 0.07);
-  --orb-cyan: rgba(40, 170, 255, 0.05);
-  --orb-violet: rgba(137, 68, 171, 0.05);
-  --orb-emerald: rgba(36, 138, 61, 0.03);
-  --orb-warm: rgba(201, 52, 0, 0.025);
+  --orb-blue: rgba(0, 113, 227, 0.14);
+  --orb-cyan: rgba(40, 170, 255, 0.12);
+  --orb-violet: rgba(137, 68, 171, 0.12);
+  --orb-emerald: rgba(36, 138, 61, 0.08);
+  --orb-warm: rgba(201, 52, 0, 0.06);
 
   --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 14px 36px rgba(0, 0, 0, 0.08);
   --shadow-float: inset 0 1px 0 rgba(255, 255, 255, 1), 0 24px 60px rgba(0, 0, 0, 0.14), 0 6px 16px rgba(0, 0, 0, 0.08);
@@ -493,6 +493,100 @@
 }
 
 /* ========================================================================
+ * MATERIAL MOTION — "materialize, don't just fade". Sheets arrive as a
+ * real pane: opacity, scale, and blur radius animate together (Apple:
+ * glass surfaces grow from the trigger with their blur fading in). The
+ * exit mirrors the entrance path so the sheet leaves the way it came.
+ * ====================================================================== */
+
+/* Enter — springy scale with a hint of overshoot while the material
+   thickens from no blur to the full 40px sheet frost. */
+@keyframes sheet-materialize-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+    -webkit-backdrop-filter: blur(0px) saturate(165%) brightness(1.07);
+    backdrop-filter: blur(0px) saturate(165%) brightness(1.07);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    -webkit-backdrop-filter: blur(40px) saturate(165%) brightness(1.07);
+    backdrop-filter: blur(40px) saturate(165%) brightness(1.07);
+  }
+}
+
+/* Exit — the reverse path, quick and mirrored (snappier ease-in). */
+@keyframes sheet-materialize-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+    -webkit-backdrop-filter: blur(40px) saturate(165%) brightness(1.07);
+    backdrop-filter: blur(40px) saturate(165%) brightness(1.07);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+    -webkit-backdrop-filter: blur(0px) saturate(165%) brightness(1.07);
+    backdrop-filter: blur(0px) saturate(165%) brightness(1.07);
+  }
+}
+
+/* Blur-free variants — used when the user asks for reduced transparency:
+   the pane still arrives with weight (scale), just without the frost. */
+@keyframes sheet-frost-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sheet-frost-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.sheet-enter {
+  animation: sheet-materialize-in 0.4s cubic-bezier(0.3, 1.35, 0.4, 1);
+}
+.sheet-exit {
+  animation: sheet-materialize-out 0.18s cubic-bezier(0.32, 0, 0.24, 1);
+}
+.overlay-enter {
+  animation: overlay-in 0.2s ease-out;
+}
+.overlay-exit {
+  animation: overlay-out 0.18s ease-in;
+}
+
+/* Vibrancy — text sitting directly on translucent glass must not read as
+   flat gray: slightly heavier weight + a small tracking bump keeps it
+   legible over whatever the environment is doing behind the pane. */
+@utility text-on-glass {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+/* ========================================================================
  * CONTENT LAYER — calm, premium dark surfaces for data. Deliberately
  * opaque-ish (no backdrop-filter, no refraction): content sits ON the
  * glass, never inside it. Hairline border + soft elevation only.
@@ -555,6 +649,14 @@
   .light .glass-control,
   .light .glass-well {
     background: rgba(245, 245, 247, 0.94);
+  }
+  /* Sheets still arrive with weight — but without the blur animation
+     (near-solid panes have no frost to materialize). */
+  .sheet-enter {
+    animation: sheet-frost-in 0.28s var(--ease-premium);
+  }
+  .sheet-exit {
+    animation: sheet-frost-out 0.14s var(--ease-premium);
   }
 }
 
@@ -813,7 +915,78 @@
   background: linear-gradient(90deg, transparent, var(--color-border-subtle) 12%, var(--color-border-subtle) 88%, transparent);
 }
 
-/* Light canvas boost - near-white pastels on their own read as flat paper;
+/* ========================================================================
+ * PHOTOGRAPHIC BACKGROUND OVERLAY — the "image behind the glass" layer.
+ *
+ * Apple's guidance for media-rich backgrounds under Clear/translucent
+ * glass: a bright image needs a ~35% dark scrim for legibility. We layer
+ * a fixed base image (set via --photo-url) with a 35% black wash plus a
+ * top/bottom gradient so nav and CTA text stay crisp in BOTH themes.
+ * The glass above frosts and refracts this — exactly the look the user
+ * asked for. If the image fails to load, the env canvas shows through.
+ * ====================================================================== */
+
+@utility bg-photo {
+  background-image: var(--photo-url);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* 35% dark scrim (Apple's Clear-glass dimming) + edge gradients. Applied to
+   its OWN element, layered ON TOP of .bg-photo — never combined with it, or
+   the `background` shorthand here would wipe out the photo's background-image. */
+.media-scrim {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.38) 0%, rgba(0, 0, 0, 0.12) 22%, rgba(0, 0, 0, 0.2) 80%, rgba(0, 0, 0, 0.5) 100%),
+    rgba(0, 0, 0, 0.28);
+}
+
+/* Light theme: a soft WHITE wash over the (already light) pastel photo.
+   Keeps the page airy and gives dark text a calm, even field — never a
+   muddy gray (which is what a dark image + faint scrim produced before). */
+.light .media-scrim {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.12) 22%, rgba(255, 255, 255, 0.2) 80%, rgba(255, 255, 255, 0.5) 100%),
+    rgba(255, 255, 255, 0.18);
+}
+
+/* Scroll-edge fade: content dissolves into the glass as it meets chrome,
+   instead of a hard divider (Apple's scroll edge effect, faked for web). */
+.scroll-edge-fade {
+  mask-image: linear-gradient(to bottom, transparent 0, black 22px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 22px);
+}
+
+/* ========================================================================
+ * LIGHT-MODE GLASS SHADOWS — the utilities above hardcode a heavy black
+ * drop shadow (0 24px 60px rgba(0,0,0,.5)) tuned for dark canvases. On a
+ * light canvas that reads as a black blob floating on white. In light mode
+ * we swap to soft, low-alpha charcoal shadows + a bright specular edge so
+ * the glass lifts gently off the pastel field instead of casting a storm.
+ * ====================================================================== */
+.light .glass-chrome,
+.light .glass-surface,
+.light .glass-panel,
+.light .glass-sheet {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.05),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+    0 18px 50px rgba(23, 31, 56, 0.12),
+    0 4px 12px rgba(23, 31, 56, 0.08);
+}
+
+.light .glass-control,
+.light .glass-well,
+.light .glass-nav {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.05),
+    0 2px 6px rgba(23, 31, 56, 0.08);
+}
+
+/* Light canvas boost — near-white pastels on their own read as flat paper;
    raise the light fields so frosted glass has color to sample (Apple keeps
    light mode airy, not white). */
 .light {
