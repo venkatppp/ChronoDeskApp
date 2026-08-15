@@ -21,7 +21,6 @@ import { getGraphOptimizationRepository } from "@/services/graphOptimizationRepo
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageContainer } from "@/components/ui/PageContainer";
-import { PageHeader } from "@/components/ui/PageHeader";
 import type {
   BenchmarkSuiteResult,
   ConsistencyReport,
@@ -164,25 +163,33 @@ export function GraphPerformancePage() {
   const metrics = diagnostics?.recentMetrics ?? [];
 
   return (
-    <PageContainer>
-      <PageHeader
-        eyebrow="Graph"
-        title="Graph Performance & Scale"
-        description="Pagination, virtualization, integrity, repair, benchmarks, and operational health for the knowledge graph."
-        actions={
-          <>
-            <Button variant="outline" size="sm" onClick={refreshDiagnostics} disabled={loadingDiagnostics}>
-              <RefreshCw className={`h-3.5 w-3.5 ${loadingDiagnostics ? "animate-spin" : ""}`} strokeWidth={1.75} />
-              Refresh
-            </Button>
-            <Button size="sm" onClick={handleBenchmark} disabled={busy !== null}>
-              <Timer className="h-3.5 w-3.5" strokeWidth={1.75} />
-              Run benchmark suite
-            </Button>
-          </>
-        }
-      />
+    <div className="flex h-full flex-col overflow-hidden">
+      {/* Glass chrome frame — pinned header band, same pattern as GraphPage. */}
+      <div className="glass-chrome relative z-10 flex shrink-0 items-center justify-between gap-4 border-b border-(--color-border-subtle) px-6 py-4">
+        <div className="min-w-0">
+          <p className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-faint-foreground)">
+            <span className="h-1 w-1 rounded-full bg-(--color-faint-foreground)" />
+            Graph
+          </p>
+          <h1 className="font-(family-name:--font-display) text-xl font-semibold tracking-tight">Graph Performance &amp; Scale</h1>
+          <p className="text-sm text-(--color-muted-foreground)">
+            Pagination, virtualization, integrity, repair, benchmarks, and operational health for the knowledge graph.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2.5">
+          <Button variant="outline" size="sm" onClick={refreshDiagnostics} disabled={loadingDiagnostics}>
+            <RefreshCw className={`h-3.5 w-3.5 ${loadingDiagnostics ? "animate-spin" : ""}`} strokeWidth={1.75} />
+            Refresh
+          </Button>
+          <Button size="sm" onClick={handleBenchmark} disabled={busy !== null}>
+            <Timer className="h-3.5 w-3.5" strokeWidth={1.75} />
+            Run benchmark suite
+          </Button>
+        </div>
+      </div>
 
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <PageContainer>
       {error && (
         <div className="flex items-center gap-2 rounded-[var(--radius-control)] border border-(--color-danger)/30 bg-(--color-danger)/10 px-4 py-2.5 text-sm text-(--color-danger)">
           {error}
@@ -555,6 +562,8 @@ export function GraphPerformancePage() {
             </Card>
           </div>
         )}
-    </PageContainer>
+        </PageContainer>
+      </div>
+    </div>
   );
 }

@@ -19,8 +19,12 @@ const THEME_OPTIONS: { id: ThemePreference; label: string; icon: typeof Sun; des
 
 const MATERIAL_SAMPLES: { material: string; label: string; caption: string }[] = [
   { material: "glass-chrome", label: "Chrome", caption: "Sidebar & toolbars" },
+  { material: "glass-surface", label: "Surface", caption: "Hero panels" },
   { material: "glass-panel", label: "Panel", caption: "Cards & lists" },
-  { material: "glass-control", label: "Control", caption: "Buttons & inputs" },
+  { material: "glass-well", label: "Well", caption: "Input fields" },
+  { material: "glass-control", label: "Control", caption: "Buttons & segments" },
+  { material: "glass-sheet", label: "Sheet", caption: "Dialogs" },
+  { material: "glass-accent", label: "Accent", caption: "Primary actions" },
 ];
 
 export function SettingsPage() {

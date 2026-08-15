@@ -28,11 +28,36 @@ export function useLiquidGlass<T extends HTMLElement>(
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const inst = applyLiquidGlass(el, optsRef.current);
-    setInstance(inst);
-    return () => {
-      inst.destroy();
+
+    // "Reduce Transparency" is handled in CSS (near-opaque surfaces, no
+    // backdrop-filter). The module's INLINE backdrop-filter would override
+    // that media query, so skip applying it entirely while the preference
+    // is active — and re-apply if the user toggles it at runtime.
+    const reducedTransparency =
+      typeof window.matchMedia === "function"
+        ? window.matchMedia("(prefers-reduced-transparency: reduce)")
+        : null;
+
+    let inst: LiquidGlassInstance | null = null;
+    const teardown = () => {
+      inst?.destroy();
+      inst = null;
       setInstance(null);
+    };
+    const apply = () => {
+      if (reducedTransparency?.matches) return;
+      inst = applyLiquidGlass(el, optsRef.current);
+      setInstance(inst);
+    };
+    const onChange = () => {
+      teardown();
+      apply();
+    };
+    apply();
+    reducedTransparency?.addEventListener("change", onChange);
+    return () => {
+      reducedTransparency?.removeEventListener("change", onChange);
+      teardown();
     };
     // Optics are declared once per surface; element identity is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps

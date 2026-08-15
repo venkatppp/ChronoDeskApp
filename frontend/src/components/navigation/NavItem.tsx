@@ -22,7 +22,7 @@ export function NavItem({ to, label, icon: Icon, end }: NavItemProps) {
       className={({ isActive }) =>
         cn(
           "group relative flex h-8 items-center gap-2.5 rounded-[8px] px-2.5 text-[13px] font-medium",
-          "transition-all duration-150 ease-[var(--ease-premium)] active:scale-[0.985]",
+          "transition-all duration-100 ease-out motion-safe:active:scale-[0.97]",
           isActive
             ? "bg-(--color-surface-raised)/70 text-(--color-foreground) shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
             : "text-(--color-muted-foreground) hover:bg-(--color-surface-hover) hover:text-(--color-foreground) hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
