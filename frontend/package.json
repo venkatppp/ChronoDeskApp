@@ -21,6 +21,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.25.0",
     "monaco-editor": "^0.56.0",
+    "motion": "^13.1.0",
     "react": "^19.1.0",
     "react-complex-tree": "^2.6.2",
     "react-dom": "^19.1.0",

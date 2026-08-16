@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { GlassInput } from "@/components/ui/GlassInput";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { GlassSurface } from "@/components/ui/GlassSurface";
 import { Dialog } from "@/components/ui/Dialog";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { useDashboardData } from "@/features/dashboard/hooks/useDashboardData";
@@ -307,11 +306,7 @@ export function DashboardView() {
       )}
 
       {!isLoading && !(smartResumeSession && !dismissedSmartResume) && resumeWorkspace && (
-        <GlassSurface
-          material="surface"
-          className="rounded-3xl"
-          optics={{ scale: -96, blur: 5 }}
-        >
+        <Card className="rounded-3xl">
           <div className="flex flex-col gap-6 p-6 lg:flex-row lg:items-center lg:justify-between lg:p-7">
             <div className="flex min-w-0 items-center gap-5">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-(--color-accent-muted) ring-1 ring-(--color-accent)/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
@@ -350,7 +345,7 @@ export function DashboardView() {
               {renderFileChips()}
             </div>
           )}
-        </GlassSurface>
+        </Card>
       )}
 
       {/* Workspaces — moved upward to occupy the empty central area */}
@@ -412,7 +407,7 @@ export function DashboardView() {
       </section>
 
       {!isLoading && !(smartResumeSession && !dismissedSmartResume) && !resumeWorkspace && (
-        <GlassSurface material="surface" className="rounded-3xl">
+        <Card className="rounded-3xl">
           <div className="flex flex-col gap-6 p-7 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-5">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-(--color-accent-muted) ring-1 ring-(--color-accent)/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
@@ -435,7 +430,7 @@ export function DashboardView() {
               New workspace
             </Button>
           </div>
-        </GlassSurface>
+        </Card>
       )}
 
       {(error || createError) && (

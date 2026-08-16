@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/utils/cn";
 import { GlassSurface } from "@/components/ui/GlassSurface";
+import { springs } from "@/lib/springs";
+import { useReducedMotion } from "@/utils/motion";
 
 interface DialogProps {
   open: boolean;
@@ -18,28 +21,24 @@ interface DialogProps {
  * Focus moves into the sheet when it opens and returns to the element
  * that opened it when it closes.
  *
- * Motion mirrors the skill's material rules: the sheet "materializes"
- * on the way in (opacity + scale + blur radius together) and exits
- * along the same path (scale down + blur out) instead of unmounting
- * with a hard cut. Exit plays at ~0.18s and unmounts on animation end.
+ * Motion mirrors Apple's material rules: the sheet "materializes" on the
+ * way in — spring scale + opacity + a slight rise — and dematerializes
+ * along the same path on exit. Under prefers-reduced-motion this becomes
+ * an opacity cross-fade.
  */
 export function Dialog({ open, onClose, title, description, children, footer, className }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
-  const [closing, setClosing] = useState(false);
-
-  const requestClose = useCallback(() => {
-    setClosing(true);
-  }, []);
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !closing) requestClose();
+      if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open, closing, requestClose]);
+  }, [open, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -53,45 +52,44 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
     };
   }, [open]);
 
-  const handleAnimationEnd = () => {
-    if (!closing) return;
-    setClosing(false);
-    onClose();
-  };
-
-  if (!open) return null;
-
   return (
-    <div
-      className={cn(
-        "fixed inset-0 z-50 flex items-center justify-center bg-(--color-overlay) p-6 backdrop-blur-[6px]",
-        closing ? "overlay-exit" : "overlay-enter",
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          key="dialog-root"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-(--color-overlay) p-6 backdrop-blur-[6px]"
+          role="dialog"
+          aria-modal="true"
+          aria-label={typeof title === "string" ? title : undefined}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={springs.overlay}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) onClose();
+          }}
+        >
+          <GlassSurface
+            material="sheet"
+            className={cn("w-full max-w-md rounded-2xl p-5 outline-none", className)}
+          >
+            <motion.div
+              ref={panelRef}
+              initial={{ opacity: 0, scale: reduced ? 1 : 0.95, y: reduced ? 0 : 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: reduced ? 1 : 0.96, y: reduced ? 0 : 8 }}
+              transition={springs.material}
+            >
+              <h2 className="font-(family-name:--font-display) text-lg font-semibold tracking-tight text-(--color-foreground)">
+                {title}
+              </h2>
+              {description && <p className="mt-1 text-sm text-(--color-muted-foreground) text-on-glass">{description}</p>}
+              <div className="mt-4">{children}</div>
+              {footer && <div className="mt-5 flex justify-end gap-2">{footer}</div>}
+            </motion.div>
+          </GlassSurface>
+        </motion.div>
       )}
-      role="dialog"
-      aria-modal="true"
-      aria-label={typeof title === "string" ? title : undefined}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) requestClose();
-      }}
-    >
-      <GlassSurface
-        material="sheet"
-        onAnimationEnd={handleAnimationEnd}
-        className={cn(
-          "w-full max-w-md rounded-2xl p-5 outline-none",
-          closing ? "sheet-exit" : "sheet-enter",
-          className,
-        )}
-      >
-        <div ref={panelRef}>
-          <h2 className="font-(family-name:--font-display) text-lg font-semibold tracking-tight text-(--color-foreground)">
-            {title}
-          </h2>
-          {description && <p className="mt-1 text-sm text-(--color-muted-foreground) text-on-glass">{description}</p>}
-          <div className="mt-4">{children}</div>
-          {footer && <div className="mt-5 flex justify-end gap-2">{footer}</div>}
-        </div>
-      </GlassSurface>
-    </div>
+    </AnimatePresence>
   );
 }

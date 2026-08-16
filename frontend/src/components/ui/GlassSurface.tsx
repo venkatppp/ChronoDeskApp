@@ -2,6 +2,7 @@ import { forwardRef, useRef, type HTMLAttributes, type ElementType } from "react
 import { cn } from "@/utils/cn";
 import { useLiquidGlass } from "@/hooks/useLiquidGlass";
 import { useGlare } from "@/hooks/useGlare";
+import { useWindowFocus } from "@/hooks/useWindowFocus";
 import type { LiquidGlassOptions } from "@/lib/liquidGlass";
 
 /**
@@ -15,8 +16,14 @@ import type { LiquidGlassOptions } from "@/lib/liquidGlass";
  *           sheet refracts.
  * LEVEL 4 — well / control / nav: small glass controls (inputs, buttons,
  *           segments, nav rows). Always frosted — never refraction.
+ *
+ * Adaptive behavior: chrome/surface/sheet recede when the window loses
+ * focus (macOS convention), tint adds Apple-style colored glass for a
+ * single primary action per view, materialize animates arrival, and
+ * illuminate gives press-time inner glow.
  */
 export type GlassMaterial = "chrome" | "surface" | "panel" | "well" | "control" | "nav" | "sheet";
+export type GlassTint = "blue" | "red" | "green" | "orange";
 type GlassTag = "div" | "aside" | "header" | "section" | "main" | "nav" | "footer";
 
 export interface GlassSurfaceProps extends HTMLAttributes<HTMLElement> {
@@ -45,6 +52,21 @@ export interface GlassSurfaceProps extends HTMLAttributes<HTMLElement> {
    * prefers-reduced-motion.
    */
   glare?: boolean;
+  /**
+   * Apple-style adaptive tint — translucent colored glass for ONE primary
+   * action per view. Restrained by design: legibility comes from the
+   * pane + content, never from opacity.
+   */
+  tint?: GlassTint;
+  /**
+   * Materialize on mount (opacity + scale + rise). Use for surfaces that
+   * arrive into the scene, e.g. after data loads. Disabled under
+   * prefers-reduced-motion by the global CSS rule.
+   */
+  materialize?: boolean;
+  /** Press-time inner illumination ("the material illuminates from
+   *  within"). Cheap CSS overlay; disabled under reduced motion. */
+  illuminate?: boolean;
 }
 
 const MATERIAL_CLASS: Record<GlassMaterial, string> = {
@@ -77,17 +99,42 @@ const GLARES_BY_DEFAULT: Record<GlassMaterial, boolean> = {
   sheet: true,
 };
 
+/* Large floating panes recede when the window loses focus. */
+const RECEDES_BY_DEFAULT: Record<GlassMaterial, boolean> = {
+  chrome: true,
+  surface: true,
+  panel: false,
+  well: false,
+  control: false,
+  nav: false,
+  sheet: true,
+};
+
+const TINT_CLASS: Record<GlassTint, string> = {
+  blue: "glass-tint glass-tint-blue",
+  red: "glass-tint glass-tint-red",
+  green: "glass-tint glass-tint-green",
+  orange: "glass-tint glass-tint-orange",
+};
+
 /**
  * The single reusable Liquid Glass surface. Owns the optics lifecycle
- * (mount/unmount + resize) and the material dressing in one primitive so
- * no page ever re-implements glass styling.
+ * (mount/unmount + resize), the material dressing, and the adaptive
+ * behaviors (focus recede, tint, materialize, illumination) in one
+ * primitive so no page ever re-implements glass styling.
  */
 export const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
-  ({ as: Tag = "div", className, material = "panel", refraction, glare, optics, children, ...props }, forwardedRef) => {
+  (
+    { as: Tag = "div", className, material = "panel", refraction, glare, optics, tint, materialize, illuminate, children, ...props },
+    forwardedRef,
+  ) => {
     const localRef = useRef<HTMLElement | null>(null);
 
     const wantsRefraction = refraction ?? REFRACTS_BY_DEFAULT[material];
     const wantsGlare = glare ?? GLARES_BY_DEFAULT[material];
+    const wantsRecede = RECEDES_BY_DEFAULT[material];
+    const focused = useWindowFocus();
+
     useLiquidGlass(localRef, wantsRefraction ? optics : { maxArea: 0 });
     useGlare(localRef);
 
@@ -101,7 +148,15 @@ export const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
     return (
       <TagElement
         ref={setRef}
-        className={cn(MATERIAL_CLASS[material], wantsGlare && "glare", className)}
+        className={cn(
+          MATERIAL_CLASS[material],
+          wantsGlare && "glare",
+          tint && TINT_CLASS[tint],
+          wantsRecede && !focused && "chrome-receded",
+          materialize && "surface-enter",
+          illuminate && "illuminate",
+          className,
+        )}
         {...props}
       >
         {children}

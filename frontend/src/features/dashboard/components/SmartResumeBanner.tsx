@@ -7,7 +7,7 @@
 import { ArrowRight, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { GlassSurface } from "@/components/ui/GlassSurface";
+import { Card } from "@/components/ui/Card";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { MiniSessionTimeline } from "./MiniSessionTimeline";
 import type { SessionSummary } from "@/types/session";
@@ -30,7 +30,7 @@ export function SmartResumeBanner({ session, onResume, onDismiss }: SmartResumeB
   };
 
   return (
-    <GlassSurface material="surface" className="relative rounded-3xl">
+    <Card className="relative rounded-3xl">
       <div className="flex flex-col gap-6 p-6 lg:flex-row lg:items-center lg:justify-between lg:p-7">
         <div className="flex min-w-0 items-center gap-5">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-(--color-accent-muted) ring-1 ring-(--color-accent)/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
@@ -94,6 +94,6 @@ export function SmartResumeBanner({ session, onResume, onDismiss }: SmartResumeB
       >
         <X className="h-4 w-4" strokeWidth={1.75} />
       </button>
-    </GlassSurface>
+    </Card>
   );
 }

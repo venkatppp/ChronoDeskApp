@@ -13,10 +13,11 @@ import {
   Search,
   Command,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { NavItem } from "@/components/navigation/NavItem";
 import { GlassSurface } from "@/components/ui/GlassSurface";
+import { ScrollEdge } from "@/components/ui/ScrollEdge";
 
 const NAV_GROUPS: { label: string; scopes: { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean }[] }[] = [
   {
@@ -64,6 +65,7 @@ interface RuntimeHealth {
  */
 export function Sidebar() {
   const [health, setHealth] = useState<RuntimeHealth | null>(null);
+  const navRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,20 +117,25 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-5 overflow-y-auto">
-        {NAV_GROUPS.map((group) => (
-          <div key={group.label}>
-            <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.13em] text-(--color-faint-foreground)">
-              {group.label}
-            </p>
-            <div className="flex flex-col gap-0.5">
-              {group.scopes.map((item) => (
-                <NavItem key={item.to} {...item} />
-              ))}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <nav ref={navRef} className="flex flex-1 flex-col gap-5 overflow-y-auto">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label}>
+              <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.13em] text-(--color-faint-foreground)">
+                {group.label}
+              </p>
+              <div className="flex flex-col gap-0.5">
+                {group.scopes.map((item) => (
+                  <NavItem key={item.to} {...item} />
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </nav>
+          ))}
+        </nav>
+        {/* Scroll edge — nav content dissolves into the pane's lower chrome
+            instead of a hard cutoff as it scrolls under the status bar. */}
+        <ScrollEdge containerRef={navRef} mode="soft" side="bottom" />
+      </div>
 
       <div className="mt-auto flex flex-col gap-3.5">
         {/* Bottom status bar with subtle glass separation */}
