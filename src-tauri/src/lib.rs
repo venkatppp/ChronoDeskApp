@@ -59,6 +59,7 @@ pub mod ai;
 pub mod analytics;
 pub mod app_events;
 pub mod commands;
+pub mod core_server;
 pub mod context_memory;
 pub mod copilot;
 pub mod database;
@@ -122,15 +123,13 @@ use timeline::TimelineEngine;
 use watcher::FileWatcher;
 use workspace::WorkspaceManager;
 
-/// Builds and runs the Tauri application. Called from `main.rs`; kept in
-/// the library crate (rather than inline in `main`) so it can also be
-/// exercised from integration tests and, eventually, mobile targets.
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_log::Builder::new().level(log_level()).build())
-        .setup(|app| {
+
+/// Initializes every ChronoDesk core subsystem (database, repositories,
+/// services, engines, watcher, ML, graph, memory) into a Tauri app.
+/// Shared by the GUI entry point [`run`] and by the headless
+/// `chronodesk-core` daemon binary that serves the native macOS SwiftUI
+/// frontend over JSON-RPC (stdin/stdout).
+pub fn initialize_core(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             let _ = tracing_subscriber::fmt()
                 .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
                 .try_init();
@@ -879,7 +878,22 @@ pub fn run() {
             tracing::info!("ChronoDesk backend ready");
 
             Ok(())
-        })
+}
+
+
+/// Builds and runs the Tauri application. Called from `main.rs`; kept in
+/// the library crate (rather than inline in `main`) so it can also be
+/// exercised from integration tests and, eventually, mobile targets.
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_log::Builder::new().level(log_level()).build())
+        .setup(|app| initialize_core(app))
+
+
+
+
         .invoke_handler(tauri::generate_handler![
             commands::system::get_app_version,
             commands::system::health_check,

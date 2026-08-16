@@ -1,0 +1,60 @@
+#!/bin/bash
+set -euo pipefail
+
+# Build script for the native macOS ChronoDesk frontend (no Xcode —
+# uses CLT swiftc + macOS 26 SDK, same recipe as ContextSphereLiquidGlassDemo).
+# Builds the Rust core daemon and bundles it into the .app.
+cd "$(dirname "$0")"
+
+SDK=$(xcrun --show-sdk-path --sdk macosx)
+APP_NAME="ChronoDesk"
+BUILD_DIR="build"
+APP_DIR="$BUILD_DIR/$APP_NAME.app"
+CORE_DIR="../../src-tauri"
+
+PROFILE="${CHRONODESK_PROFILE:-release}"
+if [ "$PROFILE" = "debug" ]; then
+  CORE_BIN="$CORE_DIR/target/debug/chronodesk_core"
+  CORE_FLAGS=""
+else
+  CORE_BIN="$CORE_DIR/target/release/chronodesk_core"
+  CORE_FLAGS="--release"
+fi
+
+echo "==> SDK: $SDK"
+echo "==> Building Rust core daemon ($PROFILE)"
+(cd "$CORE_DIR" && cargo build --bin chronodesk_core $CORE_FLAGS)
+
+rm -rf "$BUILD_DIR"
+mkdir -p "$APP_DIR/Contents/MacOS"
+
+echo "==> Compiling Swift sources"
+swiftc \
+  -swift-version 5 \
+  -O \
+  -target arm64-apple-macosx26.0 \
+  -sdk "$SDK" \
+  Sources/ChronoDeskApp.swift \
+  Sources/CoreBridge.swift \
+  Sources/RPCModels.swift \
+  Sources/Theme.swift \
+  Sources/AppShell.swift \
+  Sources/TimelineViewModel.swift \
+  Sources/SearchViewModel.swift \
+  Sources/GraphLayout.swift \
+  Sources/GraphViewModel.swift \
+  Sources/Views/DashboardView.swift \
+  Sources/Views/TimelineView.swift \
+  Sources/Views/WorkspacesView.swift \
+  Sources/Views/SearchView.swift \
+  Sources/Views/GraphView.swift \
+  Sources/Views/GraphInspectorView.swift \
+  -o "$APP_DIR/Contents/MacOS/$APP_NAME"
+
+echo "==> Assembling bundle"
+cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
+cp "$CORE_BIN" "$APP_DIR/Contents/MacOS/chronodesk_core"
+codesign --force --sign - "$APP_DIR"
+
+echo "==> Done: $APP_DIR"
+echo "    Launch with: open $APP_DIR"
