@@ -12,6 +12,7 @@ import {
   Settings,
   Search,
   Command,
+  Orbit,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -28,6 +29,7 @@ const NAV_GROUPS: { label: string; scopes: { to: string; label: string; icon: ty
       { to: "/timeline", label: "Timeline", icon: History },
       { to: "/graph", label: "Knowledge Graph", icon: Share2 },
       { to: "/graph/performance", label: "Graph Performance", icon: Gauge },
+      { to: "/context", label: "Workspace Context", icon: Orbit },
     ],
   },
   {

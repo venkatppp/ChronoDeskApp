@@ -6,6 +6,7 @@ import { WorkspacesPage } from "@/pages/WorkspacesPage";
 import { TimelinePage } from "@/pages/TimelinePage";
 import { GraphPage } from "@/pages/GraphPage";
 import { GraphPerformancePage } from "@/pages/GraphPerformancePage";
+import { ContextPage } from "@/pages/ContextPage";
 import { SearchPage } from "@/pages/SearchPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import LearningPage from "@/pages/LearningPage";
@@ -31,6 +32,7 @@ export function App() {
             <Route path="timeline" element={<TimelinePage />} />
             <Route path="graph" element={<GraphPage />} />
             <Route path="graph/performance" element={<GraphPerformancePage />} />
+            <Route path="context" element={<ContextPage />} />
             <Route path="search" element={<SearchPage />} />
             <Route path="learning" element={<LearningPage />} />
             <Route path="memory" element={<MemoryPage />} />
