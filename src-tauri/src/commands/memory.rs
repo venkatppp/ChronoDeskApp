@@ -1,5 +1,5 @@
 //! Execution Memory IPC Commands - search, recommend, and inspect what
-//! ChronoDesk has learned from previous executions (RC-6 M1), plus the
+//! ContextSphere has learned from previous executions (RC-6 M1), plus the
 //! vector index status and manual re-index (RC-6 M2).
 //!
 //! Thin wrappers around the shared `MemoryEngine`; no business logic lives

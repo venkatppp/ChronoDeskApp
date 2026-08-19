@@ -3,7 +3,7 @@
 //! compatibility rules live here:
 //!
 //! - `schema_version` is stamped on every payload; imports reject
-//!   payloads from a *newer* format so a future ChronoDesk export never
+//!   payloads from a *newer* format so a future ContextSphere export never
 //!   silently corrupts an older store.
 //! - Imports are idempotent by record id (the engine skips existing ids).
 //!

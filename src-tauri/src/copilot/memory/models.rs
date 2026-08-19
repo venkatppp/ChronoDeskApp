@@ -1,4 +1,4 @@
-//! Execution Memory models - the durable records ChronoDesk learns from,
+//! Execution Memory models - the durable records ContextSphere learns from,
 //! plus the query payloads/ranked hits returned by the retrieval and
 //! learning engines.
 //!

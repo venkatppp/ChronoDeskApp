@@ -35,7 +35,7 @@ pub enum TimelineActivity {
         previous_name: String,
         new_name: String,
     },
-    /// An existing directory was brought under ChronoDesk's management
+    /// An existing directory was brought under ContextSphere's management
     /// (a watch path was added covering it), as opposed to being
     /// discovered incrementally file-by-file.
     ProjectImported,

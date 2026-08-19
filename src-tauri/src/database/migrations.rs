@@ -7,7 +7,7 @@ use crate::errors::DatabaseError;
 ///
 /// [`sqlx::migrate!`] embeds the migration files into the compiled binary
 /// at build time (path is resolved relative to `CARGO_MANIFEST_DIR`, i.e.
-/// `src-tauri/`), so a shipped ChronoDesk build carries its own schema
+/// `src-tauri/`), so a shipped ContextSphere build carries its own schema
 /// history and never reads `.sql` files off disk at runtime. sqlx tracks
 /// which migrations have already run in a `_sqlx_migrations` bookkeeping
 /// table it manages itself, so calling this on every startup is

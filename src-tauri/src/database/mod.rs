@@ -136,7 +136,7 @@ impl Database {
     /// # Errors
     /// - [`DatabaseError::Connection`] if the pool can't be created.
     /// - [`DatabaseError::Migration`] if a migration fails to apply. This
-    ///   is treated as fatal: ChronoDesk will not run against a database
+    ///   is treated as fatal: ContextSphere will not run against a database
     ///   in an unknown schema state.
     pub async fn initialize_at(db_path: &Path) -> Result<Database, DatabaseError> {
         tracing::info!(path = %db_path.display(), "initializing database");

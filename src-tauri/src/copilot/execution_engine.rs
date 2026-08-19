@@ -43,7 +43,7 @@ pub struct ExecutionEngine {
     /// Frontend event emitter for live `execution:progress` snapshots.
     event_emitter: Option<Arc<dyn AppEventEmitter>>,
     /// Execution memory capture (RC-6 M1). Terminal states are recorded
-    /// here so ChronoDesk learns from every run. Optional; captures are
+    /// here so ContextSphere learns from every run. Optional; captures are
     /// best-effort and never affect the execution lifecycle.
     memory: Option<Arc<MemoryEngine>>,
 }

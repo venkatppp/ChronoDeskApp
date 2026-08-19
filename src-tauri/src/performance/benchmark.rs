@@ -259,7 +259,7 @@ impl BenchmarkEngine {
                     "ranked_search",
                     || async {
                         graph_engine
-                            .graph_ranked_search("chronodesk", None, Some(10))
+                            .graph_ranked_search("contextsphere", None, Some(10))
                             .await
                             .map(|_| ())
                             .map_err(|e| e.to_string())

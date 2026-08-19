@@ -1,6 +1,6 @@
 //! Semantic Memory Engine
 //!
-//! Manages semantic indexing and retrieval across all ChronoDesk data.
+//! Manages semantic indexing and retrieval across all ContextSphere data.
 
 use std::sync::Arc;
 

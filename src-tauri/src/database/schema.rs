@@ -7,7 +7,7 @@
 //! tooling) come from one constant rather than being re-typed as string
 //! literals in multiple places.
 
-/// The schema version this build of ChronoDesk expects, i.e. the number
+/// The schema version this build of ContextSphere expects, i.e. the number
 /// of applied migrations. Bump this alongside adding a new
 /// `NNNN_description.sql` file under `migrations/`.
 ///

@@ -550,7 +550,7 @@ mod tests {
         let (repo, pool, _guard) = repo().await;
         let workspace = repo
             .create(CreateWorkspaceInput {
-                name: "ChronoDesk Dev".to_string(),
+                name: "ContextSphere Dev".to_string(),
                 description: None,
                 root_path: None,
             })
@@ -602,7 +602,7 @@ mod tests {
         let (repo, _pool, _guard) = repo().await;
         let workspace = repo
             .create(CreateWorkspaceInput {
-                name: "ChronoDesk Dev".to_string(),
+                name: "ContextSphere Dev".to_string(),
                 description: None,
                 root_path: None,
             })

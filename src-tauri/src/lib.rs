@@ -1,4 +1,4 @@
-//! ChronoDesk backend library.
+//! ContextSphere backend library.
 //!
 //! This crate is split by domain, mirroring the engines described in the
 //! product blueprint (§4 Software Architecture).
@@ -124,10 +124,10 @@ use watcher::FileWatcher;
 use workspace::WorkspaceManager;
 
 
-/// Initializes every ChronoDesk core subsystem (database, repositories,
+/// Initializes every ContextSphere core subsystem (database, repositories,
 /// services, engines, watcher, ML, graph, memory) into a Tauri app.
 /// Shared by the GUI entry point [`run`] and by the headless
-/// `chronodesk-core` daemon binary that serves the native macOS SwiftUI
+/// `contextsphere-core` daemon binary that serves the native macOS SwiftUI
 /// frontend over JSON-RPC (stdin/stdout).
 pub fn initialize_core(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             let _ = tracing_subscriber::fmt()
@@ -136,7 +136,7 @@ pub fn initialize_core(app: &mut tauri::App) -> Result<(), Box<dyn std::error::E
 
             tracing::info!(
                 version = env!("CARGO_PKG_VERSION"),
-                "ChronoDesk backend starting"
+                "ContextSphere backend starting"
             );
 
             // RC-10 M1: the startup profiler is created before anything
@@ -875,7 +875,7 @@ pub fn initialize_core(app: &mut tauri::App) -> Result<(), Box<dyn std::error::E
                 Err(error) => tracing::warn!(error = %error, "startup profile could not be recorded"),
             }
 
-            tracing::info!("ChronoDesk backend ready");
+            tracing::info!("ContextSphere backend ready");
 
             Ok(())
 }
@@ -1150,7 +1150,7 @@ pub fn run() {
             commands::conversation::copilot_export_conversation_markdown,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building ChronoDesk")
+        .expect("error while building ContextSphere")
         .run(|app_handle, event| {
             // RC-10 M2: record the clean-shutdown checkpoint on exit so
             // the next launch can distinguish a clean stop from a crash.

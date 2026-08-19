@@ -185,7 +185,7 @@ impl Optimizer {
                 severity: "critical".to_string(),
                 title: "System memory pressure".to_string(),
                 detail: format!(
-                    "{:.0}% of {} RAM is in use. Close other applications or reduce ChronoDesk's cache footprint.",
+                    "{:.0}% of {} RAM is in use. Close other applications or reduce ContextSphere's cache footprint.",
                     diagnostics.memory.percent,
                     format_bytes(diagnostics.memory.total_bytes)
                 ),

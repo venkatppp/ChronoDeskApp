@@ -270,7 +270,7 @@ mod tests {
 
         let workspace = service
             .create_workspace(CreateWorkspaceInput {
-                name: "ChronoDesk Dev".to_string(),
+                name: "ContextSphere Dev".to_string(),
                 description: None,
                 root_path: None,
             })

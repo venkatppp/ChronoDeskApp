@@ -422,7 +422,7 @@ impl CopilotEngine {
     /// Builds the system prompt for the LLM
     fn build_system_prompt(&self, workspace_id: Option<Uuid>, context: &str) -> String {
         let mut prompt = String::from(
-            "You are ChronoDesk AI Copilot, an intelligent workspace assistant that helps users manage their projects and work.\n\n\
+            "You are ContextSphere AI Copilot, an intelligent workspace assistant that helps users manage their projects and work.\n\n\
             You have access to the user's workspace activity, timeline events, files, and work patterns.\n\n\
             Your role is to:\n\
             - Answer questions about workspace activity and history\n\

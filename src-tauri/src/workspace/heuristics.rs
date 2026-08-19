@@ -111,8 +111,8 @@ pub fn is_workspace_root(markers: &[WorkspaceMarker]) -> bool {
 }
 
 /// Suggests a human-readable workspace name from a root directory: its
-/// own directory name (e.g. `/Users/me/projects/chronodesk` →
-/// `"chronodesk"`), falling back to the full path for the rare case of a
+/// own directory name (e.g. `/Users/me/projects/contextsphere` →
+/// `"contextsphere"`), falling back to the full path for the rare case of a
 /// directory with no file-name component (e.g. a filesystem root).
 pub fn suggest_name(dir: &Path) -> String {
     dir.file_name()

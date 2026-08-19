@@ -1,7 +1,7 @@
 //! Semantic Intelligence Layer
 //!
 //! Provides semantic memory, embedding-based search, and AI reasoning
-//! capabilities across all ChronoDesk data types.
+//! capabilities across all ContextSphere data types.
 
 pub mod embeddings;
 pub mod engine;

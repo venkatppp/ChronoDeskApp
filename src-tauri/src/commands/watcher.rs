@@ -1,4 +1,4 @@
-//! File Watcher IPC commands: manage which directories ChronoDesk
+//! File Watcher IPC commands: manage which directories ContextSphere
 //! watches, persisting the list (via [`SettingsRepository`]) so it's
 //! restored automatically on the next launch — see
 //! [`restore_watched_paths`], called once from `lib.rs`'s `setup()`.

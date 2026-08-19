@@ -51,7 +51,7 @@ impl FromStr for WorkspaceStatus {
     }
 }
 
-/// A ChronoDesk workspace: the auto-maintained container linking every
+/// A ContextSphere workspace: the auto-maintained container linking every
 /// artifact a user touches while working on one piece of work (blueprint
 /// §1.2). This is the public, strongly typed model returned by
 /// [`crate::repositories::workspace_repository::WorkspaceRepository`] and

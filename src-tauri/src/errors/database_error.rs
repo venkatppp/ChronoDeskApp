@@ -20,7 +20,7 @@ pub enum DatabaseError {
     Connection(#[source] sqlx::Error),
 
     /// A migration failed to apply. This is treated as fatal at startup —
-    /// ChronoDesk refuses to run against a database in an unknown schema
+    /// ContextSphere refuses to run against a database in an unknown schema
     /// state rather than silently operating on partial/incorrect tables.
     #[error("database migration failed: {0}")]
     Migration(#[source] sqlx::migrate::MigrateError),
