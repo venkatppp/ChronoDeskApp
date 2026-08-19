@@ -103,7 +103,7 @@ extension JSONValue: Equatable, Hashable {
 
 // MARK: - Core bridge
 
-/// Spawns the `chronodesk_core` daemon and speaks line-delimited JSON-RPC
+/// Spawns the `contextsphere_core` daemon and speaks line-delimited JSON-RPC
 /// over its stdin/stdout. Responses are matched to pending requests by id;
 /// daemon events arrive as notifications.
 @MainActor
@@ -167,19 +167,19 @@ final class CoreBridge: ObservableObject {
         process?.terminate()
     }
 
-    /// Finds the daemon: bundled `Contents/MacOS/chronodesk_core`, else the
-    /// `CHRONODESK_CORE` env override (dev builds use the cargo target dir).
+    /// Finds the daemon: bundled `Contents/MacOS/contextsphere_core`, else the
+    /// `CONTEXTSPHERE_CORE` env override (dev builds use the cargo target dir).
     private func resolveDaemonURL() -> URL {
-        if let env = ProcessInfo.processInfo.environment["CHRONODESK_CORE"] {
+        if let env = ProcessInfo.processInfo.environment["CONTEXTSPHERE_CORE"] {
             return URL(fileURLWithPath: env)
         }
         let bundle = Bundle.main
         if let bundled = bundle.executableURL?.deletingLastPathComponent()
-            .appendingPathComponent("chronodesk_core"),
+            .appendingPathComponent("contextsphere_core"),
             FileManager.default.isExecutableFile(atPath: bundled.path) {
             return bundled
         }
-        return URL(fileURLWithPath: "src-tauri/target/debug/chronodesk_core")
+        return URL(fileURLWithPath: "src-tauri/target/debug/contextsphere_core")
     }
 
     /// Sends a request and decodes the result into `T`. Errors (RPC-level

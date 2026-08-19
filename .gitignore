@@ -21,7 +21,7 @@ node_modules
 .claude-flow/sessions/
 
 ## macOS native app build output
-macos/ChronoDesk/build/
+macos/ContextSphere/build/
 
 ## Local runtime data
 .freebuff/

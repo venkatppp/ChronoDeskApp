@@ -1,7 +1,7 @@
-//! `chronodesk-core` — headless core daemon for the native macOS SwiftUI
+//! `contextsphere-core` — headless core daemon for the native macOS SwiftUI
 //! frontend.
 //!
-//! Initializes every ChronoDesk subsystem (same code path as the GUI app,
+//! Initializes every ContextSphere subsystem (same code path as the GUI app,
 //! [`chronodesk_lib::initialize_core`]) but builds a window-less Tauri app
 //! from `tauri.core.conf.json` and serves JSON-RPC over stdin/stdout via
 //! [`chronodesk_lib::core_server`]. Events emitted by the engines are
@@ -72,11 +72,11 @@ fn main() {
                 core_server::serve(handle).await;
             });
 
-            tracing::info!("chronodesk-core daemon ready");
+            tracing::info!("contextsphere-core daemon ready");
             Ok(())
         })
         .build(tauri::generate_context!("tauri.core.conf.json"))
-        .expect("error while building chronodesk-core")
+        .expect("error while building contextsphere-core")
         .run(|app_handle, event| {
             if let tauri::RunEvent::Exit = event {
                 if let Some(manager) =

@@ -29,7 +29,7 @@ struct DashboardView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Dashboard").font(.largeTitle.weight(.semibold))
-            Text("Everything ChronoDesk is watching right now.")
+            Text("Everything ContextSphere is watching right now.")
                 .font(.callout).foregroundStyle(.secondary)
         }
     }

@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Shared design tokens for ChronoDesk's Liquid Glass surface.
+// Shared design tokens for ContextSphere's Liquid Glass surface.
 
 enum Theme {
     static let accent = Color.accentColor
@@ -80,7 +80,7 @@ struct EmptyStateView: View {
 }
 
 struct LoadingView: View {
-    var label = "Connecting to ChronoDesk core…"
+    var label = "Connecting to ContextSphere core…"
 
     var body: some View {
         VStack(spacing: 12) {

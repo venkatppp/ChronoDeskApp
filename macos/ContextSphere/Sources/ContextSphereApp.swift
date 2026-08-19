@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct ChronoDeskApp: App {
+struct ContextSphereApp: App {
     var body: some Scene {
         WindowGroup(id: "main") {
             AppShell()

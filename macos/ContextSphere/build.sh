@@ -1,29 +1,29 @@
 #!/bin/bash
 set -euo pipefail
 
-# Build script for the native macOS ChronoDesk frontend (no Xcode —
+# Build script for the native macOS ContextSphere frontend (no Xcode —
 # uses CLT swiftc + macOS 26 SDK, same recipe as ContextSphereLiquidGlassDemo).
 # Builds the Rust core daemon and bundles it into the .app.
 cd "$(dirname "$0")"
 
 SDK=$(xcrun --show-sdk-path --sdk macosx)
-APP_NAME="ChronoDesk"
+APP_NAME="ContextSphere"
 BUILD_DIR="build"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
 CORE_DIR="../../src-tauri"
 
-PROFILE="${CHRONODESK_PROFILE:-release}"
+PROFILE="${CONTEXTSPHERE_PROFILE:-release}"
 if [ "$PROFILE" = "debug" ]; then
-  CORE_BIN="$CORE_DIR/target/debug/chronodesk_core"
+  CORE_BIN="$CORE_DIR/target/debug/contextsphere_core"
   CORE_FLAGS=""
 else
-  CORE_BIN="$CORE_DIR/target/release/chronodesk_core"
+  CORE_BIN="$CORE_DIR/target/release/contextsphere_core"
   CORE_FLAGS="--release"
 fi
 
 echo "==> SDK: $SDK"
 echo "==> Building Rust core daemon ($PROFILE)"
-(cd "$CORE_DIR" && cargo build --bin chronodesk_core $CORE_FLAGS)
+(cd "$CORE_DIR" && cargo build --bin contextsphere_core $CORE_FLAGS)
 
 rm -rf "$BUILD_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
@@ -34,7 +34,7 @@ swiftc \
   -O \
   -target arm64-apple-macosx26.0 \
   -sdk "$SDK" \
-  Sources/ChronoDeskApp.swift \
+  Sources/ContextSphereApp.swift \
   Sources/CoreBridge.swift \
   Sources/RPCModels.swift \
   Sources/Theme.swift \
@@ -53,7 +53,7 @@ swiftc \
 
 echo "==> Assembling bundle"
 cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
-cp "$CORE_BIN" "$APP_DIR/Contents/MacOS/chronodesk_core"
+cp "$CORE_BIN" "$APP_DIR/Contents/MacOS/contextsphere_core"
 codesign --force --sign - "$APP_DIR"
 
 echo "==> Done: $APP_DIR"

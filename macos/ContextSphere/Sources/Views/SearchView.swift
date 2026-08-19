@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// Spotlight-style search across ChronoDesk context (workspaces and
+/// Spotlight-style search across ContextSphere context (workspaces and
 /// files), backed by the Rust search engine over JSON-RPC.
 ///
 /// Hierarchy: background → glass search surface → results (material
@@ -261,7 +261,7 @@ struct SearchView: View {
                 .foregroundStyle(.tertiary)
             Text("Search your context")
                 .font(.title3.weight(.semibold))
-            Text("Find workspaces and files across everything ChronoDesk is watching. Recent searches and saved queries appear here.")
+            Text("Find workspaces and files across everything ContextSphere is watching. Recent searches and saved queries appear here.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

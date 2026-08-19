@@ -115,7 +115,7 @@ struct TimelineView: View {
             if viewModel.workspaces.isEmpty {
                 emptyState(
                     title: "No workspaces yet",
-                    message: "Create a workspace from the Workspaces section and ChronoDesk will record its activity here.",
+                    message: "Create a workspace from the Workspaces section and ContextSphere will record its activity here.",
                     symbol: "folder.badge.plus")
             } else if viewModel.events.isEmpty {
                 emptyState(
