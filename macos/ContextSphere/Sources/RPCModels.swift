@@ -219,17 +219,873 @@ struct GraphView: Decodable {
     let edges: [GraphEdge]
 }
 
-// MARK: - Runtime health
+// MARK: - Settings
 
-struct RuntimeHealth: Decodable {
+/// LLM provider as serialized by the daemon (`LLMProviderType`,
+/// `rename_all = "lowercase"`).
+enum LLMProviderType: String, Codable, CaseIterable, Hashable {
+    case openai
+    case ollama
+    case custom
+}
+
+/// LLM provider configuration (`llm_get_settings` / `llm_update_settings`).
+/// The Rust struct carries no serde rename, so the wire keys are
+/// snake_case; `CodingKeys` maps them to idiomatic Swift names.
+struct LLMSettings: Codable, Hashable {
+    var provider: LLMProviderType
+    var baseUrl: String
+    var apiKey: String
+    var model: String
+    var temperature: Double
+    var maxTokens: Int
+    var contextWindow: Int
+
+    enum CodingKeys: String, CodingKey {
+        case provider
+        case baseUrl = "base_url"
+        case apiKey = "api_key"
+        case model
+        case temperature
+        case maxTokens = "max_tokens"
+        case contextWindow = "context_window"
+    }
+}
+
+/// One `security_config` row (`security_config` / `security_set_config`).
+/// Only explicitly set keys are returned; unset keys fall back to the
+/// backend's built-in defaults.
+struct SecurityConfigEntry: Decodable, Identifiable, Hashable {
+    let key: String
+    let value: String
+    let updatedAt: String
+
+    var id: String { key }
+}
+
+// MARK: - Execution memory (RC-6)
+
+/// What kind of execution produced a memory record (`MemoryKind`,
+/// snake_case).
+enum MemoryKind: String, Decodable, Hashable, CaseIterable {
+    case execution
+    case plannerReport = "planner_report"
+    case autonomousSession = "autonomous_session"
+
+    var title: String {
+        switch self {
+        case .execution: "Execution"
+        case .plannerReport: "Planner report"
+        case .autonomousSession: "Autonomous session"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .execution: "terminal"
+        case .plannerReport: "list.clipboard"
+        case .autonomousSession: "sparkles.rectangle.stack"
+        }
+    }
+}
+
+/// Outcome of a remembered run (`MemoryStatus`, snake_case).
+enum MemoryStatus: String, Decodable, Hashable, CaseIterable {
+    case success, failed, cancelled
+
+    var title: String {
+        switch self {
+        case .success: "Succeeded"
+        case .failed: "Failed"
+        case .cancelled: "Cancelled"
+        }
+    }
+}
+
+/// Retention policy of a memory record (`RetentionPolicy`, snake_case).
+enum RetentionPolicy: String, Decodable, Hashable, CaseIterable {
+    case permanent, temporary, archived, expired
+
+    var title: String {
+        switch self {
+        case .permanent: "Permanent"
+        case .temporary: "Temporary"
+        case .archived: "Archived"
+        case .expired: "Expired"
+        }
+    }
+}
+
+/// Structured outcome accounting stored on every memory record.
+struct MemoryOutcome: Decodable, Hashable {
+    let steps: Int
+    let completed: Int
+    let replaced: Int
+    let replanCount: Int
+    let retriesUsed: Int
+    let plansAttempted: Int
+    let durationSeconds: Int
+
+    enum CodingKeys: String, CodingKey {
+        case steps, completed, replaced
+        case replanCount = "replan_count"
+        case retriesUsed = "retries_used"
+        case plansAttempted = "plans_attempted"
+        case durationSeconds = "duration_seconds"
+    }
+}
+
+// MARK: - Execution memory records
+
+/// One task of an execution plan (`PlanTask`). The conditional gate
+/// (`condition`) is intentionally not modeled: it never appears in the
+/// memory screen's rendering.
+struct MemoryPlanTask: Decodable, Hashable {
+    let id: String
+    let description: String
+    let dependencies: [String]
+    let estimatedMinutes: Int
+    let requiredFiles: [String]
+    let toolName: String?
+    let completed: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, description, dependencies, completed
+        case estimatedMinutes = "estimated_minutes"
+        case requiredFiles = "required_files"
+        case toolName = "tool_name"
+    }
+}
+
+/// A reusable plan remembered with a run (`ExecutionPlan`).
+struct MemoryPlan: Decodable, Hashable {
+    let id: String
+    let workspaceId: String?
+    let goal: String
+    let tasks: [MemoryPlanTask]
+    let estimatedDurationMinutes: Int
+    let requiredFiles: [String]
+    let checkpoints: [String]
+    let confidence: Double
+    let reasoning: String
     let status: String
-    let uptimeSeconds: Double?
-    let startedAt: String?
-    let workerStates: [String: String]?
-    let lastTickAt: String?
-    let tickIntervalMs: Int64?
-    let health: String?
-    let payload: [String: String]?
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, goal, tasks, confidence, reasoning, status, checkpoints
+        case workspaceId = "workspace_id"
+        case estimatedDurationMinutes = "estimated_duration_minutes"
+        case requiredFiles = "required_files"
+        case createdAt = "created_at"
+    }
+}
+
+/// One durable memory row (`ExecutionMemoryRecord`). IDs are backend
+/// UUIDs and are never shown to the user.
+struct ExecutionMemoryRecord: Decodable, Hashable {
+    let id: String
+    let kind: MemoryKind
+    let sourceId: String
+    let workspaceId: String?
+    let goal: String
+    let status: MemoryStatus
+    let plan: MemoryPlan?
+    let steps: [String]
+    let reasoning: [String]
+    let toolsUsed: [String]
+    let failedSteps: [String]
+    let error: String?
+    let outcome: MemoryOutcome
+    let replayCount: Int
+    let createdAt: String
+    let updatedAt: String
+    let retention: RetentionPolicy
+    let retentionUntil: String?
+    let archivedAt: String?
+    let expiredAt: String?
+    let summary: String?
+    let compressedAt: String?
+    let version: Int
+    let parentId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, goal, status, plan, steps, reasoning, error, outcome
+        case sourceId = "source_id"
+        case workspaceId = "workspace_id"
+        case toolsUsed = "tools_used"
+        case failedSteps = "failed_steps"
+        case replayCount = "replay_count"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case retention
+        case retentionUntil = "retention_until"
+        case archivedAt = "archived_at"
+        case expiredAt = "expired_at"
+        case summary
+        case compressedAt = "compressed_at"
+        case version
+        case parentId = "parent_id"
+    }
+}
+
+/// A ranked memory hit: the record plus its goal similarity (0..1).
+struct MemoryHit: Decodable, Hashable {
+    let record: ExecutionMemoryRecord
+    let similarity: Double
+}
+
+/// One reason a confidence score is what it is (`ExplanationReason`).
+struct ExplanationReason: Decodable, Hashable {
+    let factor: String
+    let impact: Double
+    let description: String
+}
+
+/// Aggregate statistics about the memory store (`MemoryStats`).
+struct MemoryStats: Decodable, Hashable {
+    let totalRecords: Int
+    let successful: Int
+    let failed: Int
+    let cancelled: Int
+    let executions: Int
+    let plannerReports: Int
+    let autonomousSessions: Int
+    let totalReplays: Int
+    let learnedWorkflows: Int
+
+    enum CodingKeys: String, CodingKey {
+        case successful, failed, cancelled, executions
+        case totalRecords = "total_records"
+        case plannerReports = "planner_reports"
+        case autonomousSessions = "autonomous_sessions"
+        case totalReplays = "total_replays"
+        case learnedWorkflows = "learned_workflows"
+    }
+}
+
+// MARK: - Memory learning (RC-6 M3/M4)
+
+/// One day of success history (`SuccessTrend`).
+struct SuccessTrend: Decodable, Hashable {
+    let date: String
+    let successes: Int
+    let failures: Int
+    let successRate: Double
+
+    enum CodingKeys: String, CodingKey {
+        case date, successes, failures
+        case successRate = "success_rate"
+    }
+}
+
+/// Aggregate workflow quality metrics (`WorkflowQuality`).
+struct WorkflowQuality: Decodable, Hashable {
+    let workflowCount: Int
+    let avgSuccessRate: Double
+    let avgPlanConfidence: Double
+    let avgDurationSeconds: Int
+    let replayAdoptionRate: Double
+    let replayPerRun: Double
+
+    enum CodingKeys: String, CodingKey {
+        case workflowCount = "workflow_count"
+        case avgSuccessRate = "avg_success_rate"
+        case avgPlanConfidence = "avg_plan_confidence"
+        case avgDurationSeconds = "avg_duration_seconds"
+        case replayAdoptionRate = "replay_adoption_rate"
+        case replayPerRun = "replay_per_run"
+    }
+}
+
+/// How well the memory store is being used (`MemoryUtilization`).
+struct MemoryUtilization: Decodable, Hashable {
+    let totalRecords: Int
+    let activeRecords: Int
+    let agingRecords: Int
+    let archivedRecords: Int
+    let avgFreshness: Double
+    let utilizationRatio: Double
+    let workflowsPerRecord: Double
+
+    enum CodingKeys: String, CodingKey {
+        case totalRecords = "total_records"
+        case activeRecords = "active_records"
+        case agingRecords = "aging_records"
+        case archivedRecords = "archived_records"
+        case avgFreshness = "avg_freshness"
+        case utilizationRatio = "utilization_ratio"
+        case workflowsPerRecord = "workflows_per_record"
+    }
+}
+
+/// Learning health payload (`LearningHealth`) — how confident the system
+/// is in its memories and how good its workflows are.
+struct LearningHealth: Decodable, Hashable {
+    let confidenceAverage: Double
+    let confidenceSuccessful: Double
+    let acceptanceRate: Double
+    let workflowQuality: WorkflowQuality
+    let successTrends: [SuccessTrend]
+    let memoryUtilization: MemoryUtilization
+    let scoreAverage: Double
+
+    enum CodingKeys: String, CodingKey {
+        case successTrends = "success_trends"
+        case confidenceAverage = "confidence_average"
+        case confidenceSuccessful = "confidence_successful"
+        case acceptanceRate = "acceptance_rate"
+        case workflowQuality = "workflow_quality"
+        case memoryUtilization = "memory_utilization"
+        case scoreAverage = "score_average"
+    }
+}
+
+/// Fresh / aging / archived buckets (`MemoryAgingSummary`).
+struct MemoryAgingSummary: Decodable, Hashable {
+    let totalRecords: Int
+    let freshRecords: Int
+    let agingRecords: Int
+    let archivedRecords: Int
+    let avgFreshness: Double
+    let oldestDays: Int
+    let newestDays: Int
+
+    enum CodingKeys: String, CodingKey {
+        case totalRecords = "total_records"
+        case freshRecords = "fresh_records"
+        case agingRecords = "aging_records"
+        case archivedRecords = "archived_records"
+        case avgFreshness = "avg_freshness"
+        case oldestDays = "oldest_days"
+        case newestDays = "newest_days"
+    }
+}
+
+/// A workflow learned from repeated executions (`LearnedWorkflow`).
+struct LearnedWorkflow: Decodable, Hashable {
+    let goalFingerprint: String
+    let goal: String
+    let successCount: Int
+    let failureCount: Int
+    let bestPlan: MemoryPlan?
+    let lastSuccessAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case goal
+        case goalFingerprint = "goal_fingerprint"
+        case successCount = "success_count"
+        case failureCount = "failure_count"
+        case bestPlan = "best_plan"
+        case lastSuccessAt = "last_success_at"
+    }
+}
+
+/// A family of related workflows learned by clustering (`WorkflowFamily`).
+struct WorkflowFamily: Decodable, Hashable {
+    let familyId: Int
+    let name: String
+    let memberCount: Int
+    let goals: [String]
+    let sharedTools: [String]
+    let totalSuccesses: Int
+    let totalFailures: Int
+    let avgDurationSeconds: Int
+    let avgConfidence: Double
+
+    enum CodingKeys: String, CodingKey {
+        case name, goals
+        case familyId = "family_id"
+        case memberCount = "member_count"
+        case sharedTools = "shared_tools"
+        case totalSuccesses = "total_successes"
+        case totalFailures = "total_failures"
+        case avgDurationSeconds = "avg_duration_seconds"
+        case avgConfidence = "avg_confidence"
+    }
+}
+
+/// A detected failure pattern over remembered runs (`FailurePattern`).
+struct FailurePattern: Decodable, Hashable {
+    let patternType: FailurePatternType
+    let goal: String
+    let goalFingerprint: String
+    let description: String
+    let severity: Double
+    let occurrences: Int
+    let lastSeen: String
+    let avgPlanConfidence: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case goal, description, severity, occurrences
+        case patternType = "pattern_type"
+        case goalFingerprint = "goal_fingerprint"
+        case lastSeen = "last_seen"
+        case avgPlanConfidence = "avg_plan_confidence"
+    }
+}
+
+/// Kinds of failure patterns (`FailurePatternType`, snake_case).
+enum FailurePatternType: String, Decodable, Hashable {
+    case repeatedFailure = "repeated_failure"
+    case unstableWorkflow = "unstable_workflow"
+    case lowConfidencePlan = "low_confidence_plan"
+
+    var title: String {
+        switch self {
+        case .repeatedFailure: "Repeated failure"
+        case .unstableWorkflow: "Unstable workflow"
+        case .lowConfidencePlan: "Low-confidence plan"
+        }
+    }
+}
+
+/// Status of the vector index and embedding cache (`VectorIndexStatus`).
+struct VectorIndexStatus: Decodable, Hashable {
+    let totalRecords: Int
+    let indexed: Int
+    let pending: Int
+    let provider: String
+    let dimensions: Int
+    let lastIndexedAt: String?
+    let cacheSize: Int
+    let cacheCapacity: Int
+    let cacheHits: Int
+    let cacheMisses: Int
+    let cacheHitRate: Double
+
+    enum CodingKeys: String, CodingKey {
+        case provider, dimensions, pending, indexed
+        case totalRecords = "total_records"
+        case lastIndexedAt = "last_indexed_at"
+        case cacheSize = "cache_size"
+        case cacheCapacity = "cache_capacity"
+        case cacheHits = "cache_hits"
+        case cacheMisses = "cache_misses"
+        case cacheHitRate = "cache_hit_rate"
+    }
+}
+
+/// Outcome of an index pass (`IndexResult`).
+struct IndexResult: Decodable, Hashable {
+    let requested: Int
+    let indexed: Int
+    let failed: Int
+    let skipped: Int
+}
+
+/// Outcome of one cleanup pass (`CleanupReport`).
+struct CleanupReport: Decodable, Hashable {
+    let expiredMarked: Int
+    let removedExpired: Int
+    let removedDuplicateArchives: Int
+    let removedOrphanedVectors: Int
+    let compressed: Int
+    let ranAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case compressed
+        case expiredMarked = "expired_marked"
+        case removedExpired = "removed_expired"
+        case removedDuplicateArchives = "removed_duplicate_archives"
+        case removedOrphanedVectors = "removed_orphaned_vectors"
+        case ranAt = "ran_at"
+    }
+}
+
+/// Storage statistics (`MemoryStorageStats`).
+struct MemoryStorageStats: Decodable, Hashable {
+    let databaseSizeBytes: Int
+    let vectorIndexSizeBytes: Int
+    let cacheEntries: Int
+    let cacheSizeBytes: Int
+    let cacheCapacity: Int
+    let cacheOccupancy: Int
+    let archivedMemories: Int
+    let expiredMemories: Int
+    let temporaryMemories: Int
+    let permanentMemories: Int
+    let snapshots: Int
+    let snapshotSizeBytes: Int
+    let compressedRecords: Int
+    let compressionArchiveCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case snapshots
+        case databaseSizeBytes = "database_size_bytes"
+        case vectorIndexSizeBytes = "vector_index_size_bytes"
+        case cacheEntries = "cache_entries"
+        case cacheSizeBytes = "cache_size_bytes"
+        case cacheCapacity = "cache_capacity"
+        case cacheOccupancy = "cache_occupancy"
+        case archivedMemories = "archived_memories"
+        case expiredMemories = "expired_memories"
+        case temporaryMemories = "temporary_memories"
+        case permanentMemories = "permanent_memories"
+        case snapshotSizeBytes = "snapshot_size_bytes"
+        case compressedRecords = "compressed_records"
+        case compressionArchiveCount = "compression_archive_count"
+    }
+}
+
+/// One node in a memory lineage (`LineageNode`).
+struct LineageNode: Decodable, Hashable {
+    let id: String
+    let goal: String
+    let status: MemoryStatus
+    let retention: RetentionPolicy
+    let version: Int
+    let createdAt: String
+    let relation: LineageRelation?
+
+    enum CodingKeys: String, CodingKey {
+        case id, goal, status, retention, version
+        case createdAt = "created_at"
+        case relation
+    }
+}
+
+/// How one lineage edge relates its two memories (`LineageRelation`).
+enum LineageRelation: String, Decodable, Hashable {
+    case parent
+    case merged
+}
+
+/// The full lineage of one memory (`MemoryLineage`).
+struct MemoryLineage: Decodable, Hashable {
+    let memoryId: String
+    let rootId: String?
+    let version: Int
+    let ancestors: [LineageNode]
+    let children: [LineageNode]
+    let mergedInto: [LineageNode]
+    let mergedIntoId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case version, ancestors, children
+        case memoryId = "memory_id"
+        case rootId = "root_id"
+        case mergedInto = "merged_into"
+        case mergedIntoId = "merged_into_id"
+    }
+}
+
+// MARK: - Adaptive learning
+
+/// A personal preference learned from user behavior (`UserPreference`).
+struct UserPreference: Decodable, Hashable {
+    let id: String
+    let preferenceType: PreferenceType
+    let key: String
+    let value: JSONValue
+    let confidence: Double
+    let evidenceCount: Int
+    let lastUpdated: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, key, value, confidence
+        case preferenceType = "preference_type"
+        case evidenceCount = "evidence_count"
+        case lastUpdated = "last_updated"
+    }
+}
+
+/// Type of preference (`PreferenceType`, snake_case).
+enum PreferenceType: String, Decodable, Hashable {
+    case workspaceSwitching = "workspace_switching"
+    case fileAccess = "file_access"
+    case timeOfDay = "time_of_day"
+    case technology
+    case recommendationCategory = "recommendation_category"
+    case workflow
+
+    var title: String {
+        switch self {
+        case .workspaceSwitching: "Workspace switching"
+        case .fileAccess: "File access"
+        case .timeOfDay: "Time of day"
+        case .technology: "Technology"
+        case .recommendationCategory: "Recommendation category"
+        case .workflow: "Workflow"
+        }
+    }
+}
+
+/// A behavioral pattern learned from history (`BehavioralPattern`).
+struct BehavioralPattern: Decodable, Hashable {
+    let id: String
+    let patternType: PatternType
+    let description: String
+    let conditions: JSONValue
+    let frequency: Double
+    let confidence: Double
+    let occurrences: Int
+    let firstSeen: String
+    let lastSeen: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, description, conditions, frequency, confidence, occurrences
+        case patternType = "pattern_type"
+        case firstSeen = "first_seen"
+        case lastSeen = "last_seen"
+    }
+}
+
+/// Type of behavioral pattern (`PatternType`, snake_case).
+enum PatternType: String, Decodable, Hashable {
+    case sequentialFiles = "sequential_files"
+    case workspaceSwitching = "workspace_switching"
+    case timeBased = "time_based"
+    case workflowTransition = "workflow_transition"
+    case focusSession = "focus_session"
+
+    var title: String {
+        switch self {
+        case .sequentialFiles: "Sequential files"
+        case .workspaceSwitching: "Workspace switching"
+        case .timeBased: "Time based"
+        case .workflowTransition: "Workflow transition"
+        case .focusSession: "Focus session"
+        }
+    }
+}
+
+/// Confidence trend over time (`ConfidenceTrend`).
+struct ConfidenceTrend: Decodable, Hashable {
+    let date: String
+    let avgConfidence: Double
+    let adjustmentCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case date
+        case avgConfidence = "avg_confidence"
+        case adjustmentCount = "adjustment_count"
+    }
+}
+
+/// Accuracy per recommendation category (`CategoryAccuracy`).
+struct CategoryAccuracy: Decodable, Hashable {
+    let category: String
+    let accuracy: Double
+    let total: Int
+    let accepted: Int
+}
+
+/// Recommendation accuracy metrics (`RecommendationAccuracy`).
+struct RecommendationAccuracy: Decodable, Hashable {
+    let categoryAccuracy: [CategoryAccuracy]
+    let overallAccuracy: Double
+    let totalRecommendations: Int
+
+    enum CodingKeys: String, CodingKey {
+        case overallAccuracy = "overall_accuracy"
+        case categoryAccuracy = "category_accuracy"
+        case totalRecommendations = "total_recommendations"
+    }
+}
+
+/// Learning statistics and metrics (`LearningStats`).
+struct LearningStats: Decodable, Hashable {
+    let totalFeedbackCount: Int
+    let acceptedCount: Int
+    let rejectedCount: Int
+    let acceptanceRate: Double
+    let totalPreferences: Int
+    let totalPatterns: Int
+    let avgConfidenceAdjustment: Double
+    let lastLearningUpdate: String
+
+    enum CodingKeys: String, CodingKey {
+        case acceptanceRate = "acceptance_rate"
+        case totalFeedbackCount = "total_feedback_count"
+        case acceptedCount = "accepted_count"
+        case rejectedCount = "rejected_count"
+        case totalPreferences = "total_preferences"
+        case totalPatterns = "total_patterns"
+        case avgConfidenceAdjustment = "avg_confidence_adjustment"
+        case lastLearningUpdate = "last_learning_update"
+    }
+}
+
+/// Learning insights for the dashboard (`LearningInsights`).
+struct LearningInsights: Decodable, Hashable {
+    let stats: LearningStats
+    let topPreferences: [UserPreference]
+    let recentPatterns: [BehavioralPattern]
+    let confidenceTrends: [ConfidenceTrend]
+    let recommendationAccuracy: RecommendationAccuracy
+
+    enum CodingKeys: String, CodingKey {
+        case stats
+        case topPreferences = "top_preferences"
+        case recentPatterns = "recent_patterns"
+        case confidenceTrends = "confidence_trends"
+        case recommendationAccuracy = "recommendation_accuracy"
+    }
+}
+
+// MARK: - Dashboard intelligence
+
+/// What the predictive engine expects to happen next (`get_predictions_summary`).
+struct PredictionsSummary: Decodable, Hashable {
+    let nextWorkspace: WorkspacePrediction?
+    let nextFiles: [FilePrediction]
+    let nextActions: [ActionPrediction]
+    let sessionContinuation: SessionContinuationPrediction?
+
+    enum CodingKeys: String, CodingKey {
+        case nextWorkspace = "next_workspace"
+        case nextFiles = "next_files"
+        case nextActions = "next_actions"
+        case sessionContinuation = "session_continuation"
+    }
+}
+
+struct WorkspacePrediction: Decodable, Hashable {
+    let workspaceId: String
+    let workspaceName: String
+    let confidence: Double
+    let reason: String
+    let predictedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case workspaceId = "workspace_id"
+        case workspaceName = "workspace_name"
+        case confidence
+        case reason
+        case predictedAt = "predicted_at"
+    }
+}
+
+struct FilePrediction: Decodable, Hashable, Identifiable {
+    let filePath: String
+    let workspaceId: String
+    let confidence: Double
+    let reason: String
+
+    var id: String { filePath }
+
+    enum CodingKeys: String, CodingKey {
+        case filePath = "file_path"
+        case workspaceId = "workspace_id"
+        case confidence
+        case reason
+    }
+}
+
+struct ActionPrediction: Decodable, Hashable, Identifiable {
+    let actionType: String
+    let description: String
+    let confidence: Double
+    let reason: String
+
+    var id: String { "\(actionType):\(description)" }
+
+    enum CodingKeys: String, CodingKey {
+        case actionType = "action_type"
+        case description
+        case confidence
+        case reason
+    }
+}
+
+struct SessionContinuationPrediction: Decodable, Hashable {
+    let willContinue: Bool
+    let confidence: Double
+    let estimatedDurationSeconds: Int
+    let reason: String
+
+    enum CodingKeys: String, CodingKey {
+        case willContinue = "will_continue"
+        case confidence
+        case estimatedDurationSeconds = "estimated_duration_seconds"
+        case reason
+    }
+}
+
+/// One actionable recommendation (`get_workspace_recommendations`). The
+/// backend's `action` payload is an internally-tagged enum; the dashboard
+/// only needs the decision fields, so `action` is intentionally ignored.
+struct Recommendation: Decodable, Identifiable, Hashable {
+    let id: String
+    let workspaceId: String
+    let category: String
+    let priority: String
+    let title: String
+    let description: String
+    let confidence: Double
+    let impact: Double
+    let effort: Double
+    let generatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, category, priority, title, description, confidence, impact, effort
+        case workspaceId = "workspace_id"
+        case generatedAt = "generated_at"
+    }
+}
+
+/// What a workspace looked like when the user last left it
+/// (`copilot_get_resume_context`).
+struct ResumeContext: Decodable, Hashable {
+    let workspaceId: String
+    let lastActive: String
+    let unfinishedWork: [UnfinishedWork]
+    let openFiles: [String]
+    let activeBranch: String?
+    let previousConversationId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case workspaceId = "workspace_id"
+        case lastActive = "last_active"
+        case unfinishedWork = "unfinished_work"
+        case openFiles = "open_files"
+        case activeBranch = "active_branch"
+        case previousConversationId = "previous_conversation_id"
+    }
+}
+
+struct UnfinishedWork: Decodable, Hashable, Identifiable {
+    let description: String
+    let filePath: String?
+    let detectedAt: String
+    let confidence: Double
+
+    var id: String { "\(description):\(filePath ?? "")" }
+
+    enum CodingKeys: String, CodingKey {
+        case description
+        case filePath = "file_path"
+        case detectedAt = "detected_at"
+        case confidence
+    }
+}
+
+/// Corrected mirror of the backend `RuntimeHealth` (`get_runtime_health`).
+/// The Rust struct serializes camelCase, and `status` is the enum string
+/// `Healthy` / `Degraded` / `Unhealthy`.
+struct RuntimeHealth: Decodable, Hashable {
+    let status: String
+    let workersActive: Int
+    let cacheHitRate: Double
+    let eventThroughput: Int
+    let uptimeSeconds: Int
+    let components: [RuntimeComponentMetrics]
+    let checkedAt: String
+
+    var isHealthy: Bool { status.lowercased() == "healthy" }
+}
+
+struct RuntimeComponentMetrics: Decodable, Hashable, Identifiable {
+    let name: String
+    let status: String
+    let lastExecution: String?
+    let executionCount: Int
+    let errorCount: Int
+    let avgExecutionTimeMs: Double
+
+    var id: String { name }
+
+    var isHealthy: Bool { status.lowercased() == "healthy" }
 }
 
 // MARK: - Utility

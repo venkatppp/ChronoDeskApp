@@ -62,16 +62,9 @@ struct SearchView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Search")
-                    .font(.largeTitle.weight(.semibold))
-                    .accessibilityLabel("Search")
-                Text("Find anything across your workspaces and files.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
+        ScreenHeader("Search",
+                     subtitle: "Find anything across your workspaces and files.",
+                     symbol: "magnifyingglass") {
             if !viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Button {
                     Task { await viewModel.saveCurrentQuery() }

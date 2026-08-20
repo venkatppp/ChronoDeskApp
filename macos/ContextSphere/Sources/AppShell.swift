@@ -1,10 +1,21 @@
 import SwiftUI
 
+// MARK: - Navigation model
+
 enum AppSection: String, CaseIterable, Identifiable, Hashable {
-    case dashboard, workspaces, timeline, graph, search
-    case memory, learning, performance, maintenance, recovery, settings, showcase
+    case dashboard, workspaces, timeline
+    case graph, search, memory, learning
+    case performance, recovery, maintenance, settings
 
     var id: String { rawValue }
+
+    var group: NavGroup {
+        switch self {
+        case .dashboard, .workspaces, .timeline: .workspace
+        case .graph, .search, .memory, .learning: .intelligence
+        case .performance, .recovery, .maintenance, .settings: .system
+        }
+    }
 
     var title: String {
         switch self {
@@ -16,10 +27,9 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
         case .memory: "Memory"
         case .learning: "Learning"
         case .performance: "Performance"
-        case .maintenance: "Maintenance"
         case .recovery: "Recovery"
+        case .maintenance: "Maintenance"
         case .settings: "Settings"
-        case .showcase: "Showcase"
         }
     }
 
@@ -33,66 +43,112 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
         case .memory: "brain.head.profile"
         case .learning: "graduationcap"
         case .performance: "gauge.with.dots.needle.67percent"
-        case .maintenance: "wrench.and.screwdriver"
         case .recovery: "arrow.clockwise.icloud"
+        case .maintenance: "wrench.and.screwdriver"
         case .settings: "gearshape"
-        case .showcase: "sparkles"
+        }
+    }
+
+    var shortcutKey: KeyEquivalent? {
+        switch self {
+        case .dashboard: "1"
+        case .workspaces: "2"
+        case .timeline: "3"
+        case .graph: "4"
+        case .search: "5"
+        case .memory: "6"
+        case .learning: "7"
+        default: nil
         }
     }
 }
 
+enum NavGroup: String, CaseIterable, Identifiable, Hashable {
+    case workspace, intelligence, system
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .workspace: "Workspace"
+        case .intelligence: "Intelligence"
+        case .system: "System"
+        }
+    }
+
+    var sections: [AppSection] {
+        switch self {
+        case .workspace: [.dashboard, .workspaces, .timeline]
+        case .intelligence: [.graph, .search, .memory, .learning]
+        case .system: [.performance, .recovery, .maintenance, .settings]
+        }
+    }
+}
+
+// MARK: - App router
+
+/// Shared navigation and command state. The app menu, the command palette
+/// and the sidebar all drive the same selection so keyboard commands and
+/// mouse clicks stay in sync.
+@MainActor
+final class AppRouter: ObservableObject {
+    static let shared = AppRouter()
+
+    @Published var selection: AppSection? = .dashboard
+    @Published var showCommandPalette = false
+    @Published var newWorkspaceRequest = false
+    @Published var revealWorkspaceRequest: String?
+
+    private init() {}
+}
+
+// MARK: - App shell
+
 struct AppShell: View {
-    @State private var selection: AppSection? = .dashboard
+    @StateObject private var router = AppRouter.shared
     @State private var workspaces: [Workspace] = []
     @State private var loaded = false
     @State private var loadFailed: String?
     @StateObject private var timeline = TimelineViewModel()
     @StateObject private var search = SearchViewModel()
     @StateObject private var graph = GraphViewModel()
+    @StateObject private var memory = MemoryViewModel()
+    @StateObject private var learning = LearningViewModel()
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selection) {
-                Section("Workspace") {
-                    ForEach(primarySections) { section in
-                        Label(section.title, systemImage: section.symbol).tag(section)
-                    }
-                }
-                Section("Intelligence") {
-                    ForEach(intelligenceSections) { section in
-                        Label(section.title, systemImage: section.symbol).tag(section)
-                    }
-                }
-                Section("System") {
-                    ForEach(systemSections) { section in
-                        Label(section.title, systemImage: section.symbol).tag(section)
-                    }
-                }
-            }
-            .navigationSplitViewColumnWidth(min: 190, ideal: 220)
-            .safeAreaInset(edge: .bottom) {
-                CoreStatusFooter(isRunning: CoreBridge.shared.isRunning,
-                                 version: CoreBridge.shared.backendVersion)
-            }
+            sidebar
+                .navigationSplitViewColumnWidth(min: 200, ideal: 224)
         } detail: {
-            DetailHost(section: selection ?? .dashboard,
+            DetailHost(section: router.selection ?? .dashboard,
                        workspaces: workspaces,
                        loaded: loaded,
                        loadFailed: loadFailed,
                        timeline: timeline,
                        search: search,
                        graph: graph,
-                       onRevealWorkspace: { _ in selection = .workspaces })
+                       memory: memory,
+                       learning: learning,
+                       onRevealWorkspace: { _ in router.selection = .workspaces })
+                .background(ContentBackdrop())
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                if let workspace = selectedWorkspace {
-                    Text(workspace.name)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
+            ToolbarItemGroup(placement: .principal) {
+                workspaceContextMenu
             }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    router.showCommandPalette = true
+                } label: {
+                    Label("Command Palette", systemImage: "command")
+                }
+                .help("Open the command palette (⌘K)")
+                .accessibilityLabel("Open command palette")
+            }
+        }
+        .sheet(isPresented: $router.showCommandPalette) {
+            CommandPaletteView()
         }
         .task {
             CoreBridge.shared.onEvent = { event, payload in
@@ -104,23 +160,65 @@ struct AppShell: View {
             timeline.setWorkspaces(workspaces)
             search.setWorkspaces(workspaces)
             graph.setWorkspaces(workspaces)
+            memory.setWorkspaces(workspaces)
         }
     }
 
-    private var primarySections: [AppSection] {
-        [.dashboard, .workspaces, .timeline, .graph, .search]
+    // MARK: Sidebar
+
+    private var sidebar: some View {
+        List(selection: $router.selection) {
+            ForEach(NavGroup.allCases) { group in
+                Section(group.title) {
+                    ForEach(group.sections) { section in
+                        Label(section.title, systemImage: section.symbol)
+                            .tag(section)
+                            .accessibilityLabel(section.title)
+                    }
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            CoreStatusFooter(isRunning: CoreBridge.shared.isRunning,
+                             version: CoreBridge.shared.backendVersion)
+        }
     }
 
-    private var intelligenceSections: [AppSection] {
-        [.memory, .learning, .performance, .maintenance, .recovery]
+    // MARK: Toolbar
+
+    @ViewBuilder
+    private var workspaceContextMenu: some View {
+        if let workspace = activeWorkspace {
+            Menu {
+                ForEach(workspaces) { workspace in
+                    Button(workspace.name) {
+                        router.selection = .workspaces
+                        router.revealWorkspaceRequest = workspace.id
+                    }
+                }
+                Divider()
+                Button("All Workspaces…") {
+                    router.selection = .workspaces
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder.fill")
+                        .foregroundStyle(.tint)
+                    Text(workspace.name)
+                        .font(.callout.weight(.medium))
+                    Image(systemName: "chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .accessibilityLabel("Workspace: \(workspace.name). Choose another workspace")
+        }
     }
 
-    private var systemSections: [AppSection] {
-        [.settings, .showcase]
-    }
-
-    private var selectedWorkspace: Workspace? {
-        workspaces.first(where: { $0.status == .active })
+    private var activeWorkspace: Workspace? {
+        workspaces.first { $0.status == .active } ?? workspaces.first
     }
 
     private func loadWorkspaces() async {
@@ -143,15 +241,22 @@ struct CoreStatusFooter: View {
             Circle()
                 .fill(isRunning ? Color.green : Color.red)
                 .frame(width: 7, height: 7)
+                .accessibilityHidden(true)
             Text(isRunning ? "Core online" : "Core offline")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if let version {
-                Text("· \(version)").font(.caption).foregroundStyle(.tertiary)
+                Text("· \(version)")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
         }
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(isRunning
+                            ? "ContextSphere core online\(version.map { ", version \($0)" } ?? "")"
+                            : "ContextSphere core offline")
     }
 }
 
@@ -163,6 +268,8 @@ struct DetailHost: View {
     let timeline: TimelineViewModel
     let search: SearchViewModel
     let graph: GraphViewModel
+    let memory: MemoryViewModel
+    let learning: LearningViewModel
     let onRevealWorkspace: (String) -> Void
 
     var body: some View {
@@ -179,24 +286,229 @@ struct DetailHost: View {
                 content
             }
         }
-        .frame(minWidth: 640, minHeight: 480)
+        .frame(minWidth: 680, minHeight: 520)
     }
 
     @ViewBuilder
     private var content: some View {
         switch section {
-        case .dashboard: DashboardView(workspaces: workspaces)
+        case .dashboard: DashboardView(workspaces: workspaces, onRevealWorkspace: onRevealWorkspace)
         case .workspaces: WorkspacesView(workspaces: workspaces)
         case .timeline: TimelineView(viewModel: timeline)
         case .graph: GraphScreen(viewModel: graph)
         case .search: SearchView(viewModel: search, onRevealWorkspace: onRevealWorkspace)
-        case .memory: EmptyStateView(title: "Memory", message: "Coming in a later build.", symbol: "brain.head.profile")
-        case .learning: EmptyStateView(title: "Learning", message: "Coming in a later build.", symbol: "graduationcap")
+        case .memory: MemoryView(viewModel: memory)
+        case .learning: LearningView(viewModel: learning)
         case .performance: EmptyStateView(title: "Performance", message: "Coming in a later build.", symbol: "gauge.with.dots.needle.67percent")
         case .maintenance: EmptyStateView(title: "Maintenance", message: "Coming in a later build.", symbol: "wrench.and.screwdriver")
         case .recovery: EmptyStateView(title: "Recovery", message: "Coming in a later build.", symbol: "arrow.clockwise.icloud")
-        case .settings: EmptyStateView(title: "Settings", message: "Coming in a later build.", symbol: "gearshape")
-        case .showcase: EmptyStateView(title: "Showcase", message: "Coming in a later build.", symbol: "sparkles")
+        case .settings: SettingsView()
+        }
+    }
+}
+
+// MARK: - Command palette
+
+/// Spotlight-style command palette (⌘K). Lists every navigation section
+/// plus quick actions. Presents as a native sheet, keyboard-first.
+struct CommandPaletteView: View {
+    @EnvironmentObject private var router: AppRouter
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var fieldFocused: Bool
+    @State private var query = ""
+    @State private var selection: Selection?
+
+    private enum Selection: Identifiable, Hashable {
+        case section(AppSection)
+        case action(Action)
+
+        var id: String {
+            switch self {
+            case .section(let section): "section:\(section.rawValue)"
+            case .action(let action): "action:\(action.id)"
+            }
+        }
+    }
+
+    private enum Action: String, CaseIterable, Identifiable {
+        case newWorkspace, refresh
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .newWorkspace: "New Workspace…"
+            case .refresh: "Refresh Core"
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .newWorkspace: "folder.badge.plus"
+            case .refresh: "arrow.clockwise"
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            searchField
+            results
+        }
+        .padding(16)
+        .frame(width: 480, height: 420)
+        .onAppear { fieldFocused = true }
+        .onChange(of: query) { _, _ in
+            if !filtered.contains(where: { $0.id == selection?.id }) {
+                selection = filtered.first
+            }
+        }
+        .background {
+            Button("") { handleEscape() }
+                .keyboardShortcut(.escape)
+                .hidden()
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            TextField("Commands, sections, actions…", text: $query)
+                .textFieldStyle(.plain)
+                .focused($fieldFocused)
+                .accessibilityLabel("Command palette")
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                    fieldFocused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear command palette")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private var filtered: [Selection] {
+        let sections: [Selection] = AppSection.allCases.map(Selection.section)
+        let actions: [Selection] = Action.allCases.map(Selection.action)
+        let all = sections + actions
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return all }
+        return all.filter { item in
+            switch item {
+            case .section(let section):
+                return section.title.localizedCaseInsensitiveContains(trimmed)
+                    || section.group.title.localizedCaseInsensitiveContains(trimmed)
+            case .action(let action):
+                return action.title.localizedCaseInsensitiveContains(trimmed)
+            }
+        }
+    }
+
+    private var results: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 2) {
+                ForEach(filtered) { item in
+                    Button {
+                        activate(item)
+                    } label: {
+                        row(for: item)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(accessibilityText(for: item))
+                }
+            }
+            .padding(4)
+        }
+        .scrollEdgeEffectStyle(.soft, for: .vertical)
+    }
+
+    private func row(for item: Selection) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol(for: item))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(selected(item) ? Color.accentColor : .secondary)
+                .frame(width: 20)
+            Text(title(for: item))
+                .font(.callout)
+            Spacer()
+            if case .section(let section) = item, let shortcut = section.shortcutKey {
+                Text("⌘\(String(shortcut.character))")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(selected(item) ? Color.accentColor.opacity(0.14) : Color.clear)
+        )
+        .contentShape(Rectangle())
+    }
+
+    private func selected(_ item: Selection) -> Bool {
+        selection?.id == item.id
+    }
+
+    private func symbol(for item: Selection) -> String {
+        switch item {
+        case .section(let section): section.symbol
+        case .action(let action): action.symbol
+        }
+    }
+
+    private func title(for item: Selection) -> String {
+        switch item {
+        case .section(let section): section.title
+        case .action(let action): action.title
+        }
+    }
+
+    private func accessibilityText(for item: Selection) -> String {
+        switch item {
+        case .section(let section): "\(section.title), \(section.group.title) section"
+        case .action(let action): action.title
+        }
+    }
+
+    private func activate(_ item: Selection) {
+        switch item {
+        case .section(let section):
+            router.selection = section
+            dismiss()
+        case .action(let action):
+            switch action {
+            case .newWorkspace:
+                router.selection = .workspaces
+                router.newWorkspaceRequest = true
+                dismiss()
+            case .refresh:
+                Task {
+                    try? await CoreBridge.shared.call("health_check")
+                }
+                dismiss()
+            }
+        }
+    }
+
+    private func handleEscape() {
+        if !query.isEmpty {
+            query = ""
+            fieldFocused = true
+        } else {
+            dismiss()
         }
     }
 }

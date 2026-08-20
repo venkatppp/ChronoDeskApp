@@ -29,29 +29,23 @@ struct TimelineView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text("Timeline")
-                    .font(.largeTitle.weight(.semibold))
-                    .accessibilityLabel("Timeline")
-                Spacer()
+        ScreenHeader("Timeline",
+                     subtitle: subtitle,
+                     symbol: "clock") {
+            HStack(spacing: 10) {
                 workspacePicker
                 typePicker
                 refreshButton
             }
-            HStack(spacing: 6) {
-                Text("Context: \(viewModel.selectedWorkspace?.name ?? "No workspace")")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("Timeline context: \(viewModel.selectedWorkspace?.name ?? "none")")
-                Spacer()
-                if !viewModel.events.isEmpty {
-                    Text("\(viewModel.displayedEventCount) events")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
         }
+    }
+
+    private var subtitle: String {
+        var parts = ["Context: \(viewModel.selectedWorkspace?.name ?? "No workspace")"]
+        if !viewModel.events.isEmpty {
+            parts.append("\(viewModel.displayedEventCount) events")
+        }
+        return parts.joined(separator: " · ")
     }
 
     private var workspacePicker: some View {

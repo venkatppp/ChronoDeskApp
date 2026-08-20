@@ -41,6 +41,9 @@ swiftc \
   Sources/AppShell.swift \
   Sources/TimelineViewModel.swift \
   Sources/SearchViewModel.swift \
+  Sources/SettingsViewModel.swift \
+  Sources/MemoryViewModel.swift \
+  Sources/LearningViewModel.swift \
   Sources/GraphLayout.swift \
   Sources/GraphViewModel.swift \
   Sources/Views/DashboardView.swift \
@@ -49,6 +52,10 @@ swiftc \
   Sources/Views/SearchView.swift \
   Sources/Views/GraphView.swift \
   Sources/Views/GraphInspectorView.swift \
+  Sources/Views/SettingsView.swift \
+  Sources/Views/MemoryView.swift \
+  Sources/Views/MemoryDetailView.swift \
+  Sources/Views/LearningView.swift \
   -o "$APP_DIR/Contents/MacOS/$APP_NAME"
 
 echo "==> Assembling bundle"

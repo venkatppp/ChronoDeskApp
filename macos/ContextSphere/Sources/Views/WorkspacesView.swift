@@ -3,6 +3,7 @@ import SwiftUI
 struct WorkspacesView: View {
     let workspaces: [Workspace]
 
+    @EnvironmentObject private var router: AppRouter
     @State private var showCreate = false
     @State private var selected: Workspace?
     @State private var detail: Workspace?
@@ -38,11 +39,26 @@ struct WorkspacesView: View {
                 } label: {
                     Label("New Workspace", systemImage: "plus")
                 }
+                .keyboardShortcut("n", modifiers: .command)
             }
         }
         .onChange(of: selected) { _, newValue in
             guard let newValue else { detail = nil; return }
             Task { await loadDetail(newValue) }
+        }
+        .onChange(of: router.newWorkspaceRequest) { _, requested in
+            guard requested else { return }
+            router.newWorkspaceRequest = false
+            showCreate = true
+        }
+        .onChange(of: router.revealWorkspaceRequest) { _, requestedID in
+            guard let requestedID,
+                  let workspace = workspaces.first(where: { $0.id == requestedID }) else {
+                router.revealWorkspaceRequest = nil
+                return
+            }
+            router.revealWorkspaceRequest = nil
+            selected = workspace
         }
         .sheet(isPresented: $showCreate) {
             CreateWorkspaceSheet()
