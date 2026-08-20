@@ -933,10 +933,10 @@ struct PredictionsSummary: Decodable, Hashable {
     let sessionContinuation: SessionContinuationPrediction?
 
     enum CodingKeys: String, CodingKey {
-        case nextWorkspace = "next_workspace"
-        case nextFiles = "next_files"
-        case nextActions = "next_actions"
-        case sessionContinuation = "session_continuation"
+        case nextWorkspace
+        case nextFiles
+        case nextActions
+        case sessionContinuation
     }
 }
 
@@ -948,11 +948,11 @@ struct WorkspacePrediction: Decodable, Hashable {
     let predictedAt: String
 
     enum CodingKeys: String, CodingKey {
-        case workspaceId = "workspace_id"
-        case workspaceName = "workspace_name"
+        case workspaceId
+        case workspaceName
         case confidence
         case reason
-        case predictedAt = "predicted_at"
+        case predictedAt
     }
 }
 
@@ -965,8 +965,8 @@ struct FilePrediction: Decodable, Hashable, Identifiable {
     var id: String { filePath }
 
     enum CodingKeys: String, CodingKey {
-        case filePath = "file_path"
-        case workspaceId = "workspace_id"
+        case filePath
+        case workspaceId
         case confidence
         case reason
     }
@@ -981,7 +981,7 @@ struct ActionPrediction: Decodable, Hashable, Identifiable {
     var id: String { "\(actionType):\(description)" }
 
     enum CodingKeys: String, CodingKey {
-        case actionType = "action_type"
+        case actionType
         case description
         case confidence
         case reason
@@ -995,9 +995,9 @@ struct SessionContinuationPrediction: Decodable, Hashable {
     let reason: String
 
     enum CodingKeys: String, CodingKey {
-        case willContinue = "will_continue"
+        case willContinue
         case confidence
-        case estimatedDurationSeconds = "estimated_duration_seconds"
+        case estimatedDurationSeconds
         case reason
     }
 }
